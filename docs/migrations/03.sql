@@ -1,0 +1,1 @@
+ALTER TABLE Casa ALTER COLUMN telefone TYPE varchar;

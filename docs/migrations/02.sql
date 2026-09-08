@@ -1,7 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- 1. Remove as FKs (Postgres não deixa mudar o tipo de uma coluna
---    referenciada/referenciando por FK com a constraint ativa)
+-- 1. Remove as FKs para muda-las também
 ALTER TABLE Casa DROP CONSTRAINT FK_Casa_2;
 ALTER TABLE Tarefa DROP CONSTRAINT FK_Tarefa_2;
 ALTER TABLE Tarefa DROP CONSTRAINT FK_Tarefa_3;
@@ -34,7 +33,7 @@ ALTER TABLE Pertencer ALTER COLUMN fk_Casa_id TYPE UUID USING NULL;
 ALTER TABLE Atribuida ALTER COLUMN fk_Usuario_id TYPE UUID USING NULL;
 ALTER TABLE Atribuida ALTER COLUMN fk_Tarefa_id TYPE UUID USING NULL;
 
--- 4. Recria as FKs
+-- 4. Recria as FKs após ter mudado o tipo da váriavel delas
 ALTER TABLE Casa ADD CONSTRAINT FK_Casa_2
     FOREIGN KEY (fk_Usuario_id)
     REFERENCES Usuario (id)
