@@ -1,9 +1,10 @@
 from fastapi import FastAPI
-from routers import usuario
+from routers import tasks, usuario
 
 app = FastAPI(title="Teto Justo API")
 
 app.include_router(usuario.router)
+app.include_router(tasks.router)
 
 
 @app.get("/health")
