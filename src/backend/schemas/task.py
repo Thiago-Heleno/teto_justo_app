@@ -1,16 +1,16 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TaskCreate(BaseModel):
     title: str
-    description: str
+    description: Optional[str] = None
     status: int
     due_date: datetime
     house_id: UUID
-    assigned_to: UUID
+    assigned_to: Optional[list[UUID]] = None
     created_by: UUID
 
 
@@ -20,15 +20,15 @@ class TaskUpdate(BaseModel):
     status: Optional[int] = None
     due_date: Optional[datetime] = None
     house_id: Optional[UUID] = None
-    assigned_to: Optional[UUID] = None
+    assigned_to: Optional[list[UUID]] = None
 
 
 class TaskResponse(BaseModel):
     id: UUID
     title: str
-    description: str
+    description: Optional[str] = None
     status: int
     due_date: datetime
     house_id: UUID
-    assigned_to: Optional[UUID] = None
+    assigned_to: list[UUID] = Field(default_factory=list)
     created_by: UUID
