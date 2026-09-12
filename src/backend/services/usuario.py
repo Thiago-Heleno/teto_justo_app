@@ -1,8 +1,7 @@
-from passlib.context import CryptContext
+from uuid import UUID
+import bcrypt
 from fastapi import HTTPException
 from schemas.usuario import UsuarioCriar, UsuarioAtualizar
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class ServicoUsuario:
@@ -17,7 +16,10 @@ class ServicoUsuario:
             raise HTTPException(
                 status_code=400, detail="E-mail já cadastrado.")
 
-        senha_criptografada = pwd_context.hash(dados.senha)
+        senha_criptografada = bcrypt.hashpw(
+         dados.senha.encode("utf-8"),
+        bcrypt.gensalt(rounds=12),
+        ).decode("utf-8")
 
         novo_usuario = {
             "nome": dados.nome,
@@ -36,16 +38,16 @@ class ServicoUsuario:
 
         return resposta.data[0]
 
-    def buscar_usuario(self, id_usuario: int):
-        # Mudado de "Usuario" para "usuario"
+    def buscar_usuario(self, id_usuario: UUID):
+        # Mudado de "Usuario" para "usuario" e conversão do UUID para string
         busca = self.supabase.table("usuario").select(
-            "*").eq("id", id_usuario).execute()
+            "*").eq("id", str(id_usuario)).execute()
         if not busca.data:
             raise HTTPException(
                 status_code=404, detail="Usuário não encontrado.")
         return busca.data[0]
 
-    def atualizar_usuario(self, id_usuario: int, dados: UsuarioAtualizar):
+    def atualizar_usuario(self, id_usuario: UUID, dados: UsuarioAtualizar):
         dados_limpos = {k: v for k, v in dados.dict(
             exclude_unset=True).items() if v is not None}
 
@@ -53,9 +55,9 @@ class ServicoUsuario:
             raise HTTPException(
                 status_code=400, detail="Nenhum dado para atualização.")
 
-        # Mudado de "Usuario" para "usuario"
+        # Mudado de "Usuario" para "usuario" e conversão do UUID para string
         atualizacao = self.supabase.table("usuario").update(
-            dados_limpos).eq("id", id_usuario).execute()
+            dados_limpos).eq("id", str(id_usuario)).execute()
 
         if not atualizacao.data:
             raise HTTPException(
