@@ -1,1 +1,1 @@
-ALTER TABLE Casa ALTER COLUMN telefone TYPE varchar;
+ALTER TABLE usuario ALTER COLUMN telefone TYPE varchar;
