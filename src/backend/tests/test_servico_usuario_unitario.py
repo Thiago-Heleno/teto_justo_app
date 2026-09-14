@@ -4,6 +4,9 @@ from uuid import uuid4
 import bcrypt
 from fastapi import HTTPException
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
 from schemas.usuario import UsuarioAtualizar, UsuarioCriar
 from services.usuario import ServicoUsuario
 
@@ -94,18 +97,36 @@ class TesteHash(unittest.TestCase):
 # já existe um usuário cadastrado com o mesmo e-mail.
 class TesteCriarUsuarioUnitario(unittest.TestCase):
     def test_email_duplicado_gera_erro_400(self):
-        # Arrange: banco fake ja com um usuario cadastrado com esse email
-        banco = BancoMemoria()
-        banco.usuarios["id-qualquer"] = {"id": "id-qualquer", "email": "ana@example.com"}
-        # inseriu um teste fake no banco
-        servico = ServicoUsuario(banco)
-        dados = UsuarioCriar(
-            nome="Outra Ana", email="ana@example.com", telefone=None, senha="Teste-123!"
+        banco = MagicMock()
+        consulta = banco.table.return_value
+
+        consulta.select.return_value = consulta
+        consulta.eq.return_value = consulta
+        consulta.execute.return_value = SimpleNamespace(
+            data=[
+                {
+                    "id": "id-qualquer",
+                    "email": "ana@example.com",
+                }
+            ]
         )
 
-        # Act + Assert
-        with self.assertRaises(HTTPException):
+        servico = ServicoUsuario(banco)
+        dados = UsuarioCriar(
+            nome="Outra Ana",
+            email="ana@example.com",
+            telefone=None,
+            senha="Teste-123!",
+        )
+
+        with self.assertRaises(HTTPException) as erro:
             servico.criar_usuario(dados)
+
+        self.assertEqual(erro.exception.status_code, 400)
+        self.assertEqual(
+            erro.exception.detail,
+            "E-mail já cadastrado.",
+        )
 
 
 # Testes do método buscar_usuario: deve retornar o usuário quando ele existe
