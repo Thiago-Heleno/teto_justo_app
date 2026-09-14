@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from core.database import get_supabase
 from schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioAtualizar
@@ -13,12 +14,12 @@ def registrar_usuario(usuario: UsuarioCriar, supabase=Depends(get_supabase)):
 
 
 @router.get("/{id_usuario}", response_model=UsuarioResposta)
-def buscar_usuario(id_usuario: int, supabase=Depends(get_supabase)):
+def buscar_usuario(id_usuario: UUID, supabase=Depends(get_supabase)):
     servico = ServicoUsuario(supabase)
     return servico.buscar_usuario(id_usuario)
 
 
 @router.patch("/{id_usuario}", response_model=UsuarioResposta)
-def atualizar_usuario(id_usuario: int, dados: UsuarioAtualizar, supabase=Depends(get_supabase)):
+def atualizar_usuario(id_usuario: UUID, dados: UsuarioAtualizar, supabase=Depends(get_supabase)):
     servico = ServicoUsuario(supabase)
     return servico.atualizar_usuario(id_usuario, dados)
