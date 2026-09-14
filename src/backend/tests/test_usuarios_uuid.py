@@ -15,14 +15,13 @@ def test_fluxo_completo_usuario():
         "email": email_teste,
         "telefone": 11999999999,  # Número inteiro
         "senha": "senha_segura_123",
-        # 0 para comum (tudo em minúsculo, como esperado pelo banco)
-        "usuario_tipo": 0
+        "usuario_tipo": 0  # 0 para comum
     }
 
     response_post = client.post("/usuarios/", json=novo_usuario)
     assert response_post.status_code == 201, f"Falha ao criar: {response_post.text}"
 
-    # Extrai o ID gerado (que será um UUID retornado pelo banco)
+    # Extrai o ID gerado (UUID retornado pelo banco)
     usuario_id = response_post.json()["id"]
 
     # 2. Buscar (GET)
