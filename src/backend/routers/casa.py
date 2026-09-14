@@ -1,31 +1,17 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from core.database import get_supabase
 from schemas.casa import CasaAtualizar, CasaCriar, CasaResposta
+from services.casa import ServicoCasa
 
 router = APIRouter(prefix="/casas", tags=["Casas"])
 
 
-def _obter_servico_casa(supabase):
-    try:
-        from services.casa import ServicoCasa
-    except ModuleNotFoundError as erro:
-        if erro.name != "services.casa":
-            raise
-
-        raise HTTPException(
-            status_code=501,
-            detail="O serviço de casas ainda não foi implementado.",
-        ) from erro
-
-    return ServicoCasa(supabase)
-
-
 @router.post("/", response_model=CasaResposta, status_code=201)
 def criar_casa(casa: CasaCriar, supabase=Depends(get_supabase)):
-    servico = _obter_servico_casa(supabase)
+    servico = ServicoCasa(supabase)
     return servico.criar_casa(casa)
 
 
@@ -35,13 +21,13 @@ def listar_casas(
     limite: int = 100,
     supabase=Depends(get_supabase),
 ):
-    servico = _obter_servico_casa(supabase)
+    servico = ServicoCasa(supabase)
     return servico.listar_casas(inicio, limite)
 
 
 @router.get("/{id_casa}", response_model=CasaResposta)
 def buscar_casa(id_casa: UUID, supabase=Depends(get_supabase)):
-    servico = _obter_servico_casa(supabase)
+    servico = ServicoCasa(supabase)
     return servico.buscar_casa(id_casa)
 
 
@@ -51,11 +37,11 @@ def atualizar_casa(
     dados: CasaAtualizar,
     supabase=Depends(get_supabase),
 ):
-    servico = _obter_servico_casa(supabase)
+    servico = ServicoCasa(supabase)
     return servico.atualizar_casa(id_casa, dados)
 
 
 @router.delete("/{id_casa}", response_model=bool)
 def excluir_casa(id_casa: UUID, supabase=Depends(get_supabase)):
-    servico = _obter_servico_casa(supabase)
+    servico = ServicoCasa(supabase)
     return servico.excluir_casa(id_casa)
