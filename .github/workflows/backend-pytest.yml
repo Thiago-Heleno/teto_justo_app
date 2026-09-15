@@ -31,12 +31,13 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
 
-      - name: Run tests without external services
-        run: python -m pytest -q tests --ignore=tests/test_sessoes_integracao.py
+      - name: Run unit tests without external services
+        run: python -m pytest -q tests --ignore=tests/test_sessoes_integracao.py --ignore=tests/test_tarefas_integracao.py
 
-      - name: Run Sessao integration tests against Supabase
+      - name: Run integration tests against Supabase
         if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
         env:
           SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.TEST_SUPABASE_KEY }}
-        run: python -m pytest -q tests/test_sessoes_integracao.py
+        run: python -m pytest -q tests/test_sessoes_integracao.py tests/test_tarefas_integracao.py
+        
