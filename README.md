@@ -13,6 +13,7 @@ Navegue até a pasta `src/backend`.
 
 ```powershell
 # Ativa o ambiente no Windows (PowerShell)
+python -m venv venv
 .\venv\Scripts\activate
 ```
 
@@ -61,6 +62,7 @@ Navegue até a pasta `src/backend`.
 
 ```powershell
 # Ativa o ambiente
+python -m venv venv #se ja criou no ruff não precisa fazer denovo
 .\venv\Scripts\activate
 ```
 
@@ -75,13 +77,13 @@ pip install bandit
 Com o ambiente virtual ativo, rode o comando abaixo na raiz da pasta do backend para iniciar a varredura completa:
 
 ```bash
-bandit -r . -x ./venv
+bandit -r . -x ./venv,./tests
 ```
 
 **Explicando os parâmetros do comando:**
 
 * `-r .` : O "-r" significa recursivo e o "." indica a pasta atual.
-* `-x ./venv` : Essa parte diz ao Bandit para excluir (ignorar) a pasta `venv`. Se não fizermos isso, ele vai tentar analisar o código de todas as bibliotecas que instalamos.
+* `-x ./venv,./tests` : Essa parte diz ao Bandit para (ignorar) a pasta `venv` e a pasta `tests`.
 
 ## 5. Interpretando os Resultados
 
