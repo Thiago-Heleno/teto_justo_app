@@ -99,4 +99,4 @@ A análise estática deve sempre ser feita ao terminar alguma parte do código.
 2. Rode o Linter: `ruff check .`
 3. Rode o SAST: `bandit -r . -x ./venv`
 4. Se ambos passarem sem erros graves, faça o seu `git commit`.
-5. Para sair do ambiente virtual (venv) digite deactivate no terminal.
+5. Para sair do ambiente virtual (venv) digite `deactivate`.
