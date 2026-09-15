@@ -1,5 +1,3 @@
-"""Integração real do CRUD de tarefas com o Supabase de teste."""
-
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -14,7 +12,7 @@ from main import app
 def dependencias_temporarias():
     supabase = get_supabase()
     marcador = uuid4().hex
-    
+
     # 1. Criar usuário temporário
     res_usuario = (
         supabase.table("usuario")

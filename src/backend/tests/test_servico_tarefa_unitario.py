@@ -66,13 +66,18 @@ def registro_tarefa(id_tarefa, ids_relacionados):
 def test_criar_tarefa_com_atribuicoes(
     servico, consulta, registro_tarefa, ids_relacionados
 ):
-    # A ordem de execução esperada é: insert (tarefa), insert (atribuida), select (buscar atribuicoes)
+# A ordem de execução esperada é:
+# insert (tarefa), insert (atribuida), select (buscar atribuicoes)
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
-        SimpleNamespace(data=[{"fk_usuario_id": str(u), "fk_tarefa_id": str(registro_tarefa["id"])} for u in ids_relacionados["usuarios_atribuidos"]]),
-        SimpleNamespace(data=[{"fk_usuario_id": str(u)} for u in ids_relacionados["usuarios_atribuidos"]])
+        SimpleNamespace(data=[{"fk_usuario_id": str(u), "fk_tarefa_id": str(registro_tarefa["id"])}
+                              for u in ids_relacionados["usuarios_atribuidos"]]
+                        ),
+        SimpleNamespace(data=[{"fk_usuario_id": str(u)}
+                              for u in ids_relacionados["usuarios_atribuidos"]]
+                        )
     ]
-    
+
     dados = TarefaCriar(
         nome="Lavar a louça",
         descricao="Lavar e secar a louça do jantar",
@@ -125,8 +130,11 @@ def test_atualizar_tarefa_envia_apenas_campos_informados(
     servico, consulta, id_tarefa, registro_tarefa
 ):
     atualizado = {**registro_tarefa, "nome": "Novo nome"}
-    
-    # 1. Busca tarefa para ver se existe, 2. Update da tarefa, 3. Busca tarefa atualizada, 4. Busca atribuidos
+
+# 1. Busca tarefa para ver se existe,
+# 2. Update da tarefa,
+# 3. Busca tarefa atualizada,
+# 4. Busca atribuidos.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[atualizado]),
