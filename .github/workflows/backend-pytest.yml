@@ -1,8 +1,9 @@
-name: Backend unit tests
+name: Backend tests
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,12 +24,19 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: src/backend/requirements.txt
+          cache-dependency-path: |
+            src/backend/requirements.txt
+            src/backend/requirements-dev.txt
 
       - name: Install dependencies
-        run: |
-          python -m pip install -r requirements.txt
-          python -m pip install pytest httpx
+        run: python -m pip install -r requirements-dev.txt
 
-      - name: Run backend unit tests
-        run: python -m pytest -q tests
+      - name: Run tests without external services
+        run: python -m pytest -q tests --ignore=tests/test_sessoes_integracao.py
+
+      - name: Run Sessao integration tests against Supabase
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        env:
+          SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.TEST_SUPABASE_KEY }}
+        run: python -m pytest -q tests/test_sessoes_integracao.py

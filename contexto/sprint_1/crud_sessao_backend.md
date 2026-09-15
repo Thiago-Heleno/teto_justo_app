@@ -34,4 +34,4 @@ O campo `criado_em` não é enviado na criação: seu valor é gerado pelo defau
 
 ## Testes
 
-Adicionado `tests/test_sessoes_crud.py`, cobrindo criação, busca, listagem, atualização, exclusão e validações da API usando um banco em memória.
+Adicionado `tests/test_sessoes_integracao.py`, cobrindo o CRUD da API contra um projeto Supabase de teste configurado por secrets no GitHub Actions.
