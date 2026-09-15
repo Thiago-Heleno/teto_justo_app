@@ -20,7 +20,8 @@ def buscar_usuario(id_usuario: UUID, supabase=Depends(get_supabase)):  # Voltou 
 
 
 @router.patch("/{id_usuario}", response_model=UsuarioResposta)
-def atualizar_usuario(id_usuario: UUID, dados: UsuarioAtualizar, supabase=Depends(get_supabase)):  # Voltou UUID
+def atualizar_usuario(id_usuario: UUID, dados: UsuarioAtualizar, supabase=Depends(get_supabase)):
+    # Voltou UUID
     servico = ServicoUsuario(supabase)
     return servico.atualizar_usuario(id_usuario, dados)
 
