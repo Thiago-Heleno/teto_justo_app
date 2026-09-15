@@ -1,0 +1,36 @@
+name: Analise Estatica (Linters e SAST backend)
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # 1. TAREFA DO BACKEND (PYTHON)
+  backend-analysis:
+    name: Backend (Ruff & Bandit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/backend
+
+    steps:
+    - name: Baixar o código do repositório
+      uses: actions/checkout@v4
+
+    - name: Configurar o Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # Versão padrão segura
+
+    - name: Instalar ferramentas
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff bandit
+
+    - name: Linter - Rodar o Ruff
+      run: ruff check .
+
+    - name: SAST - Rodar o Bandit
+      run: bandit -r . -x ./venv
