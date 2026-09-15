@@ -109,7 +109,7 @@ class SessoesCrudTest(unittest.TestCase):
         return self.cliente.post(
             "/sessoes/",
             json={
-                "token": "token-de-login-seguro",
+                "token": "token-de-login-seguro",  # nosec B105 - dado fake de teste, nao e credencial real
                 "expira_em": "2026-10-01T12:00:00Z",
                 "fk_usuario_id": self.id_usuario,
             },
