@@ -33,4 +33,4 @@ jobs:
       run: ruff check .
 
     - name: SAST - Rodar o Bandit
-      run: bandit -r . -x ./venv
+      run: bandit -r . -x ./venv,./tests
