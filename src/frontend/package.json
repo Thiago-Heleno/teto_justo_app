@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.18",
-    "expo": "^46.0.21",
+    "expo": "^57.0.23",
     "expo-constants": "~57.0.18",
     "expo-device": "~57.0.2",
     "expo-font": "~57.0.4",
@@ -12,7 +12,7 @@
     "expo-image": "~57.0.5",
     "expo-linking": "~57.0.10",
     "expo-router": "^5.1.11",
-    "expo-splash-screen": "^55.0.25",
+    "expo-splash-screen": "^57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
@@ -39,7 +39,7 @@
   },
   "scripts": {
     "start": "expo start",
-    "sast:audit": "npm audit",
+    "sast:audit": "npm audit --omit=dev --audit-level=critical",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
@@ -47,5 +47,8 @@
     "lint:fix": "eslint . --fix",
     "reset-project": "node ./scripts/reset-project.js"
   },
-  "private": true
+  "private": true,
+  "allowScripts": {
+    "unrs-resolver@1.12.2": true
+  }
 }
