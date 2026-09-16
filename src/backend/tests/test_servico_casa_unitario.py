@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-import pytest 
+import pytest
 from fastapi import HTTPException
 
 from schemas.casa import CasaAtualizar,  CasaCriar
