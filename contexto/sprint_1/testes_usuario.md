@@ -2,7 +2,7 @@
 
 ## Resumo
 
-Foram adicionados testes unitários e de integração para a entidade `Usuario` usando Pytest. Os testes unitários isolam o serviço com um banco falso, enquanto o teste de integração executa o CRUD pelas rotas reais da aplicação, também contra um banco falso em memória injetado via `dependency_overrides` do FastAPI — diferente da entidade `Sessao`, cujo teste de integração roda contra um Supabase de teste real.
+Foram adicionados testes unitários e de integração para a entidade `Usuario` usando Pytest. Os testes unitários isolam o serviço com um banco falso, enquanto o teste de integração executa o CRUD pelas rotas reais da aplicação e persiste os dados em um projeto Supabase exclusivo para testes — mesmo padrão adotado pela entidade `Sessao`.
 
 ## Testes unitários
 
@@ -20,20 +20,21 @@ Casos cobertos:
 - erro `404` ao atualizar ou excluir um usuário inexistente;
 - exclusão de um usuário existente, confirmando a remoção do banco.
 
-## Teste de integração
+## Teste de integração real
 
-Arquivo: `src/backend/tests/test_usuarios_crud.py`
+Arquivo: `src/backend/tests/test_usuarios_integracao.py`
 
-Diferente do teste de `Sessao`, este teste não usa um Supabase de teste real. Ele sobe uma aplicação FastAPI isolada, registrando apenas o router de usuário, e substitui a dependência `get_supabase` por um `BancoMemoria` novo a cada teste (`setUp`/`tearDown`), via `TestClient`.
+O teste sobe a aplicação FastAPI completa (`main.app`) com um `TestClient` e usa o cliente Supabase real configurado em `core.database`. Não há mais banco falso em memória para esse fluxo.
 
 Fluxo executado no CRUD completo:
 
-1. Cria um usuário por `POST /usuarios/`.
+1. Cria um usuário por `POST /usuarios/` com e-mail único gerado por fixture (`usuario_payload`).
 2. Confirma que a resposta não expõe `senha` nem `senha_hash`.
 3. Busca o usuário por `GET /usuarios/{id}`.
 4. Atualiza o nome por `PATCH /usuarios/{id}`.
 5. Exclui o usuário por `DELETE /usuarios/{id}`.
 6. Confirma que a busca posterior retorna `404`.
+7. A fixture `limpar_usuario` remove no encerramento qualquer usuário criado durante o teste diretamente no Supabase.
 
 Também são cobertos, em testes separados:
 
@@ -43,7 +44,14 @@ Também são cobertos, em testes separados:
 - busca, atualização e exclusão de um id inexistente (`404`);
 - atualização sem nenhum campo enviado (`400`).
 
-Esse teste valida as rotas FastAPI, os schemas Pydantic e o serviço de usuário, mas não valida a tabela, as colunas ou constraints reais do banco, já que não fala com o Supabase.
+Esse teste valida de fato:
+
+- as rotas FastAPI;
+- os schemas Pydantic;
+- o serviço de usuário;
+- o cliente Supabase;
+- a tabela e as colunas reais;
+- a regra de e-mail único aplicada pelo banco/serviço.
 
 ## Dependências de teste
 
@@ -53,8 +61,11 @@ Os testes usam o mesmo `src/backend/requirements-dev.txt` já criado para os tes
 
 Workflow: `.github/workflows/backend-pytest.yml`
 
-Como o teste de `Usuario` não depende do Supabase, ele roda junto com os demais testes sem serviços externos, em todo push e pull request — não está na lista de `--ignore` nem na etapa exclusiva de integração real (que hoje cobre só `Sessao` e `Tarefa`).
+O workflow possui duas etapas de teste:
+
+1. Os testes que não dependem de serviços externos rodam em pushes e pull requests. `test_usuarios_integracao.py` está na lista de `--ignore` dessa etapa, junto com as integrações reais de `Sessao`, `Tarefa`, `Casa` e `Pertencer`.
+2. A integração real de `Usuario` (e das demais entidades citadas) roda em pushes para a branch `main` ou por execução manual do workflow, usando `TEST_SUPABASE_URL`/`TEST_SUPABASE_KEY` como `SUPABASE_URL`/`SUPABASE_KEY`.
 
 ## Validação realizada
 
-Os testes de `Usuario` foram executados localmente com sucesso: `12 passed` (`test_servico_usuario_unitario.py` + `test_usuarios_crud.py`).
+A suíte unitária de `Usuario` (`test_servico_usuario_unitario.py`) foi executada localmente com sucesso. O teste de integração real (`test_usuarios_integracao.py`) não foi executado localmente, seguindo o mesmo cuidado adotado para `Sessao`: evitar alterações em um banco cuja finalidade não estava confirmada. Sua execução ocorre no GitHub Actions usando o ambiente configurado pelos secrets.
