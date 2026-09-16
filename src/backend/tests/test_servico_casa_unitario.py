@@ -201,3 +201,90 @@ def test_listar_casas_aplica_intervalo_inclusivo(
     assert resultado[0]["foto"] == foto["base64"]
 
     consulta.range.assert_called_once_with(10, 34)
+
+def test_atualizar_casa_envia_apenas_campos_informados(
+    servico, consulta, id_casa, registro_casa
+):
+    atualizado = {**registro_casa, "nome": "Casa Verde"}
+    consulta.execute.return_value = SimpleNamespace(data=[atualizado])
+
+    resultado = servico.atualizar_casa(
+        id_casa,
+        CasaAtualizar(nome="Casa Verde"),
+    )
+
+    assert resultado["nome"] == "Casa Verde"
+    consulta.update.assert_called_once_with({"nome": "Casa Verde"})
+    consulta.eq.assert_called_once_with("id", str(id_casa))
+
+def test_atualizar_casa_converte_nova_foto(
+    servico, consulta, id_casa, registro_casa
+):
+    nova_foto_bytes = b"nova fachada"
+    nova_foto_base64 = base64.b64encode(nova_foto_bytes).decode("ascii")
+    nova_foto_banco = "\\x" + nova_foto_bytes.hex()
+
+    atualizado = {
+        **registro_casa,
+        "foto": nova_foto_banco,
+    }
+    consulta.execute.return_value = SimpleNamespace(data=[atualizado])
+
+    resultado = servico.atualizar_casa(
+        id_casa,
+        CasaAtualizar(foto=nova_foto_base64),
+    )
+
+    consulta.update.assert_called_once_with(
+        {"foto": nova_foto_banco}
+    )
+    assert resultado["foto"] == nova_foto_base64
+
+def test_atualizar_casa_sem_dados_gera_400(
+    servico, consulta, id_casa
+):
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_casa(
+            id_casa,
+            CasaAtualizar(),
+        )
+
+    assert erro.value.status_code == 400
+    assert erro.value.detail == "Nenhum dado para atualização."
+    consulta.update.assert_not_called()
+
+def test_atualizar_casa_inexistente_gera_404(
+    servico, consulta, id_casa
+):
+    consulta.execute.return_value = SimpleNamespace(data=[])
+
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_casa(
+            id_casa,
+            CasaAtualizar(nome="Casa inexistente"),
+        )
+
+    assert erro.value.status_code == 404
+    assert erro.value.detail == "Casa não encontrada."
+
+def test_excluir_casa_existente_retorna_true(
+    servico, consulta, id_casa, registro_casa
+):
+    consulta.execute.return_value = SimpleNamespace(data=[registro_casa])
+
+    resultado = servico.excluir_casa(id_casa)
+
+    assert resultado is True
+    consulta.delete.assert_called_once_with()
+    consulta.eq.assert_called_once_with("id", str(id_casa))
+
+def test_excluir_casa_inexistente_gera_404(
+    servico, consulta, id_casa
+):
+    consulta.execute.return_value = SimpleNamespace(data=[])
+
+    with pytest.raises(HTTPException) as erro:
+        servico.excluir_casa(id_casa)
+
+    assert erro.value.status_code == 404
+    assert erro.value.detail == "Casa não encontrada."
