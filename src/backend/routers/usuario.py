@@ -12,6 +12,15 @@ def registrar_usuario(usuario: UsuarioCriar, supabase=Depends(get_supabase)):
     servico = ServicoUsuario(supabase)
     return servico.criar_usuario(usuario)
 
+@router.get("/", response_model=list[UsuarioResposta])
+def listar_usuarios(
+    inicio: int = 0,
+    limite: int = 100,
+    supabase=Depends(get_supabase),
+):
+    servico = ServicoUsuario(supabase)
+    return servico.listar_usuarios(inicio, limite)
+
 
 @router.get("/{id_usuario}", response_model=UsuarioResposta)
 def buscar_usuario(id_usuario: UUID, supabase=Depends(get_supabase)):  # Voltou UUID

@@ -71,3 +71,12 @@ class ServicoUsuario:
             raise HTTPException(
                 status_code=404, detail="Usuário não encontrado ou já deletado.")
         return True
+
+    def listar_usuarios(self, inicio: int = 0, limite: int = 100):
+        resposta = (
+            self.supabase.table("usuario")
+            .select("*")
+            .range(inicio, inicio + limite - 1)
+            .execute()
+        )
+        return resposta.data
