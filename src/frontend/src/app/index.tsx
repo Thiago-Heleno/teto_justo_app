@@ -1,17 +1,11 @@
-import { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-} from 'react-native';
+import { useState } from "react";
+import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 
 export default function HomeScreen() {
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [senha, setSenha] = useState('');
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [senha, setSenha] = useState("");
 
   function cadastrarUsuario() {
     console.log({
@@ -78,46 +72,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
 
   titulo: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: "bold",
+    color: "white",
     marginBottom: 8,
   },
 
   subtitulo: {
     fontSize: 20,
-    color: 'white',
+    color: "white",
     marginBottom: 24,
   },
 
   label: {
-    color: 'white',
+    color: "white",
     marginBottom: 6,
   },
 
   input: {
-    backgroundColor: 'white',
-    color: 'black',
+    backgroundColor: "white",
+    color: "black",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
 
   botao: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: "#2e7d32",
     padding: 14,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
   },
 
   textoBotao: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 16,
   },
 });
