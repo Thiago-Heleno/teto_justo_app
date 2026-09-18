@@ -12,8 +12,16 @@ Adequar o estado das tarefas ao contrato textual do quadro e otimizar sua filtra
 
 ## Validação
 
-- Revisão estática da sequência da migration e verificação de espaços em branco nos arquivos alterados.
+- O contrato do backend foi alinhado aos estados textuais da migration.
+- Os schemas de criação, atualização e resposta aceitam somente
+  `pendente`, `atrasada`, `finalizado` e `nao_feito`.
+- Os testes unitários rejeitam tanto os códigos numéricos legados quanto
+  estados textuais fora do contrato.
+- A suíte unitária do workflow foi executada com 65 testes aprovados.
+- A suíte completa teve 74 testes coletados sem erros de importação.
+- A compilação de `schemas`, `services` e `tests` foi executada sem erros.
 
 ## Pendência
 
-- O contrato do backend ainda usa códigos inteiros para `estado_atual`; deverá ser atualizado antes de enviar novos estados à tabela migrada.
+- Nenhuma pendência conhecida no contrato de `estado_atual`. Os testes de
+  integração com o Supabase não foram executados localmente.
