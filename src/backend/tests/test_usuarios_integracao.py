@@ -39,8 +39,16 @@ def limpar_usuario():
 
 # Percorre o ciclo completo de CRUD via HTTP contra o Supabase real: cria,
 # busca, atualiza parcialmente, deleta e confirma que o usuário some depois.
-def test_crud_usuario_no_supabase(usuario_payload, limpar_usuario):
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+def test_crud_usuario_no_supabase(
+    usuario_payload,
+    limpar_usuario,
+    autenticacao_temporaria,
+):
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         # Cria o usuário e garante que a senha/hash nunca voltam na resposta.
         criado = cliente.post("/usuarios/", json=usuario_payload)
         assert criado.status_code == 201, criado.text
@@ -88,8 +96,12 @@ def test_email_duplicado_retorna_400(usuario_payload, limpar_usuario):
 
 # Cobre casos de erro das rotas: payload inválido (422), id malformado (422)
 # e operações (GET/PATCH/DELETE) sobre ids inexistentes (404/400).
-def test_validacoes_e_erros(usuario_payload):
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+def test_validacoes_e_erros(usuario_payload, autenticacao_temporaria):
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         # E-mail em formato inválido.
         assert (
             cliente.post(

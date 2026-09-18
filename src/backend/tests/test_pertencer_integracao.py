@@ -54,11 +54,18 @@ def dependencias_temporarias():
 
 # Percorre o ciclo completo de CRUD via HTTP contra o Supabase real: cria,
 # busca, lista, atualiza o score, deleta e confirma que o vínculo some depois.
-def test_crud_pertencer_no_supabase(dependencias_temporarias):
+def test_crud_pertencer_no_supabase(
+    dependencias_temporarias,
+    autenticacao_temporaria,
+):
     usuario_id = dependencias_temporarias["usuario_id"]
     casa_id = dependencias_temporarias["casa_id"]
 
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         # Cria o vínculo entre o usuário e a casa com o score padrão.
         criado = cliente.post(
             "/pertencer/",
@@ -102,11 +109,18 @@ def test_crud_pertencer_no_supabase(dependencias_temporarias):
 
 # Garante que a API rejeita um segundo vínculo para o mesmo par
 # usuário/casa já cadastrado no Supabase real.
-def test_pertencer_duplicado_retorna_400(dependencias_temporarias):
+def test_pertencer_duplicado_retorna_400(
+    dependencias_temporarias,
+    autenticacao_temporaria,
+):
     usuario_id = dependencias_temporarias["usuario_id"]
     casa_id = dependencias_temporarias["casa_id"]
 
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         payload = {"fk_usuario_id": usuario_id, "fk_casa_id": casa_id, "score": 0}
 
         primeiro = cliente.post("/pertencer/", json=payload)
@@ -118,8 +132,12 @@ def test_pertencer_duplicado_retorna_400(dependencias_temporarias):
 
 # Cobre casos de erro das rotas: id malformado (422) e operações
 # (GET/PATCH/DELETE) sobre uma chave composta inexistente (404).
-def test_validacoes_e_erros():
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+def test_validacoes_e_erros(autenticacao_temporaria):
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         # Um dos ids da chave composta não é um UUID válido.
         assert cliente.get(f"/pertencer/id-invalido/{uuid4()}").status_code == 422
         # Busca por uma chave (usuário, casa) válida, mas inexistente.

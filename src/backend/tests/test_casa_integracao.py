@@ -40,7 +40,7 @@ def usuario_temporario():
         "id", usuario_id
     ).execute()
 
-def test_crud_casa_no_supabase(usuario_temporario):
+def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
     foto_inicial = base64.b64encode(
         b"fachada inicial"
     ).decode("ascii")
@@ -51,7 +51,11 @@ def test_crud_casa_no_supabase(usuario_temporario):
 
     marcador = uuid4().hex
 
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         criada = cliente.post(
             "/casas/",
             json={

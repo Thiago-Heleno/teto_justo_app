@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
+from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.casa import CasaAtualizar, CasaCriar, CasaResposta
 from services.casa import ServicoCasa
@@ -10,13 +11,18 @@ router = APIRouter(prefix="/casas", tags=["Casas"])
 
 
 @router.post("/", response_model=CasaResposta, status_code=201)
-def criar_casa(casa: CasaCriar, supabase=Depends(get_supabase)):
+def criar_casa(
+    casa: CasaCriar,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
     servico = ServicoCasa(supabase)
     return servico.criar_casa(casa)
 
 
 @router.get("/", response_model=list[CasaResposta])
 def listar_casas(
+    usuario_atual: UsuarioAtual,
     inicio: int = 0,
     limite: int = 100,
     supabase=Depends(get_supabase),
@@ -26,7 +32,11 @@ def listar_casas(
 
 
 @router.get("/{id_casa}", response_model=CasaResposta)
-def buscar_casa(id_casa: UUID, supabase=Depends(get_supabase)):
+def buscar_casa(
+    id_casa: UUID,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
     servico = ServicoCasa(supabase)
     return servico.buscar_casa(id_casa)
 
@@ -35,6 +45,7 @@ def buscar_casa(id_casa: UUID, supabase=Depends(get_supabase)):
 def atualizar_casa(
     id_casa: UUID,
     dados: CasaAtualizar,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     servico = ServicoCasa(supabase)
@@ -42,6 +53,10 @@ def atualizar_casa(
 
 
 @router.delete("/{id_casa}", response_model=bool)
-def excluir_casa(id_casa: UUID, supabase=Depends(get_supabase)):
+def excluir_casa(
+    id_casa: UUID,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
     servico = ServicoCasa(supabase)
     return servico.excluir_casa(id_casa)
