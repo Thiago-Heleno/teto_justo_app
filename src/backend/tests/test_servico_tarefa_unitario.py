@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from schemas.tarefa import TarefaAtualizar, TarefaCriar
 from services.tarefa import ServicoTarefa
@@ -56,7 +57,7 @@ def registro_tarefa(id_tarefa, ids_relacionados):
         "id": str(id_tarefa),
         "nome": "Lavar a louça",
         "descricao": "Lavar e secar a louça do jantar",
-        "estado_atual": 0,
+        "estado_atual": "pendente",
         "data_fim": "2026-10-01T12:00:00Z",
         "fk_casa_id": str(ids_relacionados["fk_casa_id"]),
         "fk_usuario_id": str(ids_relacionados["fk_usuario_id"]),
@@ -81,7 +82,7 @@ def test_criar_tarefa_com_atribuicoes(
     dados = TarefaCriar(
         nome="Lavar a louça",
         descricao="Lavar e secar a louça do jantar",
-        estado_atual=0,
+        estado_atual="pendente",
         data_fim=datetime(2026, 10, 1, 12, tzinfo=timezone.utc),
         fk_casa_id=ids_relacionados["fk_casa_id"],
         fk_usuario_id=ids_relacionados["fk_usuario_id"],
@@ -99,7 +100,7 @@ def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relac
     consulta.execute.return_value = SimpleNamespace(data=[])
     dados = TarefaCriar(
         nome="Tarefa falha",
-        estado_atual=0,
+        estado_atual="pendente",
         data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
         fk_casa_id=ids_relacionados["fk_casa_id"],
         fk_usuario_id=ids_relacionados["fk_usuario_id"],
@@ -110,6 +111,20 @@ def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relac
 
     assert erro.value.status_code == 500
     assert erro.value.detail == "Erro ao criar tarefa no banco."
+
+
+@pytest.mark.parametrize("estado_invalido", [0, "em_andamento"])
+def test_criar_tarefa_rejeita_estado_fora_do_contrato(
+    estado_invalido, ids_relacionados
+):
+    with pytest.raises(ValidationError):
+        TarefaCriar(
+            nome="Tarefa inválida",
+            estado_atual=estado_invalido,
+            data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
+            fk_casa_id=ids_relacionados["fk_casa_id"],
+            fk_usuario_id=ids_relacionados["fk_usuario_id"],
+        )
 
 
 def test_buscar_tarefa_por_id(servico, consulta, id_tarefa, registro_tarefa):
