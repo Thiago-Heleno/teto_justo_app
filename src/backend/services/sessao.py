@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
 
 from schemas.sessao import SessaoAtualizar, SessaoCriar
+from schemas.usuario import UsuarioResposta
 
 
 class ServicoSessao:
@@ -32,6 +34,57 @@ class ServicoSessao:
         if not resposta.data:
             raise HTTPException(status_code=404, detail="Sessão não encontrada.")
         return resposta.data[0]
+
+    @staticmethod
+    def _expiracao_em_utc(valor) -> datetime | None:
+        if isinstance(valor, datetime):
+            expiracao = valor
+        elif isinstance(valor, str):
+            try:
+                expiracao = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        else:
+            return None
+
+        # A coluna atual usa TIMESTAMP sem fuso; valores legados são tratados como UTC.
+        if expiracao.tzinfo is None:
+            expiracao = expiracao.replace(tzinfo=timezone.utc)
+        return expiracao.astimezone(timezone.utc)
+
+    def obter_usuario_por_token(self, token: str) -> UsuarioResposta | None:
+        resposta_sessao = (
+            self.supabase.table("sessao")
+            .select("fk_usuario_id,expira_em")
+            .eq("token", token)
+            .limit(2)
+            .execute()
+        )
+        sessoes = resposta_sessao.data or []
+        if len(sessoes) != 1:
+            return None
+
+        sessao = sessoes[0]
+        expiracao = self._expiracao_em_utc(sessao.get("expira_em"))
+        if expiracao is None or expiracao <= datetime.now(timezone.utc):
+            return None
+
+        id_usuario = sessao.get("fk_usuario_id")
+        if not id_usuario:
+            return None
+
+        resposta_usuario = (
+            self.supabase.table("usuario")
+            .select("id,nome,email,telefone,foto,usuario_tipo,data_criacao")
+            .eq("id", str(id_usuario))
+            .limit(2)
+            .execute()
+        )
+        usuarios = resposta_usuario.data or []
+        if len(usuarios) != 1:
+            return None
+
+        return UsuarioResposta.model_validate(usuarios[0])
 
     def listar_sessoes(self, inicio: int = 0, limite: int = 100):
         resposta = (

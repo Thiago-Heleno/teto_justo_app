@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
+from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.pertencer import (
     PertencerAtualizar,
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/pertencer", tags=["Pertencer"])
 @router.post("/", response_model=PertencerResposta, status_code=status.HTTP_201_CREATED)
 def registrar_pertencer(
     pertencer: PertencerCriar,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     return ServicoPertencer(supabase).criar_pertencer(pertencer)
@@ -24,6 +26,7 @@ def registrar_pertencer(
 
 @router.get("/", response_model=list[PertencerResposta])
 def listar_pertencer(
+    usuario_atual: UsuarioAtual,
     inicio: int = 0,
     limite: int = 100,
     supabase=Depends(get_supabase),
@@ -38,6 +41,7 @@ def listar_pertencer(
 def buscar_pertencer(
     fk_usuario_id: UUID,
     fk_casa_id: UUID,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     return ServicoPertencer(supabase).buscar_pertencer(fk_usuario_id, fk_casa_id)
@@ -51,6 +55,7 @@ def atualizar_score(
     fk_usuario_id: UUID,
     fk_casa_id: UUID,
     dados: PertencerAtualizar,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     return ServicoPertencer(supabase).atualizar_pertencer(
@@ -67,6 +72,7 @@ def atualizar_score(
 def deletar_pertencer(
     fk_usuario_id: UUID,
     fk_casa_id: UUID,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     ServicoPertencer(supabase).deletar_pertencer(fk_usuario_id, fk_casa_id)

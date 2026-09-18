@@ -45,12 +45,19 @@ def dependencias_temporarias():
     supabase.table("usuario").delete().eq("id", usuario_id).execute()
 
 
-def test_crud_tarefa_no_supabase(dependencias_temporarias):
+def test_crud_tarefa_no_supabase(
+    dependencias_temporarias,
+    autenticacao_temporaria,
+):
     usuario_id = dependencias_temporarias["usuario_id"]
     casa_id = dependencias_temporarias["casa_id"]
     data_fim = datetime.now(timezone.utc) + timedelta(days=2)
 
-    with TestClient(app, raise_server_exceptions=False) as cliente:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente:
         # TESTE: Criar
         criada = cliente.post(
             "/tarefas/",

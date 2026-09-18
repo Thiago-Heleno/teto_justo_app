@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
+from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.tarefa import TarefaAtualizar, TarefaCriar, TarefaResposta
 from services.tarefa import ServicoTarefa
@@ -10,13 +11,18 @@ router = APIRouter(prefix="/tarefas", tags=["Tarefas"])
 
 
 @router.post("/", response_model=TarefaResposta, status_code=201)
-def criar_tarefa(tarefa: TarefaCriar, supabase=Depends(get_supabase)):
+def criar_tarefa(
+    tarefa: TarefaCriar,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
     servico = ServicoTarefa(supabase)
     return servico.criar_tarefa(tarefa)
 
 
 @router.get("/", response_model=list[TarefaResposta])
 def listar_tarefas(
+    usuario_atual: UsuarioAtual,
     inicio: int = 0,
     limite: int = 100,
     supabase=Depends(get_supabase),
@@ -28,6 +34,7 @@ def listar_tarefas(
 @router.get("/casa/{id_casa}", response_model=list[TarefaResposta])
 def listar_tarefas_por_casa(
     id_casa: UUID,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
@@ -35,7 +42,11 @@ def listar_tarefas_por_casa(
 
 
 @router.get("/{id_tarefa}", response_model=TarefaResposta)
-def buscar_tarefa(id_tarefa: UUID, supabase=Depends(get_supabase)):
+def buscar_tarefa(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
     servico = ServicoTarefa(supabase)
     return servico.buscar_tarefa(id_tarefa)
 
@@ -44,6 +55,7 @@ def buscar_tarefa(id_tarefa: UUID, supabase=Depends(get_supabase)):
 def atualizar_tarefa(
     id_tarefa: UUID,
     tarefa: TarefaAtualizar,
+    usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
@@ -51,6 +63,10 @@ def atualizar_tarefa(
 
 
 @router.delete("/{id_tarefa}", response_model=bool)
-def excluir_tarefa(id_tarefa: UUID, supabase=Depends(get_supabase)):
+def excluir_tarefa(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
     servico = ServicoTarefa(supabase)
     return servico.excluir_tarefa(id_tarefa)
