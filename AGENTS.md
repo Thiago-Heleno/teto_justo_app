@@ -14,6 +14,17 @@ Estas instruções se aplicam a todo o repositório.
 - Preserve o código e as alterações existentes que não fazem parte da tarefa.
 - Nunca registre secrets, tokens, senhas ou valores de `.env` em código, testes, logs ou documentação.
 
+## Skill recomendada
+
+- Para reforçar mudanças pequenas e reaproveitar recursos já existentes, recomenda-se instalar o plugin/skill [Ponytail](https://github.com/dietrichgebert/ponytail) no Codex. A instalação é opcional e feita localmente por cada pessoa:
+
+  ```sh
+  codex plugin marketplace add DietrichGebert/ponytail
+  codex plugin add ponytail@ponytail
+  ```
+
+- Após instalar, execute `codex`, revise os hooks em `/hooks` antes de confiar neles e inicie uma nova conversa.
+
 ## Resumo obrigatório por sprint
 
 - Ao finalizar cada sessão de trabalho que altere o repositório, crie ou atualize um arquivo Markdown em `contexto/sprint_N/`, usando a sprint correspondente à tarefa.
