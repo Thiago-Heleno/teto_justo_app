@@ -19,24 +19,49 @@ desconhecido ou com sessão expirada recebem `401 Unauthorized`.
 - As rotas de Casa, Tarefa e Pertencer foram protegidas. Em Usuário, somente o
   cadastro continua público; listagem, consulta, atualização e exclusão exigem
   autenticação.
+- A criação de casa usa o usuário autenticado como proprietário; o cliente não
+  pode escolher `fk_usuario_id` no corpo da requisição.
 - `/health` permanece público.
 - O workflow do backend passou a executar os testes unitários de autenticação.
 
 Não foi adicionada biblioteca JWT. A implementação reutiliza o token opaco e a
 tabela `sessao` já existentes no projeto.
 
+## Autorização de administrador por casa
+
+- O administrador de uma casa é o usuário registrado em
+  `casa.fk_usuario_id`. O campo global `usuario.usuario_tipo` não participa
+  dessa decisão.
+- Criar, atualizar ou excluir uma tarefa exige que o usuário do token seja o
+  administrador da casa correspondente. Um usuário autenticado que não seja o
+  proprietário recebe `403 Forbidden` sem que a mutação seja executada.
+- Na atualização e exclusão, a casa usada na autorização vem da tarefa já
+  persistida. `fk_casa_id` não é aceito no PATCH, evitando mover a tarefa para
+  contornar a autorização.
+- Atualizar ou excluir a própria casa também exige o proprietário. Isso impede
+  que a exclusão em cascata da casa seja usada para apagar tarefas sem passar
+  pela autorização de administrador.
+- Token ausente, inválido ou expirado continua sendo falha de autenticação e
+  retorna `401`; token válido sem permissão é falha de autorização e retorna
+  `403`.
+- Nenhuma migration foi alterada ou criada: a implementação reutiliza a relação
+  de proprietário que já existe na tabela `casa`.
+
 ## Testes e validações
 
-- `63` testes unitários aprovados, incluindo ausência de credencial, esquema
+- `75` testes unitários aprovados, incluindo ausência de credencial, esquema
   incorreto, token inexistente, expirado, duplicado, sessão órfã, autenticação
-  válida e propagação de erro de banco.
+  válida, autorização do proprietário e bloqueio de criação, atualização e
+  exclusão por moradores.
 - Compilação dos módulos de backend concluída sem erro.
-- Coleta completa dos testes concluída: `72` casos encontrados.
+- Análises estáticas completas do backend aprovadas com Ruff e Bandit.
+- Coleta completa dos testes concluída: `85` casos encontrados.
 - OpenAPI conferido: as rotas protegidas exibem o esquema Bearer; `/health` e
   `POST /usuarios/` não exigem autenticação.
-- Os testes de integração foram atualizados para criar uma sessão temporária e
-  enviar o header Bearer, mas não foram executados localmente porque dependem do
-  Supabase de teste configurado por secrets no GitHub Actions.
+- Os testes de integração foram atualizados para usar o mesmo usuário como
+  portador do token e proprietário da casa, além de cobrir o `403` para um
+  morador. Eles não foram executados localmente porque dependem do Supabase de
+  teste configurado por secrets no GitHub Actions.
 
 ## Limitações e pendências
 
@@ -50,6 +75,13 @@ tabela `sessao` já existentes no projeto.
   uma constraint única.
 - `expira_em` é `TIMESTAMP` sem fuso. Valores sem offset são tratados como UTC;
   uma migration futura deve considerar `TIMESTAMPTZ`.
-- Autenticação identifica o usuário, mas ainda não verifica se ele pode acessar
-  determinada casa, tarefa ou vínculo. A autorização por recurso permanece uma
-  tarefa separada.
+- A leitura de casas e tarefas continua permitida a qualquer usuário
+  autenticado e não é filtrada por vínculo de moradia. As rotas de Pertencer e
+  as demais operações de usuário também ainda não possuem autorização por
+  recurso.
+- O modelo atual admite um único administrador por casa. Suporte a múltiplos
+  administradores exigirá modelagem adicional em uma migration futura.
+- Casas legadas com `fk_usuario_id` nulo não possuem administrador e tarefas
+  legadas sem `fk_casa_id` não permitem identificar a casa da autorização.
+  Esses registros ficam bloqueados para mutações e precisam de auditoria e
+  backfill antes de uma migration futura tornar as relações obrigatórias.

@@ -9,24 +9,11 @@ from main import app
 
 
 @pytest.fixture
-def dependencias_temporarias():
+def dependencias_temporarias(autenticacao_temporaria):
     supabase = get_supabase()
     marcador = uuid4().hex
+    usuario_id = autenticacao_temporaria["usuario_id"]
 
-    # 1. Criar usuário temporário
-    res_usuario = (
-        supabase.table("usuario")
-        .insert({
-            "nome": "Usuário Teste Tarefa",
-            "email": f"teste-tarefa-{marcador}@example.com",
-            "senha_hash": "hash-falso",
-            "usuario_tipo": 0,
-        })
-        .execute()
-    )
-    usuario_id = res_usuario.data[0]["id"]
-
-    # 2. Criar casa temporária
     res_casa = (
         supabase.table("casa")
         .insert({
@@ -41,8 +28,8 @@ def dependencias_temporarias():
 
     # Limpeza (Teardown)
     supabase.table("tarefa").delete().eq("fk_casa_id", casa_id).execute()
+    supabase.table("pertencer").delete().eq("fk_casa_id", casa_id).execute()
     supabase.table("casa").delete().eq("id", casa_id).execute()
-    supabase.table("usuario").delete().eq("id", usuario_id).execute()
 
 
 def test_crud_tarefa_no_supabase(
@@ -105,3 +92,95 @@ def test_crud_tarefa_no_supabase(
         # TESTE: Garantir que foi excluída
         inexistente = cliente.get(f"/tarefas/{tarefa['id']}")
         assert inexistente.status_code == 404
+
+
+def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
+    dependencias_temporarias,
+    autenticacao_temporaria,
+    criar_autenticacao_temporaria,
+):
+    supabase = get_supabase()
+    casa_id = dependencias_temporarias["casa_id"]
+    administrador_id = autenticacao_temporaria["usuario_id"]
+    morador = criar_autenticacao_temporaria()
+    data_fim = datetime.now(timezone.utc) + timedelta(days=2)
+
+    vinculo = (
+        supabase.table("pertencer")
+        .insert(
+            {
+                "fk_usuario_id": morador["usuario_id"],
+                "fk_casa_id": casa_id,
+                "score": 0,
+            }
+        )
+        .execute()
+    )
+    assert vinculo.data
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=morador["headers"],
+    ) as cliente_morador:
+        proibida = cliente_morador.post(
+            "/tarefas/",
+            json={
+                "nome": "Tarefa que o morador não pode criar",
+                "estado_atual": "pendente",
+                "data_fim": data_fim.isoformat(),
+                "fk_casa_id": casa_id,
+                "fk_usuario_id": morador["usuario_id"],
+            },
+        )
+        assert proibida.status_code == 403, proibida.text
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente_admin:
+        criada = cliente_admin.post(
+            "/tarefas/",
+            json={
+                "nome": "Tarefa protegida",
+                "estado_atual": "pendente",
+                "data_fim": data_fim.isoformat(),
+                "fk_casa_id": casa_id,
+                "fk_usuario_id": administrador_id,
+            },
+        )
+        assert criada.status_code == 201, criada.text
+        tarefa = criada.json()
+
+        troca_de_casa = cliente_admin.patch(
+            f"/tarefas/{tarefa['id']}",
+            json={"fk_casa_id": str(uuid4())},
+        )
+        assert troca_de_casa.status_code == 422, troca_de_casa.text
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=morador["headers"],
+    ) as cliente_morador:
+        atualizada = cliente_morador.patch(
+            f"/tarefas/{tarefa['id']}",
+            json={"nome": "Alteração proibida"},
+        )
+        assert atualizada.status_code == 403, atualizada.text
+
+        excluida = cliente_morador.delete(f"/tarefas/{tarefa['id']}")
+        assert excluida.status_code == 403, excluida.text
+
+        preservada = cliente_morador.get(f"/tarefas/{tarefa['id']}")
+        assert preservada.status_code == 200, preservada.text
+        assert preservada.json()["nome"] == "Tarefa protegida"
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers=autenticacao_temporaria["headers"],
+    ) as cliente_admin:
+        excluida = cliente_admin.delete(f"/tarefas/{tarefa['id']}")
+        assert excluida.status_code == 200, excluida.text

@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from schemas.tarefa import TarefaAtualizar, TarefaCriar
+from services.autorizacao import ServicoAutorizacaoCasa
 
 
 class ServicoTarefa:
@@ -73,7 +74,17 @@ class ServicoTarefa:
         )
         return resposta
 
-    def criar_tarefa(self, dados_tarefa: TarefaCriar):
+    def criar_tarefa(
+        self,
+        dados_tarefa: TarefaCriar,
+        id_usuario_atual: UUID,
+    ):
+        ServicoAutorizacaoCasa(
+            self.supabase
+        ).garantir_administrador_da_casa(
+            dados_tarefa.fk_casa_id,
+            id_usuario_atual,
+        )
         dados = dados_tarefa.model_dump(mode="json")
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
         resposta = (
@@ -117,8 +128,15 @@ class ServicoTarefa:
         self,
         id_tarefa: UUID,
         dados_tarefa: TarefaAtualizar,
+        id_usuario_atual: UUID,
     ):
-        self._buscar_tarefa_bruta(id_tarefa)
+        tarefa_atual = self._buscar_tarefa_bruta(id_tarefa)
+        ServicoAutorizacaoCasa(
+            self.supabase
+        ).garantir_administrador_da_casa(
+            tarefa_atual["fk_casa_id"],
+            id_usuario_atual,
+        )
         usuarios_foram_informados = (
             "usuarios_atribuidos" in dados_tarefa.model_fields_set
         )
@@ -159,8 +177,14 @@ class ServicoTarefa:
 
         return self.buscar_tarefa(id_tarefa)
 
-    def excluir_tarefa(self, id_tarefa: UUID):
-        self._buscar_tarefa_bruta(id_tarefa)
+    def excluir_tarefa(self, id_tarefa: UUID, id_usuario_atual: UUID):
+        tarefa_atual = self._buscar_tarefa_bruta(id_tarefa)
+        ServicoAutorizacaoCasa(
+            self.supabase
+        ).garantir_administrador_da_casa(
+            tarefa_atual["fk_casa_id"],
+            id_usuario_atual,
+        )
         (
             self.supabase.table("atribuida")
             .delete()

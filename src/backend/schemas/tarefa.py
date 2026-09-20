@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 EstadoTarefa = Literal["pendente", "atrasada", "finalizado", "nao_feito"]
@@ -23,8 +23,9 @@ class TarefaAtualizar(BaseModel):
     descricao: Optional[str] = None
     estado_atual: Optional[EstadoTarefa] = None
     data_fim: Optional[datetime] = None
-    fk_casa_id: Optional[UUID] = None
     usuarios_atribuidos: Optional[list[UUID]] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class TarefaResposta(BaseModel):

@@ -1,14 +1,15 @@
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class CasaCriar(BaseModel):
     nome: str
     endereco: str
     foto: Optional[str] = None
-    fk_usuario_id: UUID
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class CasaAtualizar(BaseModel):
