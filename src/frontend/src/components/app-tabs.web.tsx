@@ -27,6 +27,9 @@ export default function AppTabs() {
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>
+          <TabTrigger name="nova-tarefa" href="/nova-tarefa" asChild>
+            <TabButton>Nova tarefa</TabButton>
+          </TabTrigger>
         </CustomTabList>
       </TabList>
     </Tabs>
@@ -98,7 +101,8 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.five,
     flexDirection: "row",
     alignItems: "center",
-    flexGrow: 1,
+    flexWrap: "wrap",
+    width: "100%",
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
   },
