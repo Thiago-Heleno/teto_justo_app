@@ -12,6 +12,14 @@ para navegador, Expo Go e compilação nativa. O tutorial foi conferido com os
 scripts, a ajuda da CLI local e a documentação oficial em 20/09/2026; essa
 atualização foi somente documental e não incluiu novos testes em aparelhos.
 
+O [README da raiz](../../README.md#3-inicie-o-frontend) também foi atualizado
+para orientar instalação com `npm ci`, execução web, Expo Go compatível com
+SDK 57, compilação nativa e atualização ao salvar. Explicita que esta tela
+dispensa backend e banco e inclui as verificações de lint e TypeScript.
+Os comandos foram conferidos com os scripts atuais e o tutorial; `git diff
+--check` passou. Nenhuma instalação ou execução adicional foi realizada para
+essa revisão documental.
+
 ## Arquivos e comportamentos
 
 - `src/frontend/src/app/nova-tarefa.tsx`: formulário com nome e peso obrigatórios,
