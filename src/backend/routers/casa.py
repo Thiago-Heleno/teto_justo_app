@@ -17,7 +17,7 @@ def criar_casa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoCasa(supabase)
-    return servico.criar_casa(casa)
+    return servico.criar_casa(casa, usuario_atual.id)
 
 
 @router.get("/", response_model=list[CasaResposta])
@@ -49,7 +49,7 @@ def atualizar_casa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoCasa(supabase)
-    return servico.atualizar_casa(id_casa, dados)
+    return servico.atualizar_casa(id_casa, dados, usuario_atual.id)
 
 
 @router.delete("/{id_casa}", response_model=bool)
@@ -59,4 +59,4 @@ def excluir_casa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoCasa(supabase)
-    return servico.excluir_casa(id_casa)
+    return servico.excluir_casa(id_casa, usuario_atual.id)

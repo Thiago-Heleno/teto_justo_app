@@ -17,7 +17,7 @@ def criar_tarefa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
-    return servico.criar_tarefa(tarefa)
+    return servico.criar_tarefa(tarefa, usuario_atual.id)
 
 
 @router.get("/", response_model=list[TarefaResposta])
@@ -59,7 +59,7 @@ def atualizar_tarefa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
-    return servico.atualizar_tarefa(id_tarefa, tarefa)
+    return servico.atualizar_tarefa(id_tarefa, tarefa, usuario_atual.id)
 
 
 @router.delete("/{id_tarefa}", response_model=bool)
@@ -69,4 +69,4 @@ def excluir_tarefa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
-    return servico.excluir_tarefa(id_tarefa)
+    return servico.excluir_tarefa(id_tarefa, usuario_atual.id)

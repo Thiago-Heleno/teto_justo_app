@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -67,9 +67,12 @@ def registro_tarefa(id_tarefa, ids_relacionados):
 def test_criar_tarefa_com_atribuicoes(
     servico, consulta, registro_tarefa, ids_relacionados
 ):
-# A ordem de execução esperada é:
-# insert (tarefa), insert (atribuida), select (buscar atribuicoes)
+# A ordem esperada é: autorizar casa, inserir tarefa, inserir atribuições
+# e buscar as atribuições da resposta.
     consulta.execute.side_effect = [
+        SimpleNamespace(
+            data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]
+        ),
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": str(u), "fk_tarefa_id": str(registro_tarefa["id"])}
                               for u in ids_relacionados["usuarios_atribuidos"]]
@@ -89,7 +92,10 @@ def test_criar_tarefa_com_atribuicoes(
         usuarios_atribuidos=ids_relacionados["usuarios_atribuidos"],
     )
 
-    resultado = servico.criar_tarefa(dados)
+    resultado = servico.criar_tarefa(
+        dados,
+        ids_relacionados["fk_usuario_id"],
+    )
 
     assert resultado["id"] == registro_tarefa["id"]
     assert len(resultado["usuarios_atribuidos"]) == 2
@@ -97,7 +103,12 @@ def test_criar_tarefa_com_atribuicoes(
 
 
 def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relacionados):
-    consulta.execute.return_value = SimpleNamespace(data=[])
+    consulta.execute.side_effect = [
+        SimpleNamespace(
+            data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]
+        ),
+        SimpleNamespace(data=[]),
+    ]
     dados = TarefaCriar(
         nome="Tarefa falha",
         estado_atual="pendente",
@@ -107,7 +118,10 @@ def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relac
     )
 
     with pytest.raises(HTTPException) as erro:
-        servico.criar_tarefa(dados)
+        servico.criar_tarefa(
+            dados,
+            ids_relacionados["fk_usuario_id"],
+        )
 
     assert erro.value.status_code == 500
     assert erro.value.detail == "Erro ao criar tarefa no banco."
@@ -125,6 +139,11 @@ def test_criar_tarefa_rejeita_estado_fora_do_contrato(
             fk_casa_id=ids_relacionados["fk_casa_id"],
             fk_usuario_id=ids_relacionados["fk_usuario_id"],
         )
+
+
+def test_atualizar_tarefa_rejeita_troca_de_casa():
+    with pytest.raises(ValidationError):
+        TarefaAtualizar(fk_casa_id=uuid4())
 
 
 def test_buscar_tarefa_por_id(servico, consulta, id_tarefa, registro_tarefa):
@@ -146,12 +165,13 @@ def test_atualizar_tarefa_envia_apenas_campos_informados(
 ):
     atualizado = {**registro_tarefa, "nome": "Novo nome"}
 
-# 1. Busca tarefa para ver se existe,
-# 2. Update da tarefa,
-# 3. Busca tarefa atualizada,
-# 4. Busca atribuidos.
+# 1. Busca tarefa, 2. autoriza pela casa, 3. atualiza, 4. busca a tarefa
+# atualizada e 5. busca os usuários atribuídos.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(
+            data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]
+        ),
         SimpleNamespace(data=[atualizado]),
         SimpleNamespace(data=[atualizado]),
         SimpleNamespace(data=[])
@@ -160,6 +180,7 @@ def test_atualizar_tarefa_envia_apenas_campos_informados(
     resultado = servico.atualizar_tarefa(
         id_tarefa,
         TarefaAtualizar(nome="Novo nome"),
+        UUID(registro_tarefa["fk_usuario_id"]),
     )
 
     assert resultado["nome"] == "Novo nome"
@@ -169,16 +190,79 @@ def test_atualizar_tarefa_envia_apenas_campos_informados(
 def test_excluir_tarefa_existente_retorna_true(
     servico, consulta, id_tarefa, registro_tarefa
 ):
-    # 1. Busca tarefa bruta (confirma que existe)
-    # 2. Deleta de 'atribuida'
-    # 3. Deleta de 'tarefa'
+    # 1. Busca tarefa, 2. autoriza pela casa, 3. deleta de 'atribuida'
+    # e 4. deleta de 'tarefa'.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(
+            data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]
+        ),
         SimpleNamespace(data=[{"deleted": True}]),
         SimpleNamespace(data=[registro_tarefa])
     ]
 
-    resultado = servico.excluir_tarefa(id_tarefa)
+    resultado = servico.excluir_tarefa(
+        id_tarefa,
+        UUID(registro_tarefa["fk_usuario_id"]),
+    )
 
     assert resultado is True
     assert consulta.delete.call_count == 2
+
+
+def test_morador_nao_pode_criar_tarefa(
+    servico, consulta, ids_relacionados
+):
+    consulta.execute.return_value = SimpleNamespace(
+        data=[{"fk_usuario_id": str(uuid4())}]
+    )
+    dados = TarefaCriar(
+        nome="Tarefa proibida",
+        estado_atual="pendente",
+        data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        fk_casa_id=ids_relacionados["fk_casa_id"],
+        fk_usuario_id=ids_relacionados["fk_usuario_id"],
+    )
+
+    with pytest.raises(HTTPException) as erro:
+        servico.criar_tarefa(dados, ids_relacionados["fk_usuario_id"])
+
+    assert erro.value.status_code == 403
+    consulta.insert.assert_not_called()
+
+
+def test_morador_nao_pode_atualizar_tarefa(
+    servico, consulta, id_tarefa, registro_tarefa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(
+            id_tarefa,
+            TarefaAtualizar(nome="Alteração proibida"),
+            UUID(registro_tarefa["fk_usuario_id"]),
+        )
+
+    assert erro.value.status_code == 403
+    consulta.update.assert_not_called()
+
+
+def test_morador_nao_pode_excluir_tarefa(
+    servico, consulta, id_tarefa, registro_tarefa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.excluir_tarefa(
+            id_tarefa,
+            UUID(registro_tarefa["fk_usuario_id"]),
+        )
+
+    assert erro.value.status_code == 403
+    consulta.delete.assert_not_called()

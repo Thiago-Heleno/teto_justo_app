@@ -10,34 +10,14 @@ from core.database import get_supabase
 from main import app
 
 @pytest.fixture
-def usuario_temporario():
+def usuario_temporario(autenticacao_temporaria):
     supabase = get_supabase()
-    marcador = uuid4().hex
-
-    resposta = (
-        supabase.table("usuario")
-        .insert(
-            {
-                "nome": "Usuário teste de casa",
-                "email": f"teste-casa-{marcador}@example.com",
-                "senha_hash": "nao-utilizada-neste-teste",
-                "usuario_tipo": 0,
-            }
-        )
-        .execute()
-    )
-
-    assert resposta.data, "Não foi possível preparar o usuário de teste."
-    usuario_id = resposta.data[0]["id"]
+    usuario_id = autenticacao_temporaria["usuario_id"]
 
     yield usuario_id
 
     supabase.table("casa").delete().eq(
         "fk_usuario_id", usuario_id
-    ).execute()
-
-    supabase.table("usuario").delete().eq(
-        "id", usuario_id
     ).execute()
 
 def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
@@ -62,7 +42,6 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
                 "nome": f"Casa teste {marcador}",
                 "endereco": "Rua de Integração, 100",
                 "foto": foto_inicial,
-                "fk_usuario_id": usuario_temporario,
             },
         )
 

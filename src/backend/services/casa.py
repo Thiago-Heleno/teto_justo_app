@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from schemas.casa import CasaAtualizar, CasaCriar
+from services.autorizacao import ServicoAutorizacaoCasa
 
 
 class ServicoCasa:
@@ -69,8 +70,9 @@ class ServicoCasa:
 
         return resposta.data[0]
 
-    def criar_casa(self, dados_casa: CasaCriar):
+    def criar_casa(self, dados_casa: CasaCriar, id_proprietario: UUID):
         dados = dados_casa.model_dump(mode="json")
+        dados["fk_usuario_id"] = str(id_proprietario)
 
         if dados["foto"] is not None:
             dados["foto"] = self._foto_para_banco(dados["foto"])
@@ -111,7 +113,14 @@ class ServicoCasa:
         self,
         id_casa: UUID,
         dados_casa: CasaAtualizar,
+        id_usuario_atual: UUID,
     ):
+        ServicoAutorizacaoCasa(
+            self.supabase
+        ).garantir_administrador_da_casa(
+            id_casa,
+            id_usuario_atual,
+        )
         dados = dados_casa.model_dump(
             mode="json",
             exclude_unset=True,
@@ -142,7 +151,13 @@ class ServicoCasa:
 
         return self._montar_resposta(resposta.data[0])
 
-    def excluir_casa(self, id_casa: UUID):
+    def excluir_casa(self, id_casa: UUID, id_usuario_atual: UUID):
+        ServicoAutorizacaoCasa(
+            self.supabase
+        ).garantir_administrador_da_casa(
+            id_casa,
+            id_usuario_atual,
+        )
         resposta = (
             self.supabase.table("casa")
             .delete()
