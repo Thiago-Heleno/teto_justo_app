@@ -33,11 +33,14 @@ acessa o Supabase para persistir os dados.
 
 ## Como rodar localmente
 
+Para visualizar somente a tela **Nova tarefa**, siga diretamente a
+[etapa 3 — Frontend](#3-inicie-o-frontend). Essa demonstração usa dados
+fictícios e não precisa de backend, Docker, Supabase ou `.env`.
+
 ### Pré-requisitos
 
-- Node.js e npm;
-- Python 3;
-- Uma instância/projeto Supabase com as variáveis de acesso;
+- Para o frontend: Node.js e npm; o projeto utiliza Expo SDK 57;
+- Para o backend: Python 3 e um projeto Supabase com as variáveis de acesso;
 - Opcionalmente, Docker e Docker Compose para executar o backend em container.
 
 ### 1. Configure as variáveis de ambiente
@@ -76,16 +79,84 @@ docker compose up --build backend
 
 ### 3. Inicie o frontend
 
-Em outro terminal, execute:
+Abra um terminal na raiz da sua cópia do repositório e instale as dependências
+registradas no arquivo de lock:
 
-```powershell
+```sh
 cd src/frontend
-npm install
-npm start
+npm ci
 ```
 
-Use o Expo Go no dispositivo ou escolha o destino oferecido pelo Expo. Para
-executar no navegador, use `npm run web`.
+Faça essa instalação na primeira execução ou após receber alterações nas
+dependências. Execute os próximos comandos dentro de `src/frontend`.
+
+No PowerShell, se `npm` ou `npx` forem bloqueados pela política de scripts,
+use `npm.cmd` e `npx.cmd`, respectivamente. No macOS e Linux, use os comandos
+sem `.cmd`.
+
+#### No navegador
+
+```sh
+npm run web -- --port 8081
+```
+
+Mantenha o terminal aberto e acesse
+[Nova tarefa](http://localhost:8081/nova-tarefa), ou escolha **Nova tarefa**
+na navegação do app. O formulário contém nome, descrição, peso, prazo e
+seleção de um ou mais moradores. A criação é simulada: nada é salvo no banco.
+
+Se a porta estiver ocupada, use a instância já aberta ou inicie com
+`npm run web -- --port 8082` e ajuste a porta no endereço do navegador.
+
+#### No celular com Expo Go
+
+Instale o **Expo Go compatível com SDK 57** e conecte o celular e o computador
+à mesma rede Wi-Fi. A versão pode ser consultada no
+[site oficial do Expo Go](https://expo.dev/go).
+
+Pare o servidor anterior com `Ctrl+C`, se estiver usando a mesma porta, e execute:
+
+```sh
+npx expo start --go --port 8081
+```
+
+Leia o QR code no terminal usando o Expo Go no Android ou a câmera do iPhone.
+Depois de abrir o projeto, toque em **Nova tarefa**. No iPhone, entre com a
+mesma conta Expo no aplicativo e na CLI, usando `npx expo login` no computador,
+conforme a [orientação oficial do Expo](https://docs.expo.dev/get-started/start-developing/).
+
+Se a rede impedir a conexão, pare o servidor e tente
+`npx expo start --go --tunnel`; esse modo depende da internet e pode solicitar
+suporte adicional a túnel. Use o novo QR code. `localhost` no celular aponta
+para o próprio aparelho, não para o computador.
+
+#### Compilar e instalar no aparelho
+
+Os scripts abaixo compilam o aplicativo nativo; são uma alternativa ao Expo Go.
+
+| Destino | Comando | Pré-requisitos |
+| --- | --- | --- |
+| Android | `npm run android -- --device` | Android Studio, Android SDK, Java e aparelho com depuração USB autorizada, ou emulador configurado. |
+| iPhone | `npm run ios -- --device` | Mac com Xcode, aparelho preparado para desenvolvimento e assinatura configurada. Não compila localmente no Windows. |
+
+Esses scripts executam `expo run:android` e `expo run:ios`, respectivamente.
+Podem gerar pastas nativas e ajustar a configuração do projeto. Para detalhes,
+consulte [compilação local no Expo](https://docs.expo.dev/guides/local-app-development/).
+
+#### Ver as alterações
+
+Salve os arquivos com o servidor ativo para atualizar a interface. Se necessário,
+pressione `r` no terminal ou recarregue a página. Para limpar o cache da prévia
+web, pare o servidor e execute `npm run web -- --clear`.
+
+Depois de instalar uma versão nativa, alterações apenas em TypeScript normalmente
+precisam somente de `npm start` e da abertura do app instalado. Mudanças em
+dependências nativas podem exigir nova compilação. Encerre o servidor com `Ctrl+C`.
+
+O [tutorial detalhado](./contexto/sprint_2/tutorial_execucao_frontend.md) inclui
+orientações de conexão e execução no Windows. A validação em aparelhos Android
+e iOS ainda está pendente; os resultados já obtidos estão no
+[contexto do frontend](./contexto/sprint_2/frontend_tarefas.md).
 
 ## Contexto do projeto
 
@@ -168,6 +239,13 @@ Para sair do ambiente virtual ao encerrar o trabalho, execute `deactivate`.
 
 ### Frontend
 
-```powershell
+Dentro de `src/frontend`, após preparar e iniciar o projeto:
+
+```sh
 npm run lint
+npx tsc --noEmit
 ```
+
+O lint global possui pendências de formatação registradas no contexto da
+sprint 2; uma falha nessa verificação não significa, por si só, que o servidor
+de desenvolvimento não possa iniciar.
