@@ -1,15 +1,20 @@
-import { useState } from "react";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  interpolateColor,
+  LinearTransition,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DetalheTarefa } from "@/components/detalhe-tarefa";
+import { MotionPressable } from "@/components/motion-pressable";
 import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
@@ -32,19 +37,32 @@ type FilterPillProps = {
 };
 
 function FilterPill({ label, selected, onPress }: FilterPillProps) {
+  const selection = useSharedValue(selected ? 1 : 0);
+
+  useEffect(() => {
+    selection.value = withTiming(selected ? 1 : 0, {
+      duration: 160,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [selected, selection]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      selection.value,
+      [0, 1],
+      [Caldera.limestone, Caldera.ember],
+    ),
+  }));
+
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.filterPill,
-        selected && styles.filterPillSelected,
-        pressed && styles.pressed,
-      ]}
+      style={[styles.filterPill, animatedStyle]}
     >
       <Text style={styles.filterPillText}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -94,7 +112,10 @@ export default function TarefasScreen() {
             onConcluir={concluirTarefa}
           />
         ) : (
-          <View style={styles.content}>
+          <Animated.View
+            entering={FadeIn.duration(220).reduceMotion(ReduceMotion.System)}
+            style={styles.content}
+          >
             <View style={styles.hero}>
               <View style={styles.heroCopy}>
                 <Text style={styles.houseName}>{casaDemonstracao.nome}</Text>
@@ -195,88 +216,113 @@ export default function TarefasScreen() {
 
             <View style={styles.listHeading}>
               <Text style={styles.sectionTitle}>TAREFAS</Text>
-              <Text accessibilityLiveRegion="polite" style={styles.resultCount}>
+              <Animated.Text
+                key={tarefasFiltradas.length}
+                accessibilityLiveRegion="polite"
+                entering={FadeIn.duration(160).reduceMotion(
+                  ReduceMotion.System,
+                )}
+                style={styles.resultCount}
+              >
                 {tarefasFiltradas.length} resultado(s)
-              </Text>
+              </Animated.Text>
             </View>
 
             {tarefasFiltradas.length ? (
               <View style={styles.taskGrid}>
-                {tarefasFiltradas.map((tarefa) => {
+                {tarefasFiltradas.map((tarefa, index) => {
                   const responsaveis = moradoresDemonstracao.filter((morador) =>
                     tarefa.usuarios_atribuidos.includes(morador.id),
                   );
                   const finalizada = tarefa.estado_atual === "finalizado";
 
                   return (
-                    <Pressable
+                    <Animated.View
                       key={tarefa.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
-                      onPress={() => setTarefaSelecionadaId(tarefa.id)}
-                      style={({ pressed }) => [
-                        styles.taskCard,
-                        pressed && styles.pressed,
-                      ]}
+                      entering={FadeInDown.delay(Math.min(index * 40, 160))
+                        .duration(260)
+                        .reduceMotion(ReduceMotion.System)}
+                      exiting={FadeOut.duration(140).reduceMotion(
+                        ReduceMotion.System,
+                      )}
+                      layout={LinearTransition.duration(220).reduceMotion(
+                        ReduceMotion.System,
+                      )}
+                      style={styles.taskCardSlot}
                     >
-                      <View style={styles.taskTopRow}>
-                        <View
-                          style={[
-                            styles.statusBadge,
-                            finalizada && styles.statusBadgeFinished,
-                          ]}
-                        >
-                          <Text
+                      <MotionPressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
+                        onPress={() => setTarefaSelecionadaId(tarefa.id)}
+                        style={styles.taskCard}
+                      >
+                        <View style={styles.taskTopRow}>
+                          <View
                             style={[
-                              styles.statusText,
-                              finalizada && styles.statusTextFinished,
+                              styles.statusBadge,
+                              finalizada && styles.statusBadgeFinished,
                             ]}
                           >
-                            {rotulosEstado[tarefa.estado_atual]}
-                          </Text>
+                            <Text
+                              style={[
+                                styles.statusText,
+                                finalizada && styles.statusTextFinished,
+                              ]}
+                            >
+                              {rotulosEstado[tarefa.estado_atual]}
+                            </Text>
+                          </View>
+                          <Text style={styles.weight}>PESO {tarefa.peso}</Text>
                         </View>
-                        <Text style={styles.weight}>PESO {tarefa.peso}</Text>
-                      </View>
 
-                      <Text style={styles.taskTitle}>
-                        {tarefa.nome.toUpperCase()}
-                      </Text>
-                      <Text numberOfLines={2} style={styles.taskDescription}>
-                        {tarefa.descricao}
-                      </Text>
+                        <Text style={styles.taskTitle}>
+                          {tarefa.nome.toUpperCase()}
+                        </Text>
+                        <Text numberOfLines={2} style={styles.taskDescription}>
+                          {tarefa.descricao}
+                        </Text>
 
-                      <View style={styles.taskMeta}>
-                        <View>
-                          <Text style={styles.metaLabel}>PRAZO</Text>
-                          <Text style={styles.metaValue}>
-                            {formatarPrazo(tarefa.data_fim)}
-                          </Text>
+                        <View style={styles.taskMeta}>
+                          <View>
+                            <Text style={styles.metaLabel}>PRAZO</Text>
+                            <Text style={styles.metaValue}>
+                              {formatarPrazo(tarefa.data_fim)}
+                            </Text>
+                          </View>
+                          <View style={styles.avatars}>
+                            {responsaveis.map((morador) => (
+                              <View key={morador.id} style={styles.avatar}>
+                                <Text style={styles.avatarText}>
+                                  {morador.iniciais}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
                         </View>
-                        <View style={styles.avatars}>
-                          {responsaveis.map((morador) => (
-                            <View key={morador.id} style={styles.avatar}>
-                              <Text style={styles.avatarText}>
-                                {morador.iniciais}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
 
-                      <Text style={styles.detailsLink}>Ver detalhes →</Text>
-                    </Pressable>
+                        <Text style={styles.detailsLink}>Ver detalhes →</Text>
+                      </MotionPressable>
+                    </Animated.View>
                   );
                 })}
               </View>
             ) : (
-              <View style={styles.emptyCard}>
+              <Animated.View
+                entering={FadeInDown.duration(220).reduceMotion(
+                  ReduceMotion.System,
+                )}
+                exiting={FadeOut.duration(140).reduceMotion(
+                  ReduceMotion.System,
+                )}
+                style={styles.emptyCard}
+              >
                 <Text style={styles.emptyTitle}>NENHUMA TAREFA POR AQUI</Text>
                 <Text style={styles.emptyText}>
                   Ajuste os filtros para ver outras tarefas da casa.
                 </Text>
-              </View>
+              </Animated.View>
             )}
-          </View>
+          </Animated.View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -359,7 +405,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: 10,
   },
-  filterPillSelected: { backgroundColor: Caldera.ember },
   filterPillText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   listHeading: {
     flexDirection: "row",
@@ -376,10 +421,13 @@ const styles = StyleSheet.create({
   },
   resultCount: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   taskGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
-  taskCard: {
+  taskCardSlot: {
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 320,
+  },
+  taskCard: {
+    flex: 1,
     minHeight: 330,
     backgroundColor: Caldera.limestone,
     borderRadius: 40,
@@ -456,5 +504,4 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
   emptyText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
-  pressed: { opacity: 0.7 },
 });

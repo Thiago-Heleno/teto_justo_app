@@ -1,5 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInRight,
+  FadeOut,
+  ReduceMotion,
+} from "react-native-reanimated";
 
+import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import type { TarefaCasaDemonstracao } from "@/data/tarefa-demonstracao";
@@ -30,14 +38,18 @@ export function DetalheTarefa({
   const finalizada = tarefa.estado_atual === "finalizado";
 
   return (
-    <View style={styles.container}>
-      <Pressable
+    <Animated.View
+      entering={FadeInRight.duration(260).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOut.duration(140).reduceMotion(ReduceMotion.System)}
+      style={styles.container}
+    >
+      <MotionPressable
         accessibilityRole="button"
         onPress={onVoltar}
-        style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+        style={styles.backButton}
       >
         <Text style={styles.backButtonText}>← Voltar para tarefas</Text>
-      </Pressable>
+      </MotionPressable>
 
       <View style={styles.card}>
         <View style={styles.headingRow}>
@@ -47,7 +59,9 @@ export function DetalheTarefa({
               {tarefa.nome.toUpperCase()}
             </Text>
           </View>
-          <View
+          <Animated.View
+            key={tarefa.estado_atual}
+            entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
             style={[
               styles.statusBadge,
               finalizada && styles.statusBadgeFinished,
@@ -62,7 +76,7 @@ export function DetalheTarefa({
             >
               {rotulosEstado[tarefa.estado_atual]}
             </Text>
-          </View>
+          </Animated.View>
         </View>
 
         <Text style={styles.description}>{tarefa.descricao}</Text>
@@ -80,9 +94,13 @@ export function DetalheTarefa({
           </View>
           <View style={styles.infoCard}>
             <Text style={styles.infoLabel}>STATUS</Text>
-            <Text style={styles.infoValue}>
+            <Animated.Text
+              key={tarefa.estado_atual}
+              entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
+              style={styles.infoValue}
+            >
               {rotulosEstado[tarefa.estado_atual]}
-            </Text>
+            </Animated.Text>
           </View>
         </View>
 
@@ -105,28 +123,30 @@ export function DetalheTarefa({
           </View>
         </View>
 
-        {usuarioEhResponsavel && !finalizada ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onConcluir(tarefa.id)}
-            style={({ pressed }) => [
-              styles.completeButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={styles.completeButtonText}>Concluir tarefa</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              {finalizada
-                ? "Esta tarefa já foi concluída."
-                : "Somente uma pessoa responsável pode concluir esta tarefa."}
-            </Text>
-          </View>
-        )}
+        <Animated.View
+          key={finalizada ? "finalizada" : "acao"}
+          entering={FadeInDown.duration(220).reduceMotion(ReduceMotion.System)}
+        >
+          {usuarioEhResponsavel && !finalizada ? (
+            <MotionPressable
+              accessibilityRole="button"
+              onPress={() => onConcluir(tarefa.id)}
+              style={styles.completeButton}
+            >
+              <Text style={styles.completeButtonText}>Concluir tarefa</Text>
+            </MotionPressable>
+          ) : (
+            <View style={styles.notice}>
+              <Text style={styles.noticeText}>
+                {finalizada
+                  ? "Esta tarefa já foi concluída."
+                  : "Somente uma pessoa responsável pode concluir esta tarefa."}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -263,5 +283,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "500",
   },
-  pressed: { opacity: 0.7 },
 });
