@@ -24,6 +24,23 @@ export const Colors = {
   },
 } as const;
 
+export const Caldera = {
+  ember: "#fc5000",
+  plasmaViolet: "#524ae9",
+  sulfur: "#f5f28e",
+  limestone: "#f7f6f2",
+  pumice: "#e2e2df",
+  obsidian: "#070607",
+  chalk: "#ffffff",
+} as const;
+
+export const CompactFont =
+  Platform.select({
+    ios: "Arial Narrow",
+    android: "sans-serif-condensed",
+    web: "Impact, 'Arial Narrow', sans-serif",
+  }) ?? "sans-serif";
+
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({

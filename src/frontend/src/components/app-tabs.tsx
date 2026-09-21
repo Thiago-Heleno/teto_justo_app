@@ -1,41 +1,30 @@
 // eslint-disable-next-line import/no-unresolved
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { useColorScheme } from "react-native";
 
-import { Colors } from "@/constants/theme";
+import { Caldera } from "@/constants/theme";
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === "unspecified" ? "light" : scheme];
-
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}
+      backgroundColor={Caldera.limestone}
+      disableTransparentOnScrollEdge
+      indicatorColor={Caldera.ember}
+      labelStyle={{ selected: { color: Caldera.obsidian } }}
+      tabBarRespectsIMEInsets
     >
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require("@/assets/images/tabIcons/home.png")}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require("@/assets/images/tabIcons/explore.png")}
-          renderingMode="template"
-        />
+        <NativeTabs.Trigger.Label>Início</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="nova-tarefa">
-        <NativeTabs.Trigger.Label>Nova tarefa</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require("@/assets/images/android-icon-monochrome.png")}
-          renderingMode="template"
-        />
+        <NativeTabs.Trigger.Label>Criar</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="plus.circle.fill" md="add_circle" />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="tarefas">
+        <NativeTabs.Trigger.Label>Tarefas</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="checklist" md="checklist" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );
