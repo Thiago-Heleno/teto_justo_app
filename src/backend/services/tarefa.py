@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
 
 from schemas.tarefa import TarefaAtualizar, TarefaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
+
+_ESTADOS_FINAIS = ("finalizado", "nao_feito")
 
 
 class ServicoTarefa:
@@ -59,12 +62,37 @@ class ServicoTarefa:
                 detail="Erro ao atribuir responsáveis pela tarefa.",
             )
 
+    def _sincronizar_estado_por_atraso(self, tarefa: dict) -> dict:
+        if tarefa["estado_atual"] in _ESTADOS_FINAIS:
+            return tarefa
+
+        data_fim = datetime.fromisoformat(
+            tarefa["data_fim"].replace("Z", "+00:00")
+        )
+        agora = datetime.now(timezone.utc)
+        dias_atraso = max(0, int((agora - data_fim).total_seconds() // 86400))
+
+        if dias_atraso < tarefa["atraso_maximo"]:
+            return tarefa
+
+        resposta = (
+            self.supabase.table("tarefa")
+            .update({"estado_atual": "nao_feito"})
+            .eq("id", str(tarefa["id"]))
+            .execute()
+        )
+        return resposta.data[0] if resposta.data else {**tarefa, "estado_atual": "nao_feito"}
+
     def _montar_resposta(self, tarefa: dict) -> dict:
+        tarefa = self._sincronizar_estado_por_atraso(tarefa)
         resposta = {
             "id": tarefa["id"],
             "nome": tarefa["nome"],
             "descricao": tarefa.get("descricao"),
             "estado_atual": tarefa["estado_atual"],
+            "peso": tarefa["dificuldade"],
+            "pontuacao": tarefa["pontuacao"],
+            "atraso_maximo": tarefa["atraso_maximo"],
             "data_fim": tarefa["data_fim"],
             "fk_casa_id": tarefa["fk_casa_id"],
             "fk_usuario_id": tarefa["fk_usuario_id"],
@@ -85,7 +113,16 @@ class ServicoTarefa:
             dados_tarefa.fk_casa_id,
             id_usuario_atual,
         )
+        if dados_tarefa.usuarios_atribuidos:
+            ServicoAutorizacaoCasa(
+                self.supabase
+            ).garantir_responsaveis_da_casa(
+                dados_tarefa.fk_casa_id,
+                dados_tarefa.usuarios_atribuidos,
+            )
         dados = dados_tarefa.model_dump(mode="json")
+        if "peso" in dados:
+            dados["dificuldade"] = dados.pop("peso")
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
         resposta = (
             self.supabase.table("tarefa")
@@ -145,6 +182,8 @@ class ServicoTarefa:
             exclude_unset=True,
             exclude_none=True,
         )
+        if "peso" in dados:
+            dados["dificuldade"] = dados.pop("peso")
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
         if not dados and not usuarios_foram_informados:
             raise HTTPException(
@@ -166,6 +205,14 @@ class ServicoTarefa:
                 )
 
         if usuarios_foram_informados:
+            if usuarios_atribuidos:
+                ServicoAutorizacaoCasa(
+                    self.supabase
+                ).garantir_responsaveis_da_casa(
+                    tarefa_atual["fk_casa_id"],
+                    usuarios_atribuidos,
+                )
+
             (
                 self.supabase.table("atribuida")
                 .delete()

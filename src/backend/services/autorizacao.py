@@ -30,3 +30,45 @@ class ServicoAutorizacaoCasa:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permissão de administrador necessária para esta casa.",
             )
+
+    def garantir_responsaveis_da_casa(
+        self,
+        id_casa: UUID | str,
+        ids_usuarios: list[UUID | str],
+    ) -> None:
+        ids = [str(id_usuario) for id_usuario in ids_usuarios]
+        if len(set(ids)) != len(ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Responsáveis duplicados não são permitidos.",
+            )
+
+        resposta_casa = (
+            self.supabase.table("casa")
+            .select("fk_usuario_id")
+            .eq("id", str(id_casa))
+            .execute()
+        )
+        if not resposta_casa.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Casa não encontrada.",
+            )
+        id_administrador = str(resposta_casa.data[0]["fk_usuario_id"])
+
+        resposta_pertencer = (
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_casa_id", str(id_casa))
+            .execute()
+        )
+        ids_validos = {
+            str(registro["fk_usuario_id"]) for registro in resposta_pertencer.data
+        }
+        ids_validos.add(id_administrador)
+
+        if any(id_usuario not in ids_validos for id_usuario in ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Um ou mais responsáveis não pertencem a esta casa.",
+            )
