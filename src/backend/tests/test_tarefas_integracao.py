@@ -55,7 +55,8 @@ def test_crud_tarefa_no_supabase(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": usuario_id,
-                "usuarios_atribuidos": [usuario_id]
+                "usuarios_atribuidos": [usuario_id],
+                "peso": 1,
             },
         )
         assert criada.status_code == 201, criada.text
@@ -131,6 +132,8 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": morador["usuario_id"],
+                "usuarios_atribuidos": [morador["usuario_id"]],
+                "peso": 1,
             },
         )
         assert proibida.status_code == 403, proibida.text
@@ -148,6 +151,8 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": administrador_id,
+                "usuarios_atribuidos": [administrador_id],
+                "peso": 1,
             },
         )
         assert criada.status_code == 201, criada.text
