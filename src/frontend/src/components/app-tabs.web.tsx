@@ -6,11 +6,12 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from "expo-router/ui";
-import { Pressable, View, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
+import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, Spacing } from "@/constants/theme";
 
 export default function AppTabs() {
@@ -40,7 +41,7 @@ export function TabButton({
   ...props
 }: TabTriggerSlotProps) {
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
+    <MotionPressable {...props} style={undefined}>
       <ThemedView
         style={[
           styles.tabButtonView,
@@ -51,7 +52,7 @@ export function TabButton({
           {children}
         </ThemedText>
       </ThemedView>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -94,9 +95,6 @@ const styles = StyleSheet.create({
     marginRight: "auto",
     color: Caldera.obsidian,
     fontWeight: "500",
-  },
-  pressed: {
-    opacity: 0.7,
   },
   tabButtonView: {
     backgroundColor: Caldera.limestone,
