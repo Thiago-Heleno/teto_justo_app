@@ -58,7 +58,7 @@ def test_crud_tarefa_no_supabase(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": usuario_id,
-                "usuarios_atribuidos": [usuario_id]
+                "usuarios_atribuidos": [usuario_id],
             },
         )
         assert criada.status_code == 201, criada.text
@@ -138,6 +138,7 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": morador["usuario_id"],
+                "usuarios_atribuidos": [morador["usuario_id"]],
             },
         )
         assert proibida.status_code == 403, proibida.text
@@ -158,6 +159,7 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": administrador_id,
+                "usuarios_atribuidos": [administrador_id],
             },
         )
         assert criada.status_code == 201, criada.text
@@ -211,7 +213,8 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
         raise_server_exceptions=False,
         headers=autenticacao_temporaria["headers"],
     ) as cliente_admin:
-        # Responsável duplicado na mesma lista
+        # Responsável duplicado na mesma lista é deduplicado silenciosamente
+        # na criação (mesmo comportamento de `_atribuir_usuarios`).
         duplicado = cliente_admin.post(
             "/tarefas/",
             json={
@@ -226,7 +229,8 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
                 "usuarios_atribuidos": [administrador_id, administrador_id],
             },
         )
-        assert duplicado.status_code == 400, duplicado.text
+        assert duplicado.status_code == 201, duplicado.text
+        assert duplicado.json()["usuarios_atribuidos"] == [administrador_id]
 
         # Responsável que não pertence a esta casa
         de_outra_casa = cliente_admin.post(
@@ -243,7 +247,7 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
                 "usuarios_atribuidos": [morador_de_outra_casa["usuario_id"]],
             },
         )
-        assert de_outra_casa.status_code == 400, de_outra_casa.text
+        assert de_outra_casa.status_code == 422, de_outra_casa.text
 
         # Responsável válido (o próprio dono da casa) passa normalmente
         valida = cliente_admin.post(
@@ -305,6 +309,7 @@ def test_atualizar_tarefa_rejeita_responsaveis_invalidos(
                 "data_fim": data_fim.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": administrador_id,
+                "usuarios_atribuidos": [administrador_id],
             },
         )
         assert criada.status_code == 201, criada.text
@@ -350,18 +355,18 @@ def test_tarefa_expirada_vira_nao_feito_ao_ser_consultada(
     dependencias_temporarias,
     autenticacao_temporaria,
 ):
+    supabase = get_supabase()
     casa_id = dependencias_temporarias["casa_id"]
     usuario_id = dependencias_temporarias["usuario_id"]
-    # data_fim já passou há mais dias do que o atraso_maximo (2): a tarefa
-    # nunca foi finalizada manualmente e deve virar 'nao_feito' sozinha
-    # na primeira consulta, sem nenhum job/cron envolvido.
-    data_fim = datetime.now(timezone.utc) - timedelta(days=10)
+    data_fim_futura = datetime.now(timezone.utc) + timedelta(days=2)
 
     with TestClient(
         app,
         raise_server_exceptions=False,
         headers=autenticacao_temporaria["headers"],
     ) as cliente:
+        # A API exige prazo futuro na criação, então a tarefa nasce válida e
+        # o prazo é atrasado direto no banco para simular o tempo passando.
         criada = cliente.post(
             "/tarefas/",
             json={
@@ -370,13 +375,22 @@ def test_tarefa_expirada_vira_nao_feito_ao_ser_consultada(
                 "peso": 1,
                 "pontuacao": 10,
                 "atraso_maximo": 2,
-                "data_fim": data_fim.isoformat(),
+                "data_fim": data_fim_futura.isoformat(),
                 "fk_casa_id": casa_id,
                 "fk_usuario_id": usuario_id,
+                "usuarios_atribuidos": [usuario_id],
             },
         )
         assert criada.status_code == 201, criada.text
         tarefa = criada.json()
+
+        # data_fim já passou há mais dias do que o atraso_maximo (2): a
+        # tarefa nunca foi finalizada manualmente e deve virar 'nao_feito'
+        # sozinha na primeira consulta, sem nenhum job/cron envolvido.
+        data_fim_passada = datetime.now(timezone.utc) - timedelta(days=10)
+        supabase.table("tarefa").update(
+            {"data_fim": data_fim_passada.isoformat()}
+        ).eq("id", tarefa["id"]).execute()
 
         consultada = cliente.get(f"/tarefas/{tarefa['id']}")
         assert consultada.status_code == 200, consultada.text

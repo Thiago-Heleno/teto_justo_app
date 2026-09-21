@@ -11,7 +11,7 @@ class ServicoAutorizacaoCasa:
         self,
         id_casa: UUID | str,
         id_usuario: UUID | str,
-    ) -> None:
+    ) -> UUID | str:
         resposta = (
             self.supabase.table("casa")
             .select("fk_usuario_id")
@@ -30,6 +30,7 @@ class ServicoAutorizacaoCasa:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permissão de administrador necessária para esta casa.",
             )
+        return id_administrador
 
     def garantir_responsaveis_da_casa(
         self,
