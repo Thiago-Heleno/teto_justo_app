@@ -19,6 +19,7 @@ def consulta():
     consulta.insert.return_value = consulta
     consulta.select.return_value = consulta
     consulta.eq.return_value = consulta
+    consulta.in_.return_value = consulta
     consulta.range.return_value = consulta
     consulta.update.return_value = consulta
     consulta.delete.return_value = consulta
@@ -73,6 +74,12 @@ def test_criar_tarefa_com_atribuicoes(
         SimpleNamespace(
             data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]
         ),
+        SimpleNamespace(
+            data=[
+                {"fk_usuario_id": str(id_usuario)}
+                for id_usuario in ids_relacionados["usuarios_atribuidos"]
+            ]
+        ),
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": str(u), "fk_tarefa_id": str(registro_tarefa["id"])}
                               for u in ids_relacionados["usuarios_atribuidos"]]
@@ -89,6 +96,7 @@ def test_criar_tarefa_com_atribuicoes(
         data_fim=datetime(2026, 10, 1, 12, tzinfo=timezone.utc),
         fk_casa_id=ids_relacionados["fk_casa_id"],
         fk_usuario_id=ids_relacionados["fk_usuario_id"],
+        peso=1,
         usuarios_atribuidos=ids_relacionados["usuarios_atribuidos"],
     )
 
@@ -107,6 +115,12 @@ def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relac
         SimpleNamespace(
             data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]
         ),
+        SimpleNamespace(
+            data=[
+                {"fk_usuario_id": str(id_usuario)}
+                for id_usuario in ids_relacionados["usuarios_atribuidos"]
+            ]
+        ),
         SimpleNamespace(data=[]),
     ]
     dados = TarefaCriar(
@@ -115,6 +129,8 @@ def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relac
         data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
         fk_casa_id=ids_relacionados["fk_casa_id"],
         fk_usuario_id=ids_relacionados["fk_usuario_id"],
+        peso=1,
+        usuarios_atribuidos=ids_relacionados["usuarios_atribuidos"],
     )
 
     with pytest.raises(HTTPException) as erro:
@@ -138,6 +154,8 @@ def test_criar_tarefa_rejeita_estado_fora_do_contrato(
             data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
             fk_casa_id=ids_relacionados["fk_casa_id"],
             fk_usuario_id=ids_relacionados["fk_usuario_id"],
+            peso=1,
+            usuarios_atribuidos=ids_relacionados["usuarios_atribuidos"],
         )
 
 
@@ -222,12 +240,64 @@ def test_morador_nao_pode_criar_tarefa(
         data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
         fk_casa_id=ids_relacionados["fk_casa_id"],
         fk_usuario_id=ids_relacionados["fk_usuario_id"],
+        peso=1,
+        usuarios_atribuidos=ids_relacionados["usuarios_atribuidos"],
     )
 
     with pytest.raises(HTTPException) as erro:
         servico.criar_tarefa(dados, ids_relacionados["fk_usuario_id"])
 
     assert erro.value.status_code == 403
+    consulta.insert.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "campo,valor",
+    [
+        ("peso", 0),
+        ("usuarios_atribuidos", []),
+        ("data_fim", datetime(2020, 1, 1, tzinfo=timezone.utc)),
+    ],
+)
+def test_criar_tarefa_rejeita_requisitos_invalidos(campo, valor, ids_relacionados):
+    dados = {
+        "nome": "Tarefa inválida",
+        "estado_atual": "pendente",
+        "data_fim": datetime(2026, 10, 1, tzinfo=timezone.utc),
+        "fk_casa_id": ids_relacionados["fk_casa_id"],
+        "fk_usuario_id": ids_relacionados["fk_usuario_id"],
+        "peso": 1,
+        "usuarios_atribuidos": [ids_relacionados["fk_usuario_id"]],
+    }
+    dados[campo] = valor
+
+    with pytest.raises(ValidationError):
+        TarefaCriar(**dados)
+
+
+def test_criar_tarefa_rejeita_responsavel_de_outra_casa(
+    servico, consulta, ids_relacionados
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(
+            data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]
+        ),
+        SimpleNamespace(data=[]),
+    ]
+    dados = TarefaCriar(
+        nome="Tarefa inválida",
+        estado_atual="pendente",
+        data_fim=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        fk_casa_id=ids_relacionados["fk_casa_id"],
+        fk_usuario_id=ids_relacionados["fk_usuario_id"],
+        peso=1,
+        usuarios_atribuidos=[uuid4()],
+    )
+
+    with pytest.raises(HTTPException) as erro:
+        servico.criar_tarefa(dados, ids_relacionados["fk_usuario_id"])
+
+    assert erro.value.status_code == 422
     consulta.insert.assert_not_called()
 
 

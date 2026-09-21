@@ -79,14 +79,34 @@ class ServicoTarefa:
         dados_tarefa: TarefaCriar,
         id_usuario_atual: UUID,
     ):
-        ServicoAutorizacaoCasa(
+        id_administrador = ServicoAutorizacaoCasa(
             self.supabase
         ).garantir_administrador_da_casa(
             dados_tarefa.fk_casa_id,
             id_usuario_atual,
         )
+        ids_responsaveis = list(
+            dict.fromkeys(str(id_usuario) for id_usuario in dados_tarefa.usuarios_atribuidos)
+        )
+        resposta_membros = (
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_casa_id", str(dados_tarefa.fk_casa_id))
+            .in_("fk_usuario_id", ids_responsaveis)
+            .execute()
+        )
+        ids_membros = {
+            str(registro["fk_usuario_id"]) for registro in resposta_membros.data
+        }
+        ids_membros.add(str(id_administrador))
+        if set(ids_responsaveis) - ids_membros:
+            raise HTTPException(
+                status_code=422,
+                detail="Todos os responsáveis devem pertencer à casa.",
+            )
         dados = dados_tarefa.model_dump(mode="json")
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
+        dados["dificuldade"] = dados.pop("peso")
         resposta = (
             self.supabase.table("tarefa")
             .insert(dados)
