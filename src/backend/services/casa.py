@@ -173,8 +173,7 @@ class ServicoCasa:
 
         return True
 
-    
-    def listar_moradores(self, id_casa: UUID): 
+    def listar_moradores(self, id_casa: UUID):
         self._buscar_casa_bruta(id_casa)
 
         resposta_pertencer = (
@@ -191,13 +190,14 @@ class ServicoCasa:
         }
 
         resposta_usuarios = (
-            self.supabase.table("usuario").select("id, nome, email, telefone, foto").in_("id", list(scores_por_usuario.keys())).execute()
+            self.supabase.table("usuario").select("id, nome, email, telefone, foto")
+            .in_("id", list(scores_por_usuario.keys())).execute()
         )
 
         return [
             {**usuario, "score": scores_por_usuario[usuario["id"]]}
             for usuario in resposta_usuarios.data
         ]
-          
+
 
 
