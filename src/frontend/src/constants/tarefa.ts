@@ -1,8 +1,6 @@
 export const pesosTarefa = [1, 2, 3] as const;
 
 export type PesoTarefa = (typeof pesosTarefa)[number];
-<<<<<<< Updated upstream
-=======
 
 export const prazosTarefa = [1, 2, 3, 4, 5] as const;
 
@@ -31,4 +29,3 @@ export const rotulosEstado: Record<EstadoTarefa, string> = {
   finalizado: "Finalizada",
   nao_feito: "Não feita",
 };
->>>>>>> Stashed changes

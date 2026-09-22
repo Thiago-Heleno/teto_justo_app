@@ -89,6 +89,35 @@ Os registros anteriores de exportação Android/iOS e validação de datas
 pertencem à versão anterior. Nesta revisão não foi feita compilação nativa
 nem teste em aparelho ou emulador.
 
+## Navegação mobile — 21/09/2026
+
+- Removida `src/frontend/src/app/explore.tsx` e suas referências da navegação
+  nativa e web.
+- Reduzida a barra inferior para três destinos, com rótulo curto e símbolos
+  nativos (`house`, `plus.circle` e `checklist`) em vez de imagens genéricas.
+- Ativados `tabBarRespectsIMEInsets` e `disableTransparentOnScrollEdge` para
+  evitar que o teclado cubra a barra ou que ela desapareça durante rolagem.
+- `npm run lint`: aprovado. `tsc --noEmit -p src/frontend/tsconfig.json`:
+  aprovado. Não foi possível validar o toque e a aparência em dispositivo
+  físico nesta sessão; o comando `npm run ios` também não está disponível no
+  ambiente Windows atual.
+
+## Resolução dos conflitos do PR #54
+
+- Incorporada a `main` em `frontend-tarefa`, preservando navegação, lista,
+  filtros, design e alterações de backend recebidas do grupo.
+- Resolvidos os conflitos deste resumo, `detalhe-tarefa.tsx`,
+  `constants/tarefa.ts` e `data/tarefa-demonstracao.ts`. Também removidos
+  marcadores de um stash que haviam sido incluídos no commit da branch.
+- Mantidos peso 1..3, prazo 1..5 dias e exatamente um responsável. Os
+  tipos/estados da listagem e os imports dos dados fictícios foram preservados.
+- Validações desta resolução: TypeScript sem emissão, ESLint dos quatro
+  arquivos do fluxo, teste existente de filtros sem isolamento de processo
+  e `git diff --check` aprovados; busca por marcadores sem ocorrências.
+  O lint inicialmente apontou quebras CRLF nos arquivos do fluxo; eles foram
+  normalizados com Prettier, sem reformatação geral do projeto.
+- Não houve nova validação em navegador, aparelho ou banco nesta resolução.
+
 ## Pendências reais
 
 - Validar teclado virtual, áreas seguras, toque, VoiceOver e TalkBack em

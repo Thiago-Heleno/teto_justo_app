@@ -6,14 +6,13 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from "expo-router/ui";
-import { SymbolView } from "expo-symbols";
-import { Pressable, useColorScheme, View, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 
-import { ExternalLink } from "./external-link";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
-import { Colors, MaxContentWidth, Spacing } from "@/constants/theme";
+import { MotionPressable } from "@/components/motion-pressable";
+import { Caldera, Spacing } from "@/constants/theme";
 
 export default function AppTabs() {
   return (
@@ -21,14 +20,14 @@ export default function AppTabs() {
       <TabSlot style={{ height: "100%" }} />
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="home" href="/" asChild>
+          <TabTrigger name="index" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
-          </TabTrigger>
           <TabTrigger name="nova-tarefa" href="/nova-tarefa" asChild>
-            <TabButton>Nova tarefa</TabButton>
+            <TabButton>Criar</TabButton>
+          </TabTrigger>
+          <TabTrigger name="tarefas" href="/tarefas" asChild>
+            <TabButton>Tarefas</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -42,45 +41,30 @@ export function TabButton({
   ...props
 }: TabTriggerSlotProps) {
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
+    <MotionPressable {...props} style={undefined}>
       <ThemedView
-        type={isFocused ? "backgroundSelected" : "backgroundElement"}
-        style={styles.tabButtonView}
+        style={[
+          styles.tabButtonView,
+          isFocused && styles.tabButtonViewSelected,
+        ]}
       >
-        <ThemedText
-          type="small"
-          themeColor={isFocused ? "text" : "textSecondary"}
-        >
+        <ThemedText type="small" style={styles.tabButtonText}>
           {children}
         </ThemedText>
       </ThemedView>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
 export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === "unspecified" ? "light" : scheme];
-
   return (
     <View {...props} style={styles.tabListContainer}>
-      <ThemedView type="backgroundElement" style={styles.innerContainer}>
+      <ThemedView style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+          TETO JUSTO
         </ThemedText>
 
         {props.children}
-
-        <ExternalLink href="https://docs.expo.dev" asChild>
-          <Pressable style={styles.externalPressable}>
-            <ThemedText type="link">Docs</ThemedText>
-            <SymbolView
-              tintColor={colors.text}
-              name={{ ios: "arrow.up.right.square", web: "link" }}
-              size={12}
-            />
-          </Pressable>
-        </ExternalLink>
       </ThemedView>
     </View>
   );
@@ -96,32 +80,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   innerContainer: {
+    backgroundColor: Caldera.limestone,
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.five,
-    borderRadius: Spacing.five,
+    paddingHorizontal: Spacing.four,
+    borderRadius: 800,
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
     width: "100%",
     gap: Spacing.two,
-    maxWidth: MaxContentWidth,
+    maxWidth: 1280,
   },
   brandText: {
     marginRight: "auto",
-  },
-  pressed: {
-    opacity: 0.7,
+    color: Caldera.obsidian,
+    fontWeight: "500",
   },
   tabButtonView: {
+    backgroundColor: Caldera.limestone,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 800,
   },
-  externalPressable: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: Spacing.one,
-    marginLeft: Spacing.three,
-  },
+  tabButtonViewSelected: { backgroundColor: Caldera.ember },
+  tabButtonText: { color: Caldera.obsidian },
 });
