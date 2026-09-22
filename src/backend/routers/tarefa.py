@@ -1,10 +1,11 @@
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
-from schemas.tarefa import TarefaAtualizar, TarefaCriar, TarefaResposta
+from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar, TarefaResposta
 from services.tarefa import ServicoTarefa
 
 router = APIRouter(prefix="/tarefas", tags=["Tarefas"])
@@ -35,10 +36,15 @@ def listar_tarefas(
 def listar_tarefas_por_casa(
     id_casa: UUID,
     usuario_atual: UsuarioAtual,
+    estado: EstadoTarefa | Literal["todos"] | None = None,
+    responsavel: UUID | None = None,
+    prazo: Literal["todos", "hoje", "sete_dias", "atrasadas"] | None = None,
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
-    return servico.listar_tarefas_por_casa(id_casa)
+    return servico.listar_tarefas_por_casa(
+        id_casa, estado=estado, responsavel=responsavel, prazo=prazo
+    )
 
 
 @router.get("/{id_tarefa}", response_model=TarefaResposta)
