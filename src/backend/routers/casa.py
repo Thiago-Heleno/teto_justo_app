@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
-from schemas.casa import CasaAtualizar, CasaCriar, CasaResposta
+from schemas.casa import CasaAtualizar, CasaCriar, CasaResposta, MoradorResposta
 from services.casa import ServicoCasa
 
 router = APIRouter(prefix="/casas", tags=["Casas"])
@@ -60,3 +60,7 @@ def excluir_casa(
 ):
     servico = ServicoCasa(supabase)
     return servico.excluir_casa(id_casa, usuario_atual.id)
+
+@router.get("/{id_casa}/moradores", response_model = list[MoradorResposta])
+def listar_moradores(id_casa: UUID, usuario_atual: UsuarioAtual, supabase=Depends(get_supabase)):
+    return ServicoCasa(supabase).listar_moradores(id_casa)

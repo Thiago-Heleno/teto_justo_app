@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class CasaCriar(BaseModel):
@@ -24,3 +24,11 @@ class CasaResposta(BaseModel):
     endereco: str
     foto: Optional[str] = None
     fk_usuario_id: UUID
+
+class MoradorResposta(BaseModel):
+    id: UUID
+    nome: str
+    email: EmailStr
+    telefone: Optional[int] = None
+    foto: Optional[str] = None
+    score: int
