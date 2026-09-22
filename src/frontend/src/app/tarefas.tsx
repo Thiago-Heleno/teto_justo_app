@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import ReanimatedSwipeable, {
+  SwipeDirection,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -235,6 +238,8 @@ export default function TarefasScreen() {
                     tarefa.usuarios_atribuidos.includes(morador.id),
                   );
                   const finalizada = tarefa.estado_atual === "finalizado";
+                  const usuarioEhResponsavel =
+                    tarefa.usuarios_atribuidos.includes(usuarioDemonstracaoId);
 
                   return (
                     <Animated.View
@@ -250,58 +255,84 @@ export default function TarefasScreen() {
                       )}
                       style={styles.taskCardSlot}
                     >
-                      <MotionPressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
-                        onPress={() => setTarefaSelecionadaId(tarefa.id)}
-                        style={styles.taskCard}
+                      <ReanimatedSwipeable
+                        enabled={usuarioEhResponsavel && !finalizada}
+                        rightThreshold={72}
+                        overshootRight={false}
+                        renderRightActions={() => (
+                          <View style={styles.swipeAction}>
+                            <Text style={styles.swipeActionText}>Concluir</Text>
+                          </View>
+                        )}
+                        onSwipeableOpen={(direction) => {
+                          if (direction === SwipeDirection.LEFT) {
+                            concluirTarefa(tarefa.id);
+                          }
+                        }}
                       >
-                        <View style={styles.taskTopRow}>
-                          <View
-                            style={[
-                              styles.statusBadge,
-                              finalizada && styles.statusBadgeFinished,
-                            ]}
-                          >
-                            <Text
+                        <MotionPressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
+                          accessibilityHint={
+                            usuarioEhResponsavel && !finalizada
+                              ? "Deslize para a esquerda para concluir a tarefa."
+                              : undefined
+                          }
+                          onPress={() => setTarefaSelecionadaId(tarefa.id)}
+                          style={styles.taskCard}
+                        >
+                          <View style={styles.taskTopRow}>
+                            <View
                               style={[
-                                styles.statusText,
-                                finalizada && styles.statusTextFinished,
+                                styles.statusBadge,
+                                finalizada && styles.statusBadgeFinished,
                               ]}
                             >
-                              {rotulosEstado[tarefa.estado_atual]}
+                              <Text
+                                style={[
+                                  styles.statusText,
+                                  finalizada && styles.statusTextFinished,
+                                ]}
+                              >
+                                {rotulosEstado[tarefa.estado_atual]}
+                              </Text>
+                            </View>
+                            <Text style={styles.weight}>
+                              PESO {tarefa.peso}
                             </Text>
                           </View>
-                          <Text style={styles.weight}>PESO {tarefa.peso}</Text>
-                        </View>
 
-                        <Text style={styles.taskTitle}>
-                          {tarefa.nome.toUpperCase()}
-                        </Text>
-                        <Text numberOfLines={2} style={styles.taskDescription}>
-                          {tarefa.descricao}
-                        </Text>
+                          <Text style={styles.taskTitle}>
+                            {tarefa.nome.toUpperCase()}
+                          </Text>
+                          <Text
+                            numberOfLines={2}
+                            style={styles.taskDescription}
+                          >
+                            {tarefa.descricao}
+                          </Text>
 
-                        <View style={styles.taskMeta}>
-                          <View>
-                            <Text style={styles.metaLabel}>PRAZO</Text>
-                            <Text style={styles.metaValue}>
-                              {formatarPrazo(tarefa.data_fim)}
-                            </Text>
+                          <View style={styles.taskMeta}>
+                            <View>
+                              <Text style={styles.metaLabel}>PRAZO</Text>
+                              <Text style={styles.metaValue}>
+                                {formatarPrazo(tarefa.data_fim)}
+                              </Text>
+                            </View>
+                            <View style={styles.avatars}>
+                              {responsaveis.map((morador) => (
+                                <View key={morador.id} style={styles.avatar}>
+                                  <Text style={styles.avatarText}>
+                                    {morador.iniciais}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
                           </View>
-                          <View style={styles.avatars}>
-                            {responsaveis.map((morador) => (
-                              <View key={morador.id} style={styles.avatar}>
-                                <Text style={styles.avatarText}>
-                                  {morador.iniciais}
-                                </Text>
-                              </View>
-                            ))}
-                          </View>
-                        </View>
 
-                        <Text style={styles.detailsLink}>Ver detalhes →</Text>
-                      </MotionPressable>
+                          <Text style={styles.detailsLink}>Ver detalhes →</Text>
+                        </MotionPressable>
+                      </ReanimatedSwipeable>
                     </Animated.View>
                   );
                 })}
@@ -433,6 +464,18 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     padding: Spacing.five,
     gap: Spacing.three,
+  },
+  swipeAction: {
+    width: 112,
+    backgroundColor: Caldera.ember,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  swipeActionText: {
+    color: Caldera.obsidian,
+    fontSize: 14,
+    fontWeight: "500",
   },
   taskTopRow: {
     flexDirection: "row",

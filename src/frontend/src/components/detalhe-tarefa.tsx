@@ -1,10 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
   FadeInDown,
   FadeInRight,
   FadeOut,
   ReduceMotion,
+  runOnJS,
 } from "react-native-reanimated";
 
 import { MotionPressable } from "@/components/motion-pressable";
@@ -36,117 +38,131 @@ export function DetalheTarefa({
   const usuarioEhResponsavel =
     tarefa.usuarios_atribuidos.includes(usuarioAtualId);
   const finalizada = tarefa.estado_atual === "finalizado";
+  const voltarComArraste = Gesture.Pan()
+    .activeOffsetX(20)
+    .failOffsetY([-20, 20])
+    .onEnd((event) => {
+      if (event.translationX > 96 || event.velocityX > 700) {
+        runOnJS(onVoltar)();
+      }
+    });
 
   return (
-    <Animated.View
-      entering={FadeInRight.duration(260).reduceMotion(ReduceMotion.System)}
-      exiting={FadeOut.duration(140).reduceMotion(ReduceMotion.System)}
-      style={styles.container}
-    >
-      <MotionPressable
-        accessibilityRole="button"
-        onPress={onVoltar}
-        style={styles.backButton}
+    <GestureDetector gesture={voltarComArraste}>
+      <Animated.View
+        entering={FadeInRight.duration(260).reduceMotion(ReduceMotion.System)}
+        exiting={FadeOut.duration(140).reduceMotion(ReduceMotion.System)}
+        style={styles.container}
       >
-        <Text style={styles.backButtonText}>← Voltar para tarefas</Text>
-      </MotionPressable>
-
-      <View style={styles.card}>
-        <View style={styles.headingRow}>
-          <View style={styles.headingCopy}>
-            <Text style={styles.eyebrow}>DETALHE DA TAREFA</Text>
-            <Text accessibilityRole="header" style={styles.title}>
-              {tarefa.nome.toUpperCase()}
-            </Text>
-          </View>
-          <Animated.View
-            key={tarefa.estado_atual}
-            entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
-            style={[
-              styles.statusBadge,
-              finalizada && styles.statusBadgeFinished,
-            ]}
-          >
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[
-                styles.statusText,
-                finalizada && styles.statusTextFinished,
-              ]}
-            >
-              {rotulosEstado[tarefa.estado_atual]}
-            </Text>
-          </Animated.View>
-        </View>
-
-        <Text style={styles.description}>{tarefa.descricao}</Text>
-
-        <View style={styles.infoGrid}>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>PESO</Text>
-            <Text style={styles.infoValue}>{tarefa.peso}</Text>
-          </View>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>PRAZO</Text>
-            <Text style={styles.infoValue}>
-              {formatarPrazo(tarefa.data_fim)}
-            </Text>
-          </View>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>STATUS</Text>
-            <Animated.Text
-              key={tarefa.estado_atual}
-              entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
-              style={styles.infoValue}
-            >
-              {rotulosEstado[tarefa.estado_atual]}
-            </Animated.Text>
-          </View>
-        </View>
-
-        <View style={styles.responsiblesSection}>
-          <Text style={styles.sectionTitle}>RESPONSÁVEL</Text>
-          <View style={styles.responsibles}>
-            {responsaveis.map((morador) => (
-              <View key={morador.id} style={styles.responsible}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{morador.iniciais}</Text>
-                </View>
-                <View>
-                  <Text style={styles.responsibleName}>{morador.nome}</Text>
-                  {morador.id === usuarioAtualId && (
-                    <Text style={styles.youLabel}>Você</Text>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <Animated.View
-          key={finalizada ? "finalizada" : "acao"}
-          entering={FadeInDown.duration(220).reduceMotion(ReduceMotion.System)}
+        <MotionPressable
+          accessibilityRole="button"
+          onPress={onVoltar}
+          style={styles.backButton}
         >
-          {usuarioEhResponsavel && !finalizada ? (
-            <MotionPressable
-              accessibilityRole="button"
-              onPress={() => onConcluir(tarefa.id)}
-              style={styles.completeButton}
-            >
-              <Text style={styles.completeButtonText}>Concluir tarefa</Text>
-            </MotionPressable>
-          ) : (
-            <View style={styles.notice}>
-              <Text style={styles.noticeText}>
-                {finalizada
-                  ? "Esta tarefa já foi concluída."
-                  : "Somente o responsável pode concluir esta tarefa."}
+          <Text style={styles.backButtonText}>← Voltar para tarefas</Text>
+        </MotionPressable>
+
+        <View style={styles.card}>
+          <View style={styles.headingRow}>
+            <View style={styles.headingCopy}>
+              <Text style={styles.eyebrow}>DETALHE DA TAREFA</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                {tarefa.nome.toUpperCase()}
               </Text>
             </View>
-          )}
-        </Animated.View>
-      </View>
-    </Animated.View>
+            <Animated.View
+              key={tarefa.estado_atual}
+              entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
+              style={[
+                styles.statusBadge,
+                finalizada && styles.statusBadgeFinished,
+              ]}
+            >
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[
+                  styles.statusText,
+                  finalizada && styles.statusTextFinished,
+                ]}
+              >
+                {rotulosEstado[tarefa.estado_atual]}
+              </Text>
+            </Animated.View>
+          </View>
+
+          <Text style={styles.description}>{tarefa.descricao}</Text>
+
+          <View style={styles.infoGrid}>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>PESO</Text>
+              <Text style={styles.infoValue}>{tarefa.peso}</Text>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>PRAZO</Text>
+              <Text style={styles.infoValue}>
+                {formatarPrazo(tarefa.data_fim)}
+              </Text>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>STATUS</Text>
+              <Animated.Text
+                key={tarefa.estado_atual}
+                entering={FadeIn.duration(180).reduceMotion(
+                  ReduceMotion.System,
+                )}
+                style={styles.infoValue}
+              >
+                {rotulosEstado[tarefa.estado_atual]}
+              </Animated.Text>
+            </View>
+          </View>
+
+          <View style={styles.responsiblesSection}>
+            <Text style={styles.sectionTitle}>RESPONSÁVEL</Text>
+            <View style={styles.responsibles}>
+              {responsaveis.map((morador) => (
+                <View key={morador.id} style={styles.responsible}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{morador.iniciais}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.responsibleName}>{morador.nome}</Text>
+                    {morador.id === usuarioAtualId && (
+                      <Text style={styles.youLabel}>Você</Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <Animated.View
+            key={finalizada ? "finalizada" : "acao"}
+            entering={FadeInDown.duration(220).reduceMotion(
+              ReduceMotion.System,
+            )}
+          >
+            {usuarioEhResponsavel && !finalizada ? (
+              <MotionPressable
+                accessibilityRole="button"
+                onPress={() => onConcluir(tarefa.id)}
+                style={styles.completeButton}
+              >
+                <Text style={styles.completeButtonText}>Concluir tarefa</Text>
+              </MotionPressable>
+            ) : (
+              <View style={styles.notice}>
+                <Text style={styles.noticeText}>
+                  {finalizada
+                    ? "Esta tarefa já foi concluída."
+                    : "Somente o responsável pode concluir esta tarefa."}
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        </View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
