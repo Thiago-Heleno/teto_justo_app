@@ -19,7 +19,7 @@ export type TarefaCasaDemonstracao = {
   descricao: string;
   peso: PesoTarefa;
   data_fim: string;
-  usuarios_atribuidos: string[];
+  usuarios_atribuidos: [string];
   estado_atual: EstadoTarefa;
 };
 
@@ -38,7 +38,7 @@ export const tarefasDemonstracao: TarefaCasaDemonstracao[] = [
       "Lavar a louça, limpar o fogão e deixar a bancada livre para o jantar.",
     peso: 3,
     data_fim: prazoEm({ horas: 4 }),
-    usuarios_atribuidos: [usuarioDemonstracaoId, "morador-bruno"],
+    usuarios_atribuidos: [usuarioDemonstracaoId],
     estado_atual: "pendente",
   },
   {
@@ -74,7 +74,7 @@ export const tarefasDemonstracao: TarefaCasaDemonstracao[] = [
     descricao: "Higienizar pia, vaso, box e repor o papel higiênico.",
     peso: 3,
     data_fim: prazoEm({ dias: -3 }),
-    usuarios_atribuidos: [usuarioDemonstracaoId, "morador-carla"],
+    usuarios_atribuidos: [usuarioDemonstracaoId],
     estado_atual: "nao_feito",
   },
 ];

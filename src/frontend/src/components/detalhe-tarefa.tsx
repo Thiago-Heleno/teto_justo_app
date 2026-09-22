@@ -105,7 +105,7 @@ export function DetalheTarefa({
         </View>
 
         <View style={styles.responsiblesSection}>
-          <Text style={styles.sectionTitle}>RESPONSÁVEIS</Text>
+          <Text style={styles.sectionTitle}>RESPONSÁVEL</Text>
           <View style={styles.responsibles}>
             {responsaveis.map((morador) => (
               <View key={morador.id} style={styles.responsible}>
@@ -140,7 +140,7 @@ export function DetalheTarefa({
               <Text style={styles.noticeText}>
                 {finalizada
                   ? "Esta tarefa já foi concluída."
-                  : "Somente uma pessoa responsável pode concluir esta tarefa."}
+                  : "Somente o responsável pode concluir esta tarefa."}
               </Text>
             </View>
           )}

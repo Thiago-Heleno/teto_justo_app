@@ -101,9 +101,10 @@ npm run web -- --port 8081
 ```
 
 Mantenha o terminal aberto e acesse
-[Nova tarefa](http://localhost:8081/nova-tarefa), ou escolha **Nova tarefa**
-na navegação do app. O formulário contém nome, descrição, peso, prazo e
-seleção de um ou mais moradores. A criação é simulada: nada é salvo no banco.
+[Nova tarefa](http://localhost:8081/nova-tarefa), ou escolha **Criar**
+na navegação do app. O formulário contém nome, descrição opcional, peso de
+1 a 3, prazo de 1 a 5 dias e seleção de exatamente um morador responsável.
+A criação é simulada: nada é salvo no banco.
 
 Se a porta estiver ocupada, use a instância já aberta ou inicie com
 `npm run web -- --port 8082` e ajuste a porta no endereço do navegador.
@@ -121,7 +122,7 @@ npx expo start --go --port 8081
 ```
 
 Leia o QR code no terminal usando o Expo Go no Android ou a câmera do iPhone.
-Depois de abrir o projeto, toque em **Nova tarefa**. No iPhone, entre com a
+Depois de abrir o projeto, toque em **Criar**. No iPhone, entre com a
 mesma conta Expo no aplicativo e na CLI, usando `npx expo login` no computador,
 conforme a [orientação oficial do Expo](https://docs.expo.dev/get-started/start-developing/).
 
