@@ -188,6 +188,67 @@ def test_buscar_tarefa_por_id(servico, consulta, id_tarefa, registro_tarefa):
     assert consulta.select.call_count == 2
 
 
+def test_listar_tarefas_por_casa_combina_filtros(
+    servico, consulta, id_tarefa, ids_relacionados
+):
+    segunda_tarefa = uuid4()
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    consulta.execute.return_value = SimpleNamespace(
+        data=[{"id": str(id_tarefa)}, {"id": str(segunda_tarefa)}]
+    )
+    servico._montar_resposta = MagicMock(
+        side_effect=[
+            {
+                "id": str(id_tarefa),
+                "estado_atual": "pendente",
+                "data_fim": (
+                    datetime.now(timezone.utc) + timedelta(days=2)
+                ).isoformat(),
+                "usuarios_atribuidos": [str(responsavel)],
+            },
+            {
+                "id": str(segunda_tarefa),
+                "estado_atual": "finalizado",
+                "data_fim": (
+                    datetime.now(timezone.utc) + timedelta(days=2)
+                ).isoformat(),
+                "usuarios_atribuidos": [str(responsavel)],
+            },
+        ]
+    )
+
+    resultado = servico.listar_tarefas_por_casa(
+        ids_relacionados["fk_casa_id"],
+        estado="pendente",
+        responsavel=responsavel,
+        prazo="sete_dias",
+    )
+
+    assert [tarefa["id"] for tarefa in resultado] == [str(id_tarefa)]
+
+
+def test_listar_tarefas_por_casa_filtra_prazos_atrasados(
+    servico, consulta, ids_relacionados
+):
+    consulta.execute.return_value = SimpleNamespace(data=[{"id": "atrasada"}])
+    servico._montar_resposta = MagicMock(
+        return_value={
+            "id": "atrasada",
+            "estado_atual": "nao_feito",
+            "data_fim": (
+                datetime.now(timezone.utc) - timedelta(days=1)
+            ).isoformat(),
+            "usuarios_atribuidos": [],
+        }
+    )
+
+    resultado = servico.listar_tarefas_por_casa(
+        ids_relacionados["fk_casa_id"], prazo="atrasadas"
+    )
+
+    assert [tarefa["id"] for tarefa in resultado] == ["atrasada"]
+
+
 def test_atualizar_tarefa_envia_apenas_campos_informados(
     servico, consulta, id_tarefa, registro_tarefa
 ):
