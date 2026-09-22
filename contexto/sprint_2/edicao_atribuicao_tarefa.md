@@ -42,20 +42,33 @@ impedindo responsáveis duplicados ou de outra casa.
   outra casa e responsáveis válidos (morador vinculado e dono da casa).
   Não executado localmente — depende de um Supabase de testes.
 
-## Atualização — 21/09/2026: validação também no `POST`
+## Atualização — 21/09/2026: validação também no `POST` (revertida pelo merge)
 
 `criar_tarefa` (`POST /tarefas/`) passou a chamar
 `garantir_responsaveis_da_casa` também, antes de inserir a tarefa — assim
-não é mais possível criar uma tarefa já nascendo com responsável duplicado
-ou de outra casa (mesma regra que já valia para o `PATCH`). A validação
-acontece antes do `insert`, então uma tarefa inválida nem chega a ser
-criada. Testes novos em `test_servico_tarefa_unitario.py` (unitário) e
-`test_tarefas_integracao.py` (`test_criar_tarefa_rejeita_responsaveis_invalidos`,
-não executado neste ambiente).
+não seria mais possível criar uma tarefa já nascendo com responsável
+duplicado ou de outra casa (mesma regra que já valia para o `PATCH`, `400`
+nos dois casos).
+
+**Essa versão não sobreviveu ao merge com a PR #47** (`ajustar-criacao-
+-tarefas-admin`, já em `main`), que implementou — em paralelo e de forma
+independente — uma validação de responsáveis própria para o `POST`, com
+comportamento diferente: deduplica responsáveis repetidos silenciosamente
+(não gera erro) e retorna `422` (não `400`) para responsável de outra
+casa. Ao resolver o conflito de merge, a versão da PR #47 foi mantida para
+o `POST`, descartando a chamada a `garantir_responsaveis_da_casa` mostrada
+acima. O método continua existindo e sendo usado — só que exclusivamente
+pelo `PATCH`, que a PR #47 não tocava.
+
+Detalhes completos da resolução do merge em
+[resumo_pr_edicao_tarefas.md](resumo_pr_edicao_tarefas.md#merge-com-a-pr-47).
 
 ## Pendência
 
+- Assimetria entre `POST` (`422`, dedupe silencioso) e `PATCH` (`400`,
+  rejeita) para a mesma regra de negócio, resultado do merge acima — não
+  unificada.
 - `GET /casas/{id_casa}/moradores` continua não implementado; é a outra
   tarefa do backlog relacionada a este fluxo.
 - Testes de integração não executados neste ambiente; validar contra um
-  Supabase de testes antes do merge.
+  Supabase de testes.
