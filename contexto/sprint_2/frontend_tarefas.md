@@ -96,7 +96,7 @@ essa revisão documental.
   implementada edição de tarefas existentes nem integração com o backend.
 - Adicionado peso obrigatório, sem seleção inicial, com seleção única,
   mensagem de validação, exibição no resumo e limpeza ao criar outra tarefa.
-- Adotados provisoriamente os níveis `1`, `2`, `3`, `4`, interpretando peso
+- Adotados provisoriamente os níveis `1`, `2`, `3`, interpretando peso
   como dificuldade com base na migration `07.sql`. A pergunta sobre peso
   significar dificuldade ou pontuação ainda não recebeu resposta. O campo
   local se chama `peso`; não há conversão automática para pontos nem envio
