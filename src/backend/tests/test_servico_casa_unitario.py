@@ -21,6 +21,7 @@ def consulta():
     consulta.range.return_value = consulta
     consulta.update.return_value = consulta
     consulta.delete.return_value = consulta
+    consulta.in_.return_value = consulta
     return consulta
 
 
@@ -356,3 +357,42 @@ def test_morador_nao_pode_excluir_casa(
 
     assert erro.value.status_code == 403
     consulta.delete.assert_not_called()
+
+def test_listar_moradores_retorna_usuarios_com_score(
+    servico, banco, consulta, id_casa, registro_casa
+):
+    id_morador = uuid4()
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_casa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(id_morador), "score": 15}]),
+        SimpleNamespace(data=[{
+            "id": str(id_morador), "nome": "Ana",
+            "email": "ana@example.com", "telefone": None, "foto": None,
+        }]),
+    ]
+
+    resultado = servico.listar_moradores(id_casa)
+
+    assert resultado == [{
+        "id": str(id_morador), "nome": "Ana", "email": "ana@example.com",
+        "telefone": None, "foto": None, "score": 15,
+    }]
+    consulta.in_.assert_called_once_with("id", [str(id_morador)])
+
+def test_listar_moradores_casa_inexistente_gera_404(servico, consulta, id_casa):
+    consulta.execute.return_value = SimpleNamespace(data=[])
+
+    with pytest.raises(HTTPException) as erro:
+        servico.listar_moradores(id_casa)
+
+    assert erro.value.status_code == 404
+
+def test_listar_moradores_sem_vinculos_retorna_lista_vazia(
+    servico, consulta, id_casa, registro_casa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_casa]),
+        SimpleNamespace(data=[]),
+    ]
+
+    assert servico.listar_moradores(id_casa) == []
