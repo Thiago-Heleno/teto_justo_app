@@ -22,7 +22,8 @@ class ServicoTarefa:
             .execute()
         )
         if not resposta.data:
-            raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
+            raise HTTPException(
+                status_code=404, detail="Tarefa não encontrada.")
         return resposta.data[0]
 
     def _buscar_usuarios_atribuidos(self, id_tarefa: UUID | str):
@@ -67,9 +68,7 @@ class ServicoTarefa:
         if tarefa["estado_atual"] in _ESTADOS_FINAIS:
             return tarefa
 
-        data_fim = datetime.fromisoformat(
-            tarefa["data_fim"].replace("Z", "+00:00")
-        )
+        data_fim = self._data_fim_com_fuso(tarefa["data_fim"])
         agora = datetime.now(timezone.utc)
         dias_atraso = max(0, int((agora - data_fim).total_seconds() // 86400))
 
@@ -115,7 +114,8 @@ class ServicoTarefa:
             id_usuario_atual,
         )
         ids_responsaveis = list(
-            dict.fromkeys(str(id_usuario) for id_usuario in dados_tarefa.usuarios_atribuidos)
+            dict.fromkeys(str(id_usuario)
+                          for id_usuario in dados_tarefa.usuarios_atribuidos)
         )
         resposta_membros = (
             self.supabase.table("pertencer")
