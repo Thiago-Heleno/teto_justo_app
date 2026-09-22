@@ -1,12 +1,13 @@
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
 
-from schemas.tarefa import TarefaAtualizar, TarefaCriar
+from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
 
 _ESTADOS_FINAIS = ("finalizado", "nao_feito")
+_FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "atrasadas")
 
 
 class ServicoTarefa:
@@ -163,14 +164,82 @@ class ServicoTarefa:
         )
         return [self._montar_resposta(tarefa) for tarefa in resposta.data]
 
-    def listar_tarefas_por_casa(self, id_casa: UUID):
+    @staticmethod
+    def _data_fim_com_fuso(data_fim: str | datetime) -> datetime:
+        if isinstance(data_fim, datetime):
+            valor = data_fim
+        else:
+            valor = datetime.fromisoformat(data_fim.replace("Z", "+00:00"))
+        return (
+            valor.replace(tzinfo=timezone.utc)
+            if valor.tzinfo is None
+            else valor.astimezone(timezone.utc)
+        )
+
+    @classmethod
+    def _corresponde_prazo(
+        cls,
+        tarefa: dict,
+        filtro_prazo: str | None,
+        agora: datetime,
+    ) -> bool:
+        if not filtro_prazo or filtro_prazo == "todos":
+            return True
+
+        data_fim = cls._data_fim_com_fuso(tarefa["data_fim"])
+        agora = agora.astimezone(timezone.utc)
+        if filtro_prazo == "atrasadas":
+            return data_fim < agora and tarefa["estado_atual"] != "finalizado"
+
+        if filtro_prazo == "hoje":
+            fim_de_hoje = datetime.combine(
+                agora.date(), time.max, tzinfo=timezone.utc
+            )
+            return agora <= data_fim <= fim_de_hoje
+
+        if filtro_prazo == "sete_dias":
+            return agora <= data_fim <= agora + timedelta(days=7)
+
+        return False
+
+    def listar_tarefas_por_casa(
+        self,
+        id_casa: UUID,
+        estado: EstadoTarefa | None = None,
+        responsavel: UUID | None = None,
+        prazo: str | None = None,
+    ):
+        if prazo is not None and prazo not in _FILTROS_PRAZO:
+            raise HTTPException(
+                status_code=422,
+                detail="Filtro de prazo inválido.",
+            )
+
         resposta = (
             self.supabase.table("tarefa")
             .select("*")
             .eq("fk_casa_id", str(id_casa))
             .execute()
         )
-        return [self._montar_resposta(tarefa) for tarefa in resposta.data]
+        tarefas = []
+        agora = datetime.now(timezone.utc)
+        for tarefa in resposta.data:
+            tarefa_resposta = self._montar_resposta(tarefa)
+            if (
+                estado
+                and estado != "todos"
+                and tarefa_resposta["estado_atual"] != estado
+            ):
+                continue
+            if (
+                responsavel
+                and str(responsavel) not in tarefa_resposta["usuarios_atribuidos"]
+            ):
+                continue
+            if not self._corresponde_prazo(tarefa_resposta, prazo, agora):
+                continue
+            tarefas.append(tarefa_resposta)
+        return tarefas
 
     def atualizar_tarefa(
         self,
