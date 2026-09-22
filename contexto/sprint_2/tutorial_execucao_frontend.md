@@ -39,7 +39,7 @@ npm.cmd run web -- --port 8081
 
 Mantenha o terminal aberto e acesse
 [Nova tarefa](http://localhost:8081/nova-tarefa). Também é possível abrir a
-página inicial e clicar em **Nova tarefa** na navegação.
+página inicial e clicar em **Criar** na navegação.
 
 Se a porta estiver ocupada, use a prévia que já está rodando ou encerre o
 servidor anterior com `Ctrl+C` no terminal correspondente. Para iniciar outra
@@ -69,7 +69,7 @@ npx.cmd expo start --go --port 8081
 
 5. Leia o QR code mostrado no terminal: no Android, use a opção de leitura
    do Expo Go; no iPhone, use a câmera e abra o link no Expo Go.
-6. Quando o aplicativo abrir, toque na aba **Nova tarefa**.
+6. Quando o aplicativo abrir, toque na aba **Criar**.
 
 O QR code e a conexão pela mesma rede seguem o fluxo descrito em
 [Iniciar o desenvolvimento — Expo](https://docs.expo.dev/get-started/start-developing/).
@@ -183,7 +183,9 @@ dependências nativas ou configurações que afetam o aplicativo nativo.
 [Fluxo após a primeira compilação](https://docs.expo.dev/guides/local-app-development/).
 
 Use **Criar outra tarefa** para limpar a demonstração entre verificações.
-Preencha nome, peso, prazo futuro e um ou mais moradores para conferir o resumo.
+Preencha nome, peso de 1 a 3, prazo de 1 a 5 dias e exatamente um morador
+responsável para conferir o resumo. A descrição é opcional. Escolher outro
+morador substitui a seleção anterior; não há campos de data ou horário.
 Os dados continuam locais e são perdidos ao recarregar completamente o app.
 
 Para encerrar o servidor, pressione `Ctrl+C`.
