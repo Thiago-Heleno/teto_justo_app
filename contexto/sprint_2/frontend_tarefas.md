@@ -35,9 +35,10 @@ essa revisão documental.
   validação de calendário, horário e prazo futuro. O prazo é interpretado no
   fuso local e convertido para ISO; os campos correspondentes mantêm os
   nomes da API (`nome`, `descricao`, `data_fim`, `usuarios_atribuidos`).
-- `src/frontend/src/components/app-tabs.tsx` e `app-tabs.web.tsx`: acesso
-  “Nova tarefa”, preservando Home e Explore. A navegação web permite quebra
-  de linha dentro da largura disponível.
+- `src/frontend/src/components/app-tabs.tsx` e `app-tabs.web.tsx`: navegação
+  com Início, Criar e Tarefas. A versão nativa usa símbolos adequados para
+  cada destino, respeita o teclado no Android e evita transparência durante
+  rolagem. A rota de exemplo Explore foi removida do menu e do projeto.
 - `src/frontend/package.json` e `package-lock.json`: alinhamento do
   `expo-router` de `^5.1.11` para `~57.0.21`, versão indicada pelo Expo 57
   instalado. A combinação anterior impedia a inicialização por ausência de
@@ -96,7 +97,7 @@ essa revisão documental.
   implementada edição de tarefas existentes nem integração com o backend.
 - Adicionado peso obrigatório, sem seleção inicial, com seleção única,
   mensagem de validação, exibição no resumo e limpeza ao criar outra tarefa.
-- Adotados provisoriamente os níveis `1`, `2`, `3`, `4`, interpretando peso
+- Adotados provisoriamente os níveis `1`, `2`, `3`, interpretando peso
   como dificuldade com base na migration `07.sql`. A pergunta sobre peso
   significar dificuldade ou pontuação ainda não recebeu resposta. O campo
   local se chama `peso`; não há conversão automática para pontos nem envio
@@ -109,6 +110,19 @@ essa revisão documental.
   completa ao iniciar outra tarefa. Descrição vazia continuou aceita.
 - A exportação móvel registrada acima pertence à entrega inicial; não foi
   repetida para esta alteração, nem houve teste em aparelho nesta sessão.
+
+## Navegação mobile — 21/09/2026
+
+- Removida `src/frontend/src/app/explore.tsx` e suas referências da navegação
+  nativa e web.
+- Reduzida a barra inferior para três destinos, com rótulo curto e símbolos
+  nativos (`house`, `plus.circle` e `checklist`) em vez de imagens genéricas.
+- Ativados `tabBarRespectsIMEInsets` e `disableTransparentOnScrollEdge` para
+  evitar que o teclado cubra a barra ou que ela desapareça durante rolagem.
+- `npm run lint`: aprovado. `tsc --noEmit -p src/frontend/tsconfig.json`:
+  aprovado. Não foi possível validar o toque e a aparência em dispositivo
+  físico nesta sessão; o comando `npm run ios` também não está disponível no
+  ambiente Windows atual.
 
 ## Pendências reais
 
