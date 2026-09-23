@@ -102,6 +102,9 @@ export default function TarefasScreen() {
 
   useEffect(() => {
     const controlador = new AbortController();
+    // Reset síncrono do estado de loading/erro ao (re)disparar a busca de
+    // contexto (mount ou retry); risco de cascata é aceitável aqui.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCarregandoContexto(true);
     setErroContexto(undefined);
 
@@ -138,6 +141,9 @@ export default function TarefasScreen() {
 
   useEffect(() => {
     const controlador = new AbortController();
+    // Reset síncrono do estado de loading/erro ao (re)disparar a busca de
+    // tarefas (filtro ou retry); risco de cascata é aceitável aqui.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCarregandoTarefas(true);
     setErroTarefas(undefined);
 
