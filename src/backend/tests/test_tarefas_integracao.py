@@ -81,12 +81,12 @@ def test_crud_tarefa_no_supabase(
         novo_nome = "Limpar toda a varanda"
         atualizada = cliente.patch(
             f"/tarefas/{tarefa['id']}",
-            json={"nome": novo_nome, "estado_atual": "atrasada", "peso": 4},
+            json={"nome": novo_nome, "estado_atual": "atrasada", "peso": 3},
         )
         assert atualizada.status_code == 200, atualizada.text
         assert atualizada.json()["nome"] == novo_nome
         assert atualizada.json()["estado_atual"] == "atrasada"
-        assert atualizada.json()["peso"] == 4
+        assert atualizada.json()["peso"] == 3
 
         # TESTE: Excluir
         excluida = cliente.delete(f"/tarefas/{tarefa['id']}")
