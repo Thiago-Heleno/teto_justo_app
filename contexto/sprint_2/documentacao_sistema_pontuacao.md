@@ -1,243 +1,135 @@
-# Sistema de Pontuação de Tarefas
+# Base de cálculo do score
 
-## 1. Objetivo
+## Objetivo e estado da entrega
 
-Este documento define as regras de pontuação e penalidade por atraso aplicadas ao usuário atribuído a uma tarefa.
+O `ServicoScore` centraliza a regra matemática de pontuação de tarefas em um componente puro e determinístico. O resultado depende somente dos argumentos recebidos: o serviço não acessa banco de dados, FastAPI ou o horário atual do sistema.
 
-As regras devem ser aplicadas de forma determinística no backend, garantindo que a mesma tarefa sempre produza o mesmo resultado para os mesmos dados de entrada.
+Nesta etapa, o serviço é apenas a base de cálculo. Ele ainda não está ligado à conclusão de tarefas, não persiste eventos em `score_event`, não altera o saldo de `pertencer` e não substitui o trigger SQL existente.
 
-## 2. Níveis de dificuldade
+## Interface do cálculo
 
-Cada tarefa deve possuir exatamente um nível de dificuldade, definido no momento de sua criação.
-
-| Nível | Pontuação-base | Descrição sugerida |
-| --- | ---: | --- |
-| Fácil | 10 pontos | Tarefa simples, curta ou de baixa complexidade. |
-| Média | 20 pontos | Tarefa que exige esforço moderado ou mais tempo. |
-| Difícil | 30 pontos | Tarefa complexa, longa ou de maior responsabilidade. |
-
-A pontuação-base pertence à tarefa e, depois das penalidades aplicáveis, é concedida ao seu único usuário atribuído.
-
-## 3. Datas e contagem de atraso
-
-Cada tarefa deve possuir:
-
-- `data_limite`: data até a qual a tarefa pode ser concluída sem penalidade;
-- `data_conclusao`: data em que a tarefa foi efetivamente concluída;
-- `dias_atraso`: quantidade de dias corridos de atraso.
-
-O cálculo deve considerar somente a parte da data, desconsiderando hora, minuto, segundo e fuso horário depois de as datas serem normalizadas para o fuso horário oficial da aplicação.
-
-```text
-dias_atraso = max(0, data_conclusao - data_limite)
+```python
+calcular_score(
+    peso: int,
+    prazo_dias: int,
+    data_fim: datetime,
+    concluida_em: datetime,
+    usuarios_atribuidos: Sequence[UUID],
+) -> ResultadoScore
 ```
 
-Regras:
+O resultado é imutável e registra os dados necessários para compreender o cálculo:
 
-- conclusão antes ou na `data_limite`: `dias_atraso = 0`;
-- conclusão no dia seguinte: `dias_atraso = 1`;
-- sábados, domingos e feriados são contados, pois o cálculo utiliza dias corridos;
-- tarefas ainda não concluídas podem exibir uma projeção da penalidade com base na data atual, mas os pontos somente devem ser consolidados na conclusão;
-- alterações posteriores de datas devem exigir o recálculo da pontuação.
-
-## 4. Tipos de penalidade
-
-A tarefa deve indicar um tipo de penalidade:
-
-- `FIXA`;
-- `VARIAVEL`.
-
-Uma tarefa não pode utilizar os dois tipos simultaneamente. Quando não houver atraso, nenhum tipo de penalidade reduz a pontuação.
-
-## 5. Penalidade fixa
-
-Na penalidade fixa, perde-se 20% da pontuação-base por dia de atraso, até o limite de 100%.
-
-```text
-percentual_perdido = min(100%, dias_atraso × 20%)
-percentual_mantido = max(0%, 100% - percentual_perdido)
-pontuacao_calculada = pontuacao_base × percentual_mantido
-```
-
-| Dias de atraso | Perda | Pontuação mantida |
-| ---: | ---: | ---: |
-| 0 | 0% | 100% |
-| 1 | 20% | 80% |
-| 2 | 40% | 60% |
-| 3 | 60% | 40% |
-| 4 | 80% | 20% |
-| 5 ou mais | 100% | 0% |
-
-Exemplo para uma tarefa de 30 pontos concluída com 3 dias de atraso:
-
-```text
-pontuacao_calculada = 30 × (1 - 0,60) = 12 pontos
-```
-
-## 6. Penalidade variável
-
-Na penalidade variável, a configuração `dias_para_zerar` determina em quantos dias de atraso a tarefa perderá 100% dos pontos. A perda é distribuída igualmente entre esses dias.
-
-```text
-percentual_por_dia = 100% / dias_para_zerar
-percentual_perdido = min(100%, dias_atraso × percentual_por_dia)
-percentual_mantido = max(0%, 100% - percentual_perdido)
-pontuacao_calculada = pontuacao_base × percentual_mantido
-```
-
-### Exemplo: prazo variável de 2 dias
-
-Quando `dias_para_zerar = 2`, a tarefa perde 50% por dia:
-
-| Dias de atraso | Perda | Pontuação mantida |
-| ---: | ---: | ---: |
-| 0 | 0% | 100% |
-| 1 | 50% | 50% |
-| 2 ou mais | 100% | 0% |
-
-Para uma tarefa de 20 pontos concluída com 1 dia de atraso:
-
-```text
-pontuacao_calculada = 20 × (1 - 0,50) = 10 pontos
-```
-
-`dias_para_zerar` deve ser um número inteiro maior que zero. Valores nulos, iguais a zero ou negativos devem ser rejeitados na validação quando o tipo escolhido for `VARIAVEL`.
-
-## 7. Limite mínimo e máximo
-
-A pontuação final da tarefa deve permanecer no intervalo entre zero e a pontuação-base:
-
-```text
-pontuacao_limitada = min(pontuacao_base, max(0, pontuacao_calculada))
-```
-
-Consequentemente:
-
-- a pontuação nunca pode ser negativa;
-- atrasos adicionais após a pontuação chegar a zero não geram dívida;
-- a tarefa nunca concede mais pontos que sua pontuação-base;
-- a penalidade de uma tarefa não reduz o saldo que o usuário já possuía.
-
-## 8. Usuário atribuído
-
-Cada tarefa deve possuir exatamente um `usuario_atribuido`. A pontuação final da tarefa deve ser concedida integralmente a esse usuário, sem rateio.
-
-Regras:
-
-- uma tarefa não pode ser criada ou concluída sem `usuario_atribuido`;
-- uma tarefa não pode possuir mais de um usuário atribuído;
-- se o usuário atribuído for alterado antes da conclusão, os pontos serão concedidos ao novo responsável;
-- depois da conclusão e da concessão dos pontos, a troca de responsável deve exigir o estorno do lançamento anterior e a criação de um novo lançamento para o usuário correto;
-- a conclusão de uma tarefa deve gerar apenas um lançamento de pontuação, evitando concessões duplicadas.
-
-## 9. Arredondamento
-
-Os percentuais devem ser calculados com precisão decimal, sem arredondamentos intermediários. O arredondamento deve ocorrer uma única vez, depois da aplicação da penalidade.
-
-Regra adotada:
-
-```text
-pontuacao_da_tarefa = round_half_up(pontuacao_limitada)
-```
-
-No método `round_half_up`, valores com parte decimal igual ou superior a `0,5` são arredondados para o inteiro seguinte. Exemplos:
-
-| Valor calculado | Valor inteiro |
-| ---: | ---: |
-| 7,49 | 7 |
-| 7,50 | 8 |
-| 12,00 | 12 |
-
-Não deve ser utilizado o arredondamento bancário (`round half to even`), pois ele pode produzir resultados diferentes nos casos terminados em `0,5`.
-
-## 10. Ordem completa do cálculo
-
-O sistema deve executar as operações nesta ordem:
-
-1. validar o nível de dificuldade e obter a pontuação-base;
-2. normalizar `data_limite` e `data_conclusao`;
-3. calcular `dias_atraso`;
-4. calcular o percentual perdido conforme o tipo de penalidade;
-5. aplicar os limites mínimo zero e máximo igual à pontuação-base;
-6. arredondar a pontuação total uma única vez;
-7. conceder a pontuação final ao único `usuario_atribuido`;
-8. registrar o resultado e os parâmetros usados no cálculo.
-
-## 11. Pseudocódigo de referência
-
-```text
-calcular_pontuacao(tarefa):
-    base = pontos_por_dificuldade(tarefa.dificuldade)
-    usuario = tarefa.usuario_atribuido
-
-    se usuario estiver vazio:
-        retornar erro "Tarefa sem usuário atribuído"
-
-    atraso = max(0, diferenca_em_dias(
-        tarefa.data_conclusao,
-        tarefa.data_limite
-    ))
-
-    se tarefa.tipo_penalidade == FIXA:
-        perda = min(1, atraso * 0.20)
-    senao se tarefa.tipo_penalidade == VARIAVEL:
-        validar tarefa.dias_para_zerar > 0
-        perda = min(1, atraso / tarefa.dias_para_zerar)
-    senao:
-        retornar erro "Tipo de penalidade inválido"
-
-    calculada = base * (1 - perda)
-    limitada = min(base, max(0, calculada))
-    total = round_half_up(limitada)
-
-    retornar {
-        pontuacao_base: base,
-        dias_atraso: atraso,
-        percentual_perdido: perda,
-        pontuacao_final: total,
-        usuario_atribuido: usuario
-    }
-```
-
-## 12. Casos de teste mínimos
-
-| Cenário | Resultado esperado |
-| --- | --- |
-| Tarefa de 10 pontos concluída no prazo | 10 pontos |
-| Tarefa de 20 pontos, penalidade fixa e 1 dia de atraso | 16 pontos |
-| Tarefa de 30 pontos, penalidade fixa e 4 dias de atraso | 6 pontos |
-| Tarefa de 30 pontos, penalidade fixa e 5 dias de atraso | 0 pontos |
-| Tarefa de 20 pontos, variável em 2 dias e 1 dia de atraso | 10 pontos |
-| Tarefa de 20 pontos, variável em 2 dias e 2 dias de atraso | 0 pontos |
-| Tarefa sem usuário atribuído | Erro ou pendência, sem concessão de pontos |
-| Tarefa com mais de um usuário atribuído | Erro de validação |
-| Tarefa válida concluída | Um único lançamento integral para o usuário atribuído |
-| Tarefa cuja penalidade excederia 100% | 0 pontos, nunca valor negativo |
-
-## 13. Dados recomendados para auditoria
-
-Para permitir conferência e evitar divergências futuras, cada concessão de pontos deve registrar:
-
-- identificador da tarefa;
-- dificuldade e pontuação-base;
-- tipo e parâmetros da penalidade;
-- data-limite e data de conclusão;
+- responsável;
+- pontos-base;
+- prazo em dias;
 - dias de atraso;
-- percentual perdido;
-- pontuação calculada antes do arredondamento;
-- pontuação final arredondada;
-- identificador do único usuário atribuído e pontuação recebida;
-- data e versão da regra usada no cálculo.
+- percentual descontado por dia;
+- desconto aplicado;
+- pontos finais.
 
-## 14. Decisões adotadas nesta especificação
+## Pontos-base
 
-Esta documentação adota as seguintes interpretações das regras propostas:
+O peso da tarefa determina os pontos disponíveis antes da penalidade:
 
-- o primeiro dia após a data-limite já corresponde a um dia de atraso;
-- a penalidade fixa começa em 20% no primeiro dia de atraso e aumenta 20 pontos percentuais por dia;
-- a penalidade variável representa a quantidade de dias de atraso necessária para zerar a tarefa;
-- a contagem utiliza dias corridos;
-- cada tarefa possui exatamente um usuário atribuído;
-- a pontuação final é concedida integralmente a esse usuário, sem rateio.
+| Peso | Nível | Pontos-base |
+| ---: | --- | ---: |
+| 1 | Básico | 10 |
+| 2 | Intermediário | 25 |
+| 3 | Difícil | 50 |
 
-Caso alguma dessas decisões seja alterada, a versão da regra também deve ser atualizada para preservar a rastreabilidade das pontuações já registradas.
+Pesos diferentes de `1`, `2` e `3` são inválidos. No contrato puro do `ServicoScore`, os pontos não são recebidos como valor livre: eles são obtidos por esse mapeamento. O contrato HTTP atual continua inalterado nesta etapa.
+
+## Prazo e atraso
+
+`prazo_dias` representa a duração usada para distribuir 100% dos pontos. Ele deve ser um número inteiro maior que zero. O limite de produto de 1 a 5 dias continua sendo responsabilidade da interface; o cálculo puro aceita qualquer inteiro positivo.
+
+As datas com fuso horário são comparadas em UTC. Datas sem fuso são interpretadas como UTC. `concluida_em` é informado explicitamente para que o resultado não dependa de `datetime.now()`.
+
+Uma conclusão anterior ou igual a `data_fim` não possui atraso. Qualquer atraso positivo já inicia a primeira faixa de 24 horas:
+
+```text
+diferença <= 0                         -> 0 dias de atraso
+0 < diferença < 24 horas               -> 1 dia de atraso
+24 horas <= diferença < 48 horas       -> 2 dias de atraso
+cada nova faixa de 24 horas iniciada   -> mais 1 dia de atraso
+```
+
+Assim, a contagem usa a duração efetiva entre os instantes, e não apenas a diferença entre datas do calendário.
+
+## Fórmula proporcional
+
+O prazo distribui igualmente 100% da pontuação:
+
+```text
+percentual_por_dia = 100 / prazo_dias
+desconto_por_dia = pontos_base / prazo_dias
+desconto = min(pontos_base, dias_atraso × desconto_por_dia)
+pontos_brutos = max(0, pontos_base - desconto)
+pontos_finais = ROUND_HALF_UP(pontos_brutos)
+```
+
+Os cálculos usam `Decimal`, sem arredondamentos intermediários. O arredondamento acontece uma única vez no resultado final, com `ROUND_HALF_UP`; portanto, valores terminados em `0,5` avançam para o próximo inteiro. A pontuação nunca ultrapassa os pontos-base e nunca fica negativa.
+
+Exemplos:
+
+| Peso | Pontos-base | Prazo | Atraso | Cálculo antes do arredondamento | Pontos finais |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 10 | 2 dias | 0 | 10 | 10 |
+| 1 | 10 | 2 dias | 1 faixa | 5 | 5 |
+| 1 | 10 | 2 dias | 2 faixas | 0 | 0 |
+| 2 | 25 | 2 dias | 1 faixa | 12,5 | 13 |
+| 3 | 50 | 5 dias | 2 faixas | 30 | 30 |
+
+Não existem mais estratégias separadas de penalidade fixa e variável nesta regra. O desconto é sempre proporcional a `prazo_dias`.
+
+## Responsável e rateio
+
+O cálculo exige exatamente um usuário atribuído à tarefa. Uma coleção vazia, com identificadores duplicados ou com mais de um usuário é inválida e gera `ValueError`.
+
+Toda a pontuação calculada pertence ao único responsável. Não há rateio nesta implementação.
+
+## Ordem do cálculo
+
+1. Validar o peso e obter os pontos-base.
+2. Validar `prazo_dias`.
+3. Validar que existe exatamente um responsável.
+4. Normalizar os dois instantes para UTC.
+5. Calcular as faixas de atraso iniciadas.
+6. Aplicar o desconto proporcional e o limite mínimo de zero.
+7. Arredondar uma única vez com `ROUND_HALF_UP`.
+8. Retornar o `ResultadoScore` imutável.
+
+## Relação com o trigger SQL atual
+
+O trigger de `docs/migrations/10.sql` permanece inalterado e usa uma regra diferente da base Python:
+
+- recebe os pontos de `tarefa.pontuacao`, em vez de derivá-los do peso `1`, `2` ou `3`;
+- divide 100% por `atraso_maximo`, em vez de usar `prazo_dias`;
+- calcula o atraso com `FLOOR`, de modo que um atraso positivo inferior a 24 horas ainda resulte em zero dias;
+- percorre todos os registros de `atribuida` e concede a pontuação integral a cada um;
+- persiste em `score_event` e atualiza `pertencer.score`.
+
+Portanto, a fórmula proporcional central já existia parcialmente no SQL como `100 / atraso_maximo`, mas a nova fórmula central do `ServicoScore` é uma implementação distinta. As migrations e o trigger não foram modificados nesta entrega, e os dois mecanismos não devem ser executados simultaneamente quando a integração futura for feita.
+
+## Validações executadas
+
+- `33` testes específicos do `ServicoScore` aprovados, cobrindo o mapeamento
+  de pesos, entradas inválidas, prazo positivo, normalização de datas, limites
+  das faixas de 24 horas, limite mínimo de zero, arredondamento, responsável
+  único, repetibilidade e imutabilidade do resultado.
+- Suíte unitária configurada no workflow: `126` testes aprovados.
+- Coleta completa: `139` testes encontrados.
+- Ruff, Bandit e compilação dos módulos Python concluídos sem erro.
+- Testes de integração não foram executados, pois esta etapa não integra o
+  cálculo ao Supabase nem modifica o fluxo persistido.
+
+## Pendências
+
+Antes de tornar o novo cálculo autoritativo, ainda será necessário:
+
+- integrá-lo ao fluxo de conclusão da tarefa;
+- alinhar o modelo persistido com `prazo_dias`, pesos de 1 a 3 e um único responsável;
+- substituir o trigger legado, evitando crédito duplicado;
+- impedir alterações públicas diretas de `pertencer.score`;
+- definir e registrar os dados necessários à auditoria de cada crédito.

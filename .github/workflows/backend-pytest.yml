@@ -35,7 +35,7 @@ jobs:
         env:
           SUPABASE_URL: http://127.0.0.1:54321
           SUPABASE_KEY: unit-test-placeholder
-        run: python -m pytest -q tests/test_autenticacao_unitario.py tests/test_servico_autorizacao_unitario.py tests/test_servico_casa_unitario.py tests/test_servico_sessao_unitario.py tests/test_servico_tarefa_unitario.py tests/test_servico_usuario_unitario.py tests/test_pertencer_unitarios.py
+        run: python -m pytest -q tests/test_autenticacao_unitario.py tests/test_servico_autorizacao_unitario.py tests/test_servico_casa_unitario.py tests/test_servico_score_unitario.py tests/test_servico_sessao_unitario.py tests/test_servico_tarefa_unitario.py tests/test_servico_usuario_unitario.py tests/test_pertencer_unitarios.py
 
       - name: Run integration tests against Supabase
         if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
