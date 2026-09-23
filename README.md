@@ -35,7 +35,8 @@ acessa o Supabase para persistir os dados.
 
 Para visualizar somente a tela **Nova tarefa**, siga diretamente a
 [etapa 3 — Frontend](#3-inicie-o-frontend). Essa demonstração usa dados
-fictícios e não precisa de backend, Docker, Supabase ou `.env`.
+fictícios e não precisa de backend, Docker, Supabase ou `.env`. A tela
+**Tarefas** consulta a API e requer a configuração abaixo.
 
 ### Pré-requisitos
 
@@ -70,6 +71,10 @@ uvicorn main:app --reload
 A API ficará disponível em `http://127.0.0.1:8000`. Para confirmar que está
 ativa, acesse `http://127.0.0.1:8000/health`.
 
+Para o navegador em outra origem, defina `CORS_ORIGINS` no `.env` do backend
+com as origens separadas por vírgula (por exemplo,
+`http://localhost:8081,http://127.0.0.1:8081`).
+
 Como alternativa, a partir da raiz do repositório, execute o backend com
 Docker:
 
@@ -89,6 +94,20 @@ npm ci
 
 Faça essa instalação na primeira execução ou após receber alterações nas
 dependências. Execute os próximos comandos dentro de `src/frontend`.
+
+Para carregar a tela **Tarefas** com dados reais, crie
+`src/frontend/.env.local` (esse arquivo é ignorado pelo Git):
+
+```env
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000
+EXPO_PUBLIC_CASA_ID=uuid-da-casa
+EXPO_PUBLIC_TETO_JUSTO_TOKEN=token-de-sessao-valido
+```
+
+Use essa configuração somente no desenvolvimento local. O token não deve ser
+versionado nem incorporado em builds distribuídos; o futuro fluxo de login
+deve fornecer a sessão em tempo de execução. No celular, substitua
+`127.0.0.1` pelo IP da máquina na rede local.
 
 No PowerShell, se `npm` ou `npx` forem bloqueados pela política de scripts,
 use `npm.cmd` e `npx.cmd`, respectivamente. No macOS e Linux, use os comandos
