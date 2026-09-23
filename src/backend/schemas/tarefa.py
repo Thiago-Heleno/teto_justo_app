@@ -15,7 +15,7 @@ class TarefaCriar(BaseModel):
     nome: str
     descricao: Optional[str] = None
     estado_atual: EstadoTarefa
-    peso: int = Field(gt=0, le=4)
+    peso: Literal[1, 2, 3]
     pontuacao: PontuacaoTarefa
     atraso_maximo: int = Field(gt=0)
     data_fim: datetime
@@ -38,7 +38,7 @@ class TarefaAtualizar(BaseModel):
     nome: Optional[str] = None
     descricao: Optional[str] = None
     estado_atual: Optional[EstadoTarefa] = None
-    peso: Optional[Literal[1, 2, 3, 4]] = None
+    peso: Optional[Literal[1, 2, 3]] = None
     pontuacao: Optional[PontuacaoTarefa] = None
     atraso_maximo: Optional[int] = Field(default=None, gt=0)
     data_fim: Optional[datetime] = None
