@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import ReanimatedSwipeable, {
-  SwipeDirection,
-} from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -21,13 +18,13 @@ import { MotionPressable } from "@/components/motion-pressable";
 import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
-  casaDemonstracao,
-  moradoresDemonstracao,
-  tarefasDemonstracao,
-  usuarioDemonstracaoId,
-} from "@/data/tarefa-demonstracao";
+  carregarContextoTarefas,
+  carregarTarefas,
+  type Casa,
+  type Morador,
+  type Tarefa,
+} from "@/services/tarefas-api";
 import {
-  filtrarTarefas,
   formatarPrazo,
   type FiltrosTarefa,
   type FiltroPrazo,
@@ -76,10 +73,26 @@ const opcoesPrazo: { valor: FiltroPrazo; rotulo: string }[] = [
   { valor: "atrasadas", rotulo: "Prazo vencido" },
 ];
 
+function iniciais(nome: string) {
+  return nome
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((parte) => parte[0])
+    .join("")
+    .toUpperCase();
+}
+
 export default function TarefasScreen() {
-  const [tarefas, setTarefas] = useState(() =>
-    tarefasDemonstracao.map((tarefa) => ({ ...tarefa })),
-  );
+  const [casa, setCasa] = useState<Casa>();
+  const [moradores, setMoradores] = useState<Morador[]>([]);
+  const [tarefas, setTarefas] = useState<Tarefa[]>();
+  const [tarefasEmAberto, setTarefasEmAberto] = useState(0);
+  const [carregandoContexto, setCarregandoContexto] = useState(true);
+  const [carregandoTarefas, setCarregandoTarefas] = useState(true);
+  const [erroContexto, setErroContexto] = useState<string>();
+  const [erroTarefas, setErroTarefas] = useState<string>();
+  const [tentativa, setTentativa] = useState(0);
   const [filtros, setFiltros] = useState<FiltrosTarefa>({
     estado: "todos",
     responsavel: "todos",
@@ -87,21 +100,95 @@ export default function TarefasScreen() {
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
 
-  const tarefaSelecionada = tarefas.find(
+  useEffect(() => {
+    const controlador = new AbortController();
+    setCarregandoContexto(true);
+    setErroContexto(undefined);
+
+    Promise.all([
+      carregarContextoTarefas(controlador.signal),
+      carregarTarefas(
+        { estado: "todos", responsavel: "todos", prazo: "todos" },
+        controlador.signal,
+      ),
+    ])
+      .then(([[casaAtual, moradoresAtuais], todasTarefas]) => {
+        setCasa(casaAtual);
+        setMoradores(moradoresAtuais);
+        setTarefasEmAberto(
+          todasTarefas.filter((tarefa) => tarefa.estado_atual !== "finalizado")
+            .length,
+        );
+      })
+      .catch((erro: unknown) => {
+        if (!controlador.signal.aborted) {
+          setErroContexto(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível carregar a casa.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!controlador.signal.aborted) setCarregandoContexto(false);
+      });
+
+    return () => controlador.abort();
+  }, [tentativa]);
+
+  useEffect(() => {
+    const controlador = new AbortController();
+    setCarregandoTarefas(true);
+    setErroTarefas(undefined);
+
+    carregarTarefas(filtros, controlador.signal)
+      .then(setTarefas)
+      .catch((erro: unknown) => {
+        if (!controlador.signal.aborted) {
+          setErroTarefas(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível carregar as tarefas.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!controlador.signal.aborted) setCarregandoTarefas(false);
+      });
+
+    return () => controlador.abort();
+  }, [filtros, tentativa]);
+
+  const tarefaSelecionada = tarefas?.find(
     (tarefa) => tarefa.id === tarefaSelecionadaId,
   );
-  const tarefasFiltradas = filtrarTarefas(tarefas, filtros);
-  const tarefasEmAberto = tarefas.filter(
-    (tarefa) => tarefa.estado_atual !== "finalizado",
-  ).length;
 
-  function concluirTarefa(id: string) {
-    setTarefas((atuais) =>
-      atuais.map((tarefa) =>
-        tarefa.id === id ? { ...tarefa, estado_atual: "finalizado" } : tarefa,
-      ),
+  if (carregandoContexto || !casa || (carregandoTarefas && !tarefas)) {
+    const erro = erroContexto || erroTarefas;
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <View style={[styles.page, styles.feedback]}>
+          <Text style={styles.emptyTitle}>
+            {erro ? "NÃO FOI POSSÍVEL CARREGAR" : "CARREGANDO TAREFAS"}
+          </Text>
+          <Text style={styles.emptyText}>
+            {erro || "Buscando as tarefas da sua casa."}
+          </Text>
+          {erro && (
+            <MotionPressable
+              accessibilityRole="button"
+              onPress={() => setTentativa((atual) => atual + 1)}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </MotionPressable>
+          )}
+        </View>
+      </SafeAreaView>
     );
   }
+
+  const tarefasFiltradas = tarefas ?? [];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -109,10 +196,8 @@ export default function TarefasScreen() {
         {tarefaSelecionada ? (
           <DetalheTarefa
             tarefa={tarefaSelecionada}
-            moradores={moradoresDemonstracao}
-            usuarioAtualId={usuarioDemonstracaoId}
+            moradores={moradores}
             onVoltar={() => setTarefaSelecionadaId(undefined)}
-            onConcluir={concluirTarefa}
           />
         ) : (
           <Animated.View
@@ -121,7 +206,7 @@ export default function TarefasScreen() {
           >
             <View style={styles.hero}>
               <View style={styles.heroCopy}>
-                <Text style={styles.houseName}>{casaDemonstracao.nome}</Text>
+                <Text style={styles.houseName}>{casa.nome}</Text>
                 <Text accessibilityRole="header" style={styles.title}>
                   TAREFAS DA CASA
                 </Text>
@@ -177,14 +262,10 @@ export default function TarefasScreen() {
                       }))
                     }
                   />
-                  {moradoresDemonstracao.map((morador) => (
+                  {moradores.map((morador) => (
                     <FilterPill
                       key={morador.id}
-                      label={
-                        morador.id === usuarioDemonstracaoId
-                          ? `${morador.nome} (você)`
-                          : morador.nome
-                      }
+                      label={morador.nome}
                       selected={filtros.responsavel === morador.id}
                       onPress={() =>
                         setFiltros((atuais) => ({
@@ -231,15 +312,19 @@ export default function TarefasScreen() {
               </Animated.Text>
             </View>
 
+            {erroTarefas && (
+              <View style={styles.errorNotice}>
+                <Text style={styles.emptyText}>{erroTarefas}</Text>
+              </View>
+            )}
+
             {tarefasFiltradas.length ? (
               <View style={styles.taskGrid}>
                 {tarefasFiltradas.map((tarefa, index) => {
-                  const responsaveis = moradoresDemonstracao.filter((morador) =>
+                  const responsaveis = moradores.filter((morador) =>
                     tarefa.usuarios_atribuidos.includes(morador.id),
                   );
                   const finalizada = tarefa.estado_atual === "finalizado";
-                  const usuarioEhResponsavel =
-                    tarefa.usuarios_atribuidos.includes(usuarioDemonstracaoId);
 
                   return (
                     <Animated.View
@@ -255,84 +340,58 @@ export default function TarefasScreen() {
                       )}
                       style={styles.taskCardSlot}
                     >
-                      <ReanimatedSwipeable
-                        enabled={usuarioEhResponsavel && !finalizada}
-                        rightThreshold={72}
-                        overshootRight={false}
-                        renderRightActions={() => (
-                          <View style={styles.swipeAction}>
-                            <Text style={styles.swipeActionText}>Concluir</Text>
-                          </View>
-                        )}
-                        onSwipeableOpen={(direction) => {
-                          if (direction === SwipeDirection.LEFT) {
-                            concluirTarefa(tarefa.id);
-                          }
-                        }}
+                      <MotionPressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
+                        onPress={() => setTarefaSelecionadaId(tarefa.id)}
+                        style={styles.taskCard}
                       >
-                        <MotionPressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
-                          accessibilityHint={
-                            usuarioEhResponsavel && !finalizada
-                              ? "Deslize para a esquerda para concluir a tarefa."
-                              : undefined
-                          }
-                          onPress={() => setTarefaSelecionadaId(tarefa.id)}
-                          style={styles.taskCard}
-                        >
-                          <View style={styles.taskTopRow}>
-                            <View
+                        <View style={styles.taskTopRow}>
+                          <View
+                            style={[
+                              styles.statusBadge,
+                              finalizada && styles.statusBadgeFinished,
+                            ]}
+                          >
+                            <Text
                               style={[
-                                styles.statusBadge,
-                                finalizada && styles.statusBadgeFinished,
+                                styles.statusText,
+                                finalizada && styles.statusTextFinished,
                               ]}
                             >
-                              <Text
-                                style={[
-                                  styles.statusText,
-                                  finalizada && styles.statusTextFinished,
-                                ]}
-                              >
-                                {rotulosEstado[tarefa.estado_atual]}
-                              </Text>
-                            </View>
-                            <Text style={styles.weight}>
-                              PESO {tarefa.peso}
+                              {rotulosEstado[tarefa.estado_atual]}
                             </Text>
                           </View>
+                          <Text style={styles.weight}>PESO {tarefa.peso}</Text>
+                        </View>
 
-                          <Text style={styles.taskTitle}>
-                            {tarefa.nome.toUpperCase()}
-                          </Text>
-                          <Text
-                            numberOfLines={2}
-                            style={styles.taskDescription}
-                          >
-                            {tarefa.descricao}
-                          </Text>
+                        <Text style={styles.taskTitle}>
+                          {tarefa.nome.toUpperCase()}
+                        </Text>
+                        <Text numberOfLines={2} style={styles.taskDescription}>
+                          {tarefa.descricao || "Sem descrição."}
+                        </Text>
 
-                          <View style={styles.taskMeta}>
-                            <View>
-                              <Text style={styles.metaLabel}>PRAZO</Text>
-                              <Text style={styles.metaValue}>
-                                {formatarPrazo(tarefa.data_fim)}
-                              </Text>
-                            </View>
-                            <View style={styles.avatars}>
-                              {responsaveis.map((morador) => (
-                                <View key={morador.id} style={styles.avatar}>
-                                  <Text style={styles.avatarText}>
-                                    {morador.iniciais}
-                                  </Text>
-                                </View>
-                              ))}
-                            </View>
+                        <View style={styles.taskMeta}>
+                          <View>
+                            <Text style={styles.metaLabel}>PRAZO</Text>
+                            <Text style={styles.metaValue}>
+                              {formatarPrazo(tarefa.data_fim)}
+                            </Text>
                           </View>
+                          <View style={styles.avatars}>
+                            {responsaveis.map((morador) => (
+                              <View key={morador.id} style={styles.avatar}>
+                                <Text style={styles.avatarText}>
+                                  {iniciais(morador.nome)}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
 
-                          <Text style={styles.detailsLink}>Ver detalhes →</Text>
-                        </MotionPressable>
-                      </ReanimatedSwipeable>
+                        <Text style={styles.detailsLink}>Ver detalhes →</Text>
+                      </MotionPressable>
                     </Animated.View>
                   );
                 })}
@@ -465,18 +524,6 @@ const styles = StyleSheet.create({
     padding: Spacing.five,
     gap: Spacing.three,
   },
-  swipeAction: {
-    width: 112,
-    backgroundColor: Caldera.ember,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  swipeActionText: {
-    color: Caldera.obsidian,
-    fontSize: 14,
-    fontWeight: "500",
-  },
   taskTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -547,4 +594,21 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
   emptyText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  feedback: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.three,
+  },
+  errorNotice: {
+    backgroundColor: Caldera.limestone,
+    borderRadius: 20,
+    padding: Spacing.three,
+  },
+  retryButton: {
+    backgroundColor: Caldera.ember,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+  },
+  retryButtonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
 });

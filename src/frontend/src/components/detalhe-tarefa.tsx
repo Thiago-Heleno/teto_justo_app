@@ -2,7 +2,6 @@ import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
-  FadeInDown,
   FadeInRight,
   FadeOut,
   ReduceMotion,
@@ -12,31 +11,29 @@ import Animated, {
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
-import type { TarefaCasaDemonstracao } from "@/data/tarefa-demonstracao";
+import type { Morador, Tarefa } from "@/services/tarefas-api";
 import { formatarPrazo } from "@/utils/filtros-tarefa";
 
-type Morador = { id: string; nome: string; iniciais: string };
-
 type Props = {
-  tarefa: TarefaCasaDemonstracao;
+  tarefa: Tarefa;
   moradores: Morador[];
-  usuarioAtualId: string;
   onVoltar: () => void;
-  onConcluir: (id: string) => void;
 };
 
-export function DetalheTarefa({
-  tarefa,
-  moradores,
-  usuarioAtualId,
-  onVoltar,
-  onConcluir,
-}: Props) {
+function iniciais(nome: string) {
+  return nome
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((parte) => parte[0])
+    .join("")
+    .toUpperCase();
+}
+
+export function DetalheTarefa({ tarefa, moradores, onVoltar }: Props) {
   const responsaveis = moradores.filter((morador) =>
     tarefa.usuarios_atribuidos.includes(morador.id),
   );
-  const usuarioEhResponsavel =
-    tarefa.usuarios_atribuidos.includes(usuarioAtualId);
   const finalizada = tarefa.estado_atual === "finalizado";
   const voltarComArraste = Gesture.Pan()
     .activeOffsetX(20)
@@ -90,7 +87,9 @@ export function DetalheTarefa({
             </Animated.View>
           </View>
 
-          <Text style={styles.description}>{tarefa.descricao}</Text>
+          <Text style={styles.description}>
+            {tarefa.descricao || "Sem descrição."}
+          </Text>
 
           <View style={styles.infoGrid}>
             <View style={styles.infoCard}>
@@ -123,43 +122,17 @@ export function DetalheTarefa({
               {responsaveis.map((morador) => (
                 <View key={morador.id} style={styles.responsible}>
                   <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{morador.iniciais}</Text>
+                    <Text style={styles.avatarText}>
+                      {iniciais(morador.nome)}
+                    </Text>
                   </View>
                   <View>
                     <Text style={styles.responsibleName}>{morador.nome}</Text>
-                    {morador.id === usuarioAtualId && (
-                      <Text style={styles.youLabel}>Você</Text>
-                    )}
                   </View>
                 </View>
               ))}
             </View>
           </View>
-
-          <Animated.View
-            key={finalizada ? "finalizada" : "acao"}
-            entering={FadeInDown.duration(220).reduceMotion(
-              ReduceMotion.System,
-            )}
-          >
-            {usuarioEhResponsavel && !finalizada ? (
-              <MotionPressable
-                accessibilityRole="button"
-                onPress={() => onConcluir(tarefa.id)}
-                style={styles.completeButton}
-              >
-                <Text style={styles.completeButtonText}>Concluir tarefa</Text>
-              </MotionPressable>
-            ) : (
-              <View style={styles.notice}>
-                <Text style={styles.noticeText}>
-                  {finalizada
-                    ? "Esta tarefa já foi concluída."
-                    : "Somente o responsável pode concluir esta tarefa."}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
         </View>
       </Animated.View>
     </GestureDetector>
@@ -268,35 +241,4 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   responsibleName: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
-  youLabel: {
-    color: Caldera.obsidian,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "500",
-  },
-  completeButton: {
-    minHeight: 52,
-    backgroundColor: Caldera.ember,
-    borderRadius: 800,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  completeButtonText: {
-    color: Caldera.obsidian,
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  notice: {
-    backgroundColor: Caldera.pumice,
-    borderRadius: 20,
-    padding: Spacing.three,
-  },
-  noticeText: {
-    color: Caldera.obsidian,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "500",
-  },
 });
