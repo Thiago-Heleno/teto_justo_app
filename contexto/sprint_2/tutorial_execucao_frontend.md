@@ -5,10 +5,10 @@ Referência: configuração do projeto e documentação Expo consultadas em
 
 ## 1. Preparar o projeto no Windows
 
-Abra um terminal PowerShell e entre na pasta do frontend:
+Abra um terminal PowerShell na raiz do repositório e entre na pasta do frontend:
 
 ```powershell
-cd C:\Users\...\teto_justo_app\src\frontend
+cd src/frontend
 node --version
 npm.cmd --version
 ```
@@ -26,8 +26,11 @@ npm.cmd ci
 Os exemplos usam `npm.cmd` e `npx.cmd` para evitar o bloqueio de scripts
 `.ps1` do PowerShell. Não é necessário alterar a política de execução.
 
-A tela **Nova tarefa** usa dados fictícios: não precisa iniciar o backend,
-Docker ou Supabase, nem configurar credenciais do banco.
+Sem configuração da API, a tela **Nova tarefa** usa dados fictícios e não
+precisa de backend, Docker ou Supabase. Com as variáveis da API já configuradas,
+consulta casa e moradores reais; inicie o backend nesse caso. A criação ainda
+é uma prévia sem gravação. Se a consulta falhar, é possível tentar novamente
+ou escolher explicitamente os dados de demonstração.
 
 ## 2. Abrir no navegador do computador
 
@@ -183,14 +186,17 @@ dependências nativas ou configurações que afetam o aplicativo nativo.
 [Fluxo após a primeira compilação](https://docs.expo.dev/guides/local-app-development/).
 
 Use **Criar outra tarefa** para limpar a demonstração entre verificações.
-Preencha nome, peso de 1 a 3, prazo de 1 a 5 dias e exatamente um morador
-responsável para conferir o resumo. A descrição é opcional. Escolher outro
-morador substitui a seleção anterior; não há campos de data ou horário.
+Preencha nome, peso de 1 a 3 e prazo de 1 a 5 dias. A descrição é opcional.
+Para tarefa **Comum**, selecione um responsável. Para **Rotativa**, selecione
+pelo menos dois moradores, ajuste a ordem e selecione um ou mais dias da
+semana e o intervalo de 1 a 4 semanas. A opção inicial é 1 semana; 4 semanas
+são 28 dias, aproximadamente um mês. Use **Conferir tarefa** para abrir o resumo. Não há campos de
+data ou horário e esta prévia não inicia o rodízio automaticamente.
 Os dados continuam locais e são perdidos ao recarregar completamente o app.
 
 Para encerrar o servidor, pressione `Ctrl+C`.
 
-## Validação e limites deste tutorial
+## Validação original e limites deste tutorial
 
 Scripts conferidos em `package.json`, SDK em `app.json`/dependências e opção
 `--device` conferida com a ajuda da CLI instalada (`57.0.25`). Orientações de

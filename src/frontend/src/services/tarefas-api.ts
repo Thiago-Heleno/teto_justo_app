@@ -15,6 +15,14 @@ export type Tarefa = {
   usuarios_atribuidos: string[];
 };
 
+export function temConfiguracaoTarefas() {
+  return Boolean(
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN ||
+    process.env.EXPO_PUBLIC_CASA_ID,
+  );
+}
+
 function configuracao() {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
   const token = process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN;
@@ -53,7 +61,7 @@ async function requisitar<T>(
   return resposta.json() as Promise<T>;
 }
 
-export function carregarContextoTarefas(signal?: AbortSignal) {
+export async function carregarContextoTarefas(signal?: AbortSignal) {
   const { casaId } = configuracao();
   return Promise.all([
     requisitar<Casa>(`/casas/${casaId}`, signal),
@@ -61,7 +69,10 @@ export function carregarContextoTarefas(signal?: AbortSignal) {
   ]);
 }
 
-export function carregarTarefas(filtros: FiltrosTarefa, signal?: AbortSignal) {
+export async function carregarTarefas(
+  filtros: FiltrosTarefa,
+  signal?: AbortSignal,
+) {
   const { casaId } = configuracao();
   const parametros = new URLSearchParams({
     estado: filtros.estado,
