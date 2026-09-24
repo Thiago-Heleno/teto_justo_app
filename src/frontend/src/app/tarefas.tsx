@@ -13,13 +13,17 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { DetalheTarefa } from "@/components/detalhe-tarefa";
+import {
+  DetalheTarefa,
+  type ResultadoFinalizacao,
+} from "@/components/detalhe-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
   carregarContextoTarefas,
   carregarTarefas,
+  finalizarTarefa,
   type Casa,
   type Morador,
   type Tarefa,
@@ -169,6 +173,39 @@ export default function TarefasScreen() {
     (tarefa) => tarefa.id === tarefaSelecionadaId,
   );
 
+  async function concluirTarefaSelecionada(): Promise<ResultadoFinalizacao> {
+    if (!tarefaSelecionada) {
+      throw new Error("Tarefa não encontrada.");
+    }
+
+    const responsavelId = tarefaSelecionada.usuarios_atribuidos[0];
+    const saldoAnterior =
+      moradores.find((morador) => morador.id === responsavelId)?.score ?? 0;
+    const tarefaFinalizada = await finalizarTarefa(tarefaSelecionada.id);
+    const [, moradoresAtualizados] = await carregarContextoTarefas();
+    const saldoAtual =
+      moradoresAtualizados.find((morador) => morador.id === responsavelId)
+        ?.score ?? saldoAnterior;
+
+    setMoradores(moradoresAtualizados);
+    setTarefas((atuais) =>
+      atuais?.map((tarefa) =>
+        tarefa.id === tarefaFinalizada.id ? tarefaFinalizada : tarefa,
+      ),
+    );
+    setTarefasEmAberto((quantidade) => Math.max(0, quantidade - 1));
+
+    return {
+      pontosObtidos: Math.max(0, saldoAtual - saldoAnterior),
+      saldoAtual,
+    };
+  }
+
+  function continuarAposFinalizacao() {
+    setTarefaSelecionadaId(undefined);
+    setTentativa((atual) => atual + 1);
+  }
+
   if (carregandoContexto || !casa || (carregandoTarefas && !tarefas)) {
     const erro = erroContexto || erroTarefas;
     return (
@@ -204,6 +241,8 @@ export default function TarefasScreen() {
             tarefa={tarefaSelecionada}
             moradores={moradores}
             onVoltar={() => setTarefaSelecionadaId(undefined)}
+            onFinalizar={concluirTarefaSelecionada}
+            onContinuar={continuarAposFinalizacao}
           />
         ) : (
           <Animated.View

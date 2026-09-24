@@ -8,7 +8,7 @@ Referência: configuração do projeto e documentação Expo consultadas em
 Abra um terminal PowerShell e entre na pasta do frontend:
 
 ```powershell
-cd C:\Afaculdade\EngSoftware\teto_justo_porra\src\frontend
+cd C:\Users\...\teto_justo_app\src\frontend
 node --version
 npm.cmd --version
 ```
