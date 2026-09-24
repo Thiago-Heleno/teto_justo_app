@@ -45,7 +45,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test:tarefas": "node --test scripts/filtros-tarefa.test.mjs scripts/tarefas-api.test.mjs",
+    "test:tarefas": "node --test scripts/filtros-tarefa.test.mjs scripts/tarefas-api.test.mjs scripts/criacao-tarefa.test.mjs",
     "reset-project": "node ./scripts/reset-project.js"
   },
   "private": true,

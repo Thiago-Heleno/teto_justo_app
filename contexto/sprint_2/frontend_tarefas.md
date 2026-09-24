@@ -1,6 +1,61 @@
 # Frontend de criação de tarefas — Sprint 2
 
-## Objetivo e estado atual — 22/09/2026
+## Rotatividade e consulta de moradores — 24/09/2026
+
+A aba **Criar** agora permite escolher uma tarefa comum ou rotativa. O rodízio
+recebe pelo menos dois moradores diferentes, uma ordem ajustável e um ou mais
+dias da semana para repetição a cada 1, 2, 3 ou 4 semanas (padrão: 1).
+Quatro semanas significam 28 dias, aproximadamente um mês. O primeiro
+participante é o responsável inicial;
+o prazo de execução de 1 a 5 dias permanece separado da recorrência semanal.
+
+- `src/frontend/src/app/nova-tarefa.tsx`: seleção múltipla acessível, botão
+  para antecipar participantes, dias da semana, mensagens de validação, resumo e
+  limpeza de todos os campos ao iniciar outra tarefa.
+- `src/frontend/src/constants/tarefa.ts`: `rotatividade` guarda participantes
+  ordenados, `dias_semana` (1 = segunda-feira a 7 = domingo) e
+  `intervalo_semanas` (1 a 4), separadamente de
+  `usuarios_atribuidos`, que continua
+  contendo apenas o responsável inicial.
+- `src/frontend/src/utils/criacao-tarefa.ts`: concentra a preparação e a
+  validação dos dados, sem acesso ao banco ou regras de pontuação. Uma tarefa
+  comum descarta os campos de rodízio mesmo após alternar entre os tipos.
+- `src/frontend/src/services/tarefas-api.ts`: a tela reutiliza as consultas de
+  casa e moradores já usadas pela lista. Havendo configuração da API, carrega
+  os dados reais com tratamento de carregamento, erro, nova tentativa e casa
+  sem moradores. Sem configuração, mantém a demonstração. Em caso de falha,
+  dados fictícios só são usados após escolha explícita na tela.
+
+### Regra provisória e limite da entrega
+
+A proposta discutida é manter uma atividade fixa com uma nova ocorrência por
+repetição nos dias escolhidos, passando ao próximo participante e preservando as anteriores para
+pontuação e histórico. O grupo ainda pode rever essa regra. A configuração
+não depende de um mecanismo de geração, facilitando essa alteração futura.
+
+O formulário produz apenas uma **prévia em memória** e informa isso na tela.
+Não grava tarefas ou rodízios, não gera ocorrências automaticamente e não
+altera a pontuação. A integração desta entrega é de leitura. Nenhuma migration
+ou alteração de banco foi aplicada.
+
+Antes da gravação, definir com o grupo a relação entre prazo de execução e
+recorrência semanal, a tolerância de atraso, o fechamento de ocorrências não concluídas
+e o mecanismo de geração dos próximos períodos. A tabela de atribuições atual
+representa responsáveis simultâneos; não deve receber todos os participantes
+do rodízio como responsáveis pela mesma ocorrência.
+
+### Validação desta implementação
+
+- Treze testes automatizados aprovados: regras de criação, preservação da ordem,
+  dias semanais, moradores inválidos/duplicados, campos obrigatórios, tarefa comum,
+  filtros e requisições da API com respostas simuladas.
+- TypeScript sem emissão e ESLint dos arquivos TypeScript alterados aprovados.
+- Fluxo web conferido com API simulada: seleção/remoção, reordenação, erros,
+  resumo, limpeza dos campos, tarefa comum, falha, nova tentativa e escolha
+  explícita da demonstração. Layout conferido em 320, 390 e 1280 px.
+- Sem validação em aparelho físico ou contra Supabase real nesta entrega.
+
+## Histórico da criação — 22/09/2026
 
 Tela demonstrável de criação, com dados fictícios e estado local. Não há
 chamadas à API, gravação ou crédito de pontos. A aba **Criar** abre

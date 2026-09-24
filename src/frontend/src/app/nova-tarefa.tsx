@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -14,6 +14,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import {
+  diasSemanaTarefa,
+  intervalosSemanasTarefa,
+  type IntervaloSemanas,
+  type DiaSemana,
   pesosTarefa,
   prazosTarefa,
   type PesoTarefa,
@@ -26,13 +30,12 @@ import {
   moradoresDemonstracao,
   usuarioDemonstracaoId,
 } from "@/data/tarefa-demonstracao";
-
-type Erros = {
-  nome?: string;
-  peso?: string;
-  prazo?: string;
-  responsavel?: string;
-};
+import {
+  carregarContextoTarefas,
+  temConfiguracaoTarefas,
+  type Casa,
+} from "@/services/tarefas-api";
+import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
 
 function ErroCampo({ mensagem }: { mensagem?: string }) {
   if (!mensagem) return null;
@@ -53,6 +56,34 @@ function IndicadorSelecao({ selecionado }: { selecionado: boolean }) {
 
 export default function NovaTarefaScreen() {
   const { width } = useWindowDimensions();
+  const [usarApi, setUsarApi] = useState(temConfiguracaoTarefas);
+  const [contexto, setContexto] = useState<
+    [Casa, { id: string; nome: string }[]] | null
+  >(usarApi ? null : [casaDemonstracao, moradoresDemonstracao]);
+  const [erroContexto, setErroContexto] = useState<string>();
+  const [tentativa, setTentativa] = useState(0);
+  const casa = contexto?.[0];
+  const moradores = contexto?.[1] ?? [];
+
+  useEffect(() => {
+    if (!usarApi) return;
+    const controlador = new AbortController();
+    async function carregar() {
+      try {
+        const dados = await carregarContextoTarefas(controlador.signal);
+        if (!controlador.signal.aborted) setContexto(dados);
+      } catch (erro: unknown) {
+        if (!controlador.signal.aborted)
+          setErroContexto(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível carregar os moradores.",
+          );
+      }
+    }
+    void carregar();
+    return () => controlador.abort();
+  }, [usarApi, tentativa]);
   const scrollRef = useRef<ScrollView>(null);
   const descricaoRef = useRef<TextInput>(null);
   const [nome, setNome] = useState("");
@@ -60,37 +91,32 @@ export default function NovaTarefaScreen() {
   const [peso, setPeso] = useState<PesoTarefa | null>(null);
   const [dias, setDias] = useState<PrazoDias | null>(null);
   const [responsavel, setResponsavel] = useState<string | null>(null);
-  const [erros, setErros] = useState<Erros>({});
+  const [rotativa, setRotativa] = useState(false);
+  const [participantes, setParticipantes] = useState<string[]>([]);
+  const [diasSemana, setDiasSemana] = useState<DiaSemana[]>([]);
+  const [semanas, setSemanas] = useState<IntervaloSemanas>(1);
+  const [erros, setErros] = useState<ErrosCriacao>({});
   const [tarefa, setTarefa] = useState<TarefaDemonstracao | null>(null);
   const cardStyle = [styles.card, width < 600 && styles.compactCard];
 
   function criarTarefa() {
-    const novosErros: Erros = {
-      nome: nome.trim() ? undefined : "Informe o nome da tarefa.",
-      peso: peso === null ? "Selecione um peso de 1 a 3." : undefined,
-      prazo: dias === null ? "Selecione um prazo de 1 a 5 dias." : undefined,
-      responsavel: responsavel ? undefined : "Selecione um responsável.",
-    };
-    setErros(novosErros);
+    const resultado = prepararTarefa(
+      {
+        nome,
+        descricao,
+        peso,
+        dias,
+        responsavel,
+        rotativa,
+        participantes,
+        diasSemana,
+        semanas,
+      },
+      moradores,
+    );
+    setErros(resultado.erros);
     Keyboard.dismiss();
-
-    if (
-      Object.values(novosErros).some(Boolean) ||
-      peso === null ||
-      dias === null ||
-      responsavel === null
-    ) {
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
-      return;
-    }
-
-    setTarefa({
-      nome: nome.trim(),
-      descricao: descricao.trim(),
-      peso,
-      prazo_dias: dias,
-      usuarios_atribuidos: [responsavel],
-    });
+    if (resultado.tarefa) setTarefa(resultado.tarefa);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }
 
@@ -100,9 +126,22 @@ export default function NovaTarefaScreen() {
     setPeso(null);
     setDias(null);
     setResponsavel(null);
+    setRotativa(false);
+    setParticipantes([]);
+    setDiasSemana([]);
+    setSemanas(1);
     setErros({});
     setTarefa(null);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }
+
+  function alternarParticipante(id: string) {
+    setParticipantes((atuais) =>
+      atuais.includes(id)
+        ? atuais.filter((participante) => participante !== id)
+        : [...atuais, id],
+    );
+    setErros((atuais) => ({ ...atuais, participantes: undefined }));
   }
 
   return (
@@ -119,7 +158,7 @@ export default function NovaTarefaScreen() {
         >
           <View style={styles.form}>
             <View style={styles.section}>
-              <Text style={styles.help}>{casaDemonstracao.nome}</Text>
+              <Text style={styles.help}>{casa?.nome ?? "Sua casa"}</Text>
               <Text accessibilityRole="header" style={styles.title}>
                 {tarefa ? "TUDO PRONTO!" : "NOVA TAREFA"}
               </Text>
@@ -129,11 +168,49 @@ export default function NovaTarefaScreen() {
                   : "Organize o que precisa ser feito na casa."}
               </Text>
               <View style={styles.badge}>
-                <Text style={styles.help}>Demonstração · dados fictícios</Text>
+                <Text style={styles.help}>
+                  {usarApi
+                    ? "Prévia · moradores da sua casa"
+                    : "Demonstração · dados fictícios"}
+                </Text>
               </View>
+              <Text style={styles.help}>
+                Esta prévia não salva tarefas nem inicia o rodízio.
+              </Text>
             </View>
 
-            {tarefa ? (
+            {!contexto ? (
+              <View style={cardStyle}>
+                <Text style={styles.body} accessibilityLiveRegion="polite">
+                  {erroContexto || "Carregando os moradores da sua casa..."}
+                </Text>
+                {erroContexto && (
+                  <MotionPressable
+                    accessibilityRole="button"
+                    style={styles.button}
+                    onPress={() => {
+                      setErroContexto(undefined);
+                      setTentativa((atual) => atual + 1);
+                    }}
+                  >
+                    <Text style={styles.body}>Tentar novamente</Text>
+                  </MotionPressable>
+                )}
+                {erroContexto && (
+                  <MotionPressable
+                    accessibilityRole="button"
+                    style={styles.demoButton}
+                    onPress={() => {
+                      setUsarApi(false);
+                      setContexto([casaDemonstracao, moradoresDemonstracao]);
+                      setErroContexto(undefined);
+                    }}
+                  >
+                    <Text style={styles.body}>Usar dados de demonstração</Text>
+                  </MotionPressable>
+                )}
+              </View>
+            ) : tarefa ? (
               <>
                 <View style={cardStyle}>
                   <Text
@@ -141,7 +218,7 @@ export default function NovaTarefaScreen() {
                     accessibilityLiveRegion="polite"
                     style={styles.sectionTitle}
                   >
-                    Tarefa criada nesta demonstração
+                    Prévia da tarefa
                   </Text>
                   <View style={styles.section}>
                     <Text style={styles.help}>Nome</Text>
@@ -165,16 +242,51 @@ export default function NovaTarefaScreen() {
                     </Text>
                   </View>
                   <View style={styles.section}>
-                    <Text style={styles.help}>Responsável</Text>
+                    <Text style={styles.help}>
+                      {tarefa.rotatividade
+                        ? "Primeiro responsável"
+                        : "Responsável"}
+                    </Text>
                     <Text style={styles.body}>
                       {
-                        moradoresDemonstracao.find(
+                        moradores.find(
                           (morador) =>
                             morador.id === tarefa.usuarios_atribuidos[0],
                         )?.nome
                       }
                     </Text>
                   </View>
+                  {tarefa.rotatividade && (
+                    <View style={styles.section}>
+                      <Text style={styles.help}>
+                        {tarefa.rotatividade.intervalo_semanas === 1
+                          ? "Repetir toda semana"
+                          : `Repetir a cada ${tarefa.rotatividade.intervalo_semanas} semanas`}
+                      </Text>
+                      <Text style={styles.body}>
+                        {diasSemanaTarefa
+                          .filter((dia) =>
+                            tarefa.rotatividade?.dias_semana.includes(
+                              dia.valor,
+                            ),
+                          )
+                          .map((dia) => dia.rotulo)
+                          .join(", ")}
+                      </Text>
+                      <Text style={styles.help}>Ordem do rodízio</Text>
+                      {tarefa.rotatividade.participantes.map((id, indice) => (
+                        <Text key={id} style={styles.body}>
+                          {indice + 1}.{" "}
+                          {moradores.find((morador) => morador.id === id)?.nome}
+                        </Text>
+                      ))}
+                      <Text style={styles.help}>
+                        Em cada período, o próximo participante fica
+                        responsável. Após o último participante, a sequência
+                        recomeça.
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <MotionPressable
                   accessibilityRole="button"
@@ -312,29 +424,90 @@ export default function NovaTarefaScreen() {
                     >
                       QUEM VAI FAZER?
                     </Text>
-                    <Text style={styles.body}>Responsável *</Text>
+                    <View
+                      style={styles.options}
+                      accessibilityRole="radiogroup"
+                      accessibilityLabel="Tipo de tarefa"
+                    >
+                      {[
+                        { valor: false, nome: "Comum" },
+                        { valor: true, nome: "Rotativa" },
+                      ].map((opcao) => (
+                        <MotionPressable
+                          key={opcao.nome}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`Tarefa ${opcao.nome.toLowerCase()}`}
+                          accessibilityState={{
+                            checked: rotativa === opcao.valor,
+                          }}
+                          aria-checked={rotativa === opcao.valor}
+                          onPress={() => {
+                            setRotativa(opcao.valor);
+                            setErros((atuais) => ({
+                              ...atuais,
+                              responsavel: undefined,
+                              participantes: undefined,
+                              diasSemana: undefined,
+                              semanas: undefined,
+                            }));
+                          }}
+                          style={[
+                            styles.option,
+                            rotativa === opcao.valor && styles.selected,
+                          ]}
+                        >
+                          <IndicadorSelecao
+                            selecionado={rotativa === opcao.valor}
+                          />
+                          <Text style={styles.body}>{opcao.nome}</Text>
+                        </MotionPressable>
+                      ))}
+                    </View>
+                    <Text style={styles.body}>
+                      {rotativa
+                        ? "Participantes do rodízio *"
+                        : "Responsável *"}
+                    </Text>
                     <Text style={styles.help}>
-                      Escolha apenas um morador. Ao escolher outro, a seleção
-                      anterior é substituída.
+                      {rotativa
+                        ? "Escolha pelo menos dois moradores, na ordem em que vão participar. O primeiro selecionado começa."
+                        : "Escolha apenas um morador. Ao escolher outro, a seleção anterior é substituída."}
                     </Text>
                   </View>
+                  {moradores.length === 0 && (
+                    <Text style={styles.help}>
+                      Não há moradores disponíveis para esta casa.
+                    </Text>
+                  )}
+                  {rotativa && moradores.length === 1 && (
+                    <Text style={styles.help}>
+                      O rodízio precisa de pelo menos dois moradores na casa.
+                    </Text>
+                  )}
                   <View
                     style={styles.section}
-                    accessibilityRole="radiogroup"
-                    accessibilityLabel="Responsável pela tarefa"
+                    accessibilityRole={rotativa ? undefined : "radiogroup"}
+                    accessibilityLabel={
+                      rotativa
+                        ? "Participantes do rodízio"
+                        : "Responsável pela tarefa"
+                    }
                   >
-                    {moradoresDemonstracao.map((morador) => {
-                      const selecionado = responsavel === morador.id;
-                      const nomeExibido = `${morador.nome}${morador.id === usuarioDemonstracaoId ? " (você)" : ""}`;
+                    {moradores.map((morador) => {
+                      const selecionado = rotativa
+                        ? participantes.includes(morador.id)
+                        : responsavel === morador.id;
+                      const nomeExibido = `${morador.nome}${!usarApi && morador.id === usuarioDemonstracaoId ? " (você)" : ""}`;
                       return (
                         <MotionPressable
                           key={morador.id}
-                          accessibilityRole="radio"
+                          accessibilityRole={rotativa ? "checkbox" : "radio"}
                           accessibilityLabel={nomeExibido}
                           accessibilityState={{ checked: selecionado }}
                           aria-checked={selecionado}
                           onPress={() => {
-                            setResponsavel(morador.id);
+                            if (rotativa) alternarParticipante(morador.id);
+                            else setResponsavel(morador.id);
                             setErros((atuais) => ({
                               ...atuais,
                               responsavel: undefined,
@@ -346,24 +519,193 @@ export default function NovaTarefaScreen() {
                           ]}
                         >
                           <View style={styles.avatar}>
-                            <Text style={styles.help}>{morador.iniciais}</Text>
+                            <Text style={styles.help}>
+                              {morador.nome
+                                .split(" ")
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((parte) => parte[0])
+                                .join("")
+                                .toUpperCase()}
+                            </Text>
                           </View>
                           <Text style={[styles.body, styles.residentName]}>
                             {nomeExibido}
                           </Text>
-                          <IndicadorSelecao selecionado={selecionado} />
+                          {rotativa ? (
+                            <View accessible={false} style={styles.checkbox}>
+                              <Text style={styles.help}>
+                                {selecionado ? "✓" : ""}
+                              </Text>
+                            </View>
+                          ) : (
+                            <IndicadorSelecao selecionado={selecionado} />
+                          )}
                         </MotionPressable>
                       );
                     })}
                   </View>
-                  <ErroCampo mensagem={erros.responsavel} />
+                  <ErroCampo
+                    mensagem={
+                      rotativa ? erros.participantes : erros.responsavel
+                    }
+                  />
+                  {rotativa && (
+                    <>
+                      {participantes.length > 0 && (
+                        <View style={styles.section}>
+                          <Text style={styles.body}>Ordem do rodízio</Text>
+                          {participantes.map((id, indice) => (
+                            <View key={id} style={styles.orderRow}>
+                              <Text style={[styles.help, styles.residentName]}>
+                                {indice + 1}.{" "}
+                                {
+                                  moradores.find((morador) => morador.id === id)
+                                    ?.nome
+                                }
+                                {indice === 0 ? " · começa" : ""}
+                              </Text>
+                              {indice > 0 && (
+                                <MotionPressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Antecipar ${moradores.find((morador) => morador.id === id)?.nome}`}
+                                  style={styles.reorderButton}
+                                  onPress={() =>
+                                    setParticipantes((atuais) => {
+                                      const novaOrdem = [...atuais];
+                                      const [movido] = novaOrdem.splice(
+                                        indice,
+                                        1,
+                                      );
+                                      novaOrdem.splice(indice - 1, 0, movido);
+                                      return novaOrdem;
+                                    })
+                                  }
+                                >
+                                  <Text style={styles.help}>↑ Subir</Text>
+                                </MotionPressable>
+                              )}
+                            </View>
+                          ))}
+                          <Text style={styles.help}>
+                            Após o último, o rodízio volta ao primeiro.
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.section}>
+                        <Text style={styles.body}>
+                          Repetir a cada quantas semanas? *
+                        </Text>
+                        <View
+                          style={styles.options}
+                          accessibilityRole="radiogroup"
+                          accessibilityLabel="Intervalo de repetição em semanas"
+                        >
+                          {intervalosSemanasTarefa.map((opcao) => (
+                            <MotionPressable
+                              key={opcao}
+                              accessibilityRole="radio"
+                              accessibilityLabel={`${opcao} ${opcao === 1 ? "semana" : "semanas"}`}
+                              accessibilityState={{
+                                checked: semanas === opcao,
+                              }}
+                              aria-checked={semanas === opcao}
+                              onPress={() => {
+                                setSemanas(opcao);
+                                setErros((atuais) => ({
+                                  ...atuais,
+                                  semanas: undefined,
+                                }));
+                              }}
+                              style={[
+                                styles.option,
+                                semanas === opcao && styles.selected,
+                              ]}
+                            >
+                              <IndicadorSelecao
+                                selecionado={semanas === opcao}
+                              />
+                              <Text style={styles.body}>
+                                {opcao} {opcao === 1 ? "semana" : "semanas"}
+                              </Text>
+                            </MotionPressable>
+                          ))}
+                        </View>
+                        {semanas === 4 && (
+                          <Text style={styles.help}>
+                            4 semanas são 28 dias: aproximadamente uma vez por
+                            mês.
+                          </Text>
+                        )}
+                        <ErroCampo mensagem={erros.semanas} />
+                      </View>
+                      <View style={styles.section}>
+                        <Text style={styles.body}>
+                          Repetir em quais dias? *
+                        </Text>
+                        <Text style={styles.help}>
+                          {semanas === 1
+                            ? "Selecione um ou mais dias. A tarefa se repete toda semana nos dias escolhidos."
+                            : `Selecione um ou mais dias. A tarefa se repete nos dias escolhidos a cada ${semanas} semanas.`}
+                        </Text>
+                        <View
+                          style={styles.options}
+                          accessibilityLabel="Dias da semana da tarefa"
+                        >
+                          {diasSemanaTarefa.map((dia) => {
+                            const selecionado = diasSemana.includes(dia.valor);
+                            return (
+                              <MotionPressable
+                                key={dia.valor}
+                                accessibilityRole="checkbox"
+                                accessibilityLabel={dia.rotulo}
+                                accessibilityState={{ checked: selecionado }}
+                                aria-checked={selecionado}
+                                onPress={() => {
+                                  setDiasSemana((atuais) =>
+                                    atuais.includes(dia.valor)
+                                      ? atuais.filter(
+                                          (valor) => valor !== dia.valor,
+                                        )
+                                      : [...atuais, dia.valor],
+                                  );
+                                  setErros((atuais) => ({
+                                    ...atuais,
+                                    diasSemana: undefined,
+                                  }));
+                                }}
+                                style={[
+                                  styles.option,
+                                  styles.weekday,
+                                  selecionado && styles.selected,
+                                ]}
+                              >
+                                <View
+                                  accessible={false}
+                                  style={styles.checkbox}
+                                >
+                                  <Text style={styles.help}>
+                                    {selecionado ? "✓" : ""}
+                                  </Text>
+                                </View>
+                                <Text style={styles.body}>
+                                  {dia.abreviacao}
+                                </Text>
+                              </MotionPressable>
+                            );
+                          })}
+                        </View>
+                        <ErroCampo mensagem={erros.diasSemana} />
+                      </View>
+                    </>
+                  )}
                 </View>
                 <MotionPressable
                   accessibilityRole="button"
                   onPress={criarTarefa}
                   style={styles.button}
                 >
-                  <Text style={styles.body}>Criar tarefa</Text>
+                  <Text style={styles.body}>Conferir tarefa</Text>
                 </MotionPressable>
               </>
             )}
@@ -454,7 +796,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  weekday: { minWidth: 88 },
   selected: { backgroundColor: Caldera.ember },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  orderRow: { flexDirection: "row", alignItems: "center", gap: Spacing.two },
+  reorderButton: {
+    minHeight: 44,
+    paddingHorizontal: Spacing.three,
+    justifyContent: "center",
+    borderRadius: 800,
+    backgroundColor: Caldera.pumice,
+  },
   radio: {
     width: 18,
     height: 18,
@@ -488,6 +848,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   residentName: { flex: 1 },
+  demoButton: {
+    minHeight: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.three,
+    borderRadius: 800,
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+  },
   button: {
     minHeight: 56,
     paddingVertical: 12,
