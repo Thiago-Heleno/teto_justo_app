@@ -3,7 +3,7 @@ import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
 export type Casa = { id: string; nome: string };
 
-export type Morador = { id: string; nome: string };
+export type Morador = { id: string; nome: string; score: number };
 
 export type Tarefa = {
   id: string;
@@ -32,10 +32,16 @@ function configuracao() {
 async function requisitar<T>(
   caminho: string,
   signal?: AbortSignal,
+  opcoes?: { method?: "GET" | "PATCH"; body?: unknown },
 ): Promise<T> {
   const { apiUrl, token } = configuracao();
   const resposta = await fetch(`${apiUrl}${caminho}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    method: opcoes?.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(opcoes?.body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: opcoes?.body ? JSON.stringify(opcoes.body) : undefined,
     signal,
   });
 
@@ -70,4 +76,11 @@ export function carregarTarefas(filtros: FiltrosTarefa, signal?: AbortSignal) {
     `/tarefas/casa/${casaId}?${parametros.toString()}`,
     signal,
   );
+}
+
+export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal, {
+    method: "PATCH",
+    body: { estado_atual: "finalizado" },
+  });
 }

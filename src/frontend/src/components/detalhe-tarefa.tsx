@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Modal, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
@@ -18,6 +19,13 @@ type Props = {
   tarefa: Tarefa;
   moradores: Morador[];
   onVoltar: () => void;
+  onFinalizar: () => Promise<ResultadoFinalizacao>;
+  onContinuar: () => void;
+};
+
+export type ResultadoFinalizacao = {
+  pontosObtidos: number;
+  saldoAtual: number;
 };
 
 function iniciais(nome: string) {
@@ -30,11 +38,38 @@ function iniciais(nome: string) {
     .toUpperCase();
 }
 
-export function DetalheTarefa({ tarefa, moradores, onVoltar }: Props) {
+export function DetalheTarefa({
+  tarefa,
+  moradores,
+  onVoltar,
+  onFinalizar,
+  onContinuar,
+}: Props) {
+  const [finalizando, setFinalizando] = useState(false);
+  const [erroFinalizacao, setErroFinalizacao] = useState<string>();
+  const [resultado, setResultado] = useState<ResultadoFinalizacao>();
   const responsaveis = moradores.filter((morador) =>
     tarefa.usuarios_atribuidos.includes(morador.id),
   );
   const finalizada = tarefa.estado_atual === "finalizado";
+  const podeFinalizar = !finalizada && tarefa.estado_atual !== "nao_feito";
+
+  async function concluirTarefa() {
+    setFinalizando(true);
+    setErroFinalizacao(undefined);
+
+    try {
+      setResultado(await onFinalizar());
+    } catch (erro: unknown) {
+      setErroFinalizacao(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível finalizar a tarefa.",
+      );
+    } finally {
+      setFinalizando(false);
+    }
+  }
   const voltarComArraste = Gesture.Pan()
     .activeOffsetX(20)
     .failOffsetY([-20, 20])
@@ -133,7 +168,72 @@ export function DetalheTarefa({ tarefa, moradores, onVoltar }: Props) {
               ))}
             </View>
           </View>
+
+          {podeFinalizar && (
+            <View style={styles.completionSection}>
+              <MotionPressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  busy: finalizando,
+                  disabled: finalizando,
+                }}
+                disabled={finalizando}
+                onPress={concluirTarefa}
+                style={[
+                  styles.finishButton,
+                  finalizando && styles.finishButtonDisabled,
+                ]}
+              >
+                <Text style={styles.finishButtonText}>
+                  {finalizando ? "Finalizando..." : "Finalizar tarefa"}
+                </Text>
+              </MotionPressable>
+              {erroFinalizacao && (
+                <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                  {erroFinalizacao}
+                </Text>
+              )}
+            </View>
+          )}
         </View>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => undefined}
+          transparent
+          visible={Boolean(resultado)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View accessibilityViewIsModal style={styles.modalCard}>
+              <Text style={styles.modalEyebrow}>TAREFA CONCLUÍDA</Text>
+              <Text accessibilityRole="header" style={styles.modalTitle}>
+                PARABÉNS!
+              </Text>
+              <Text style={styles.modalBody}>
+                Você finalizou {tarefa.nome}.
+              </Text>
+
+              <View style={styles.scoreCard}>
+                <Text style={styles.scoreLabel}>PONTOS OBTIDOS</Text>
+                <Text style={styles.scoreValue}>
+                  +{resultado?.pontosObtidos ?? 0}
+                </Text>
+              </View>
+
+              <Text style={styles.balanceText}>
+                Seu saldo atual é de {resultado?.saldoAtual ?? 0} pontos.
+              </Text>
+
+              <MotionPressable
+                accessibilityRole="button"
+                onPress={onContinuar}
+                style={styles.continueButton}
+              >
+                <Text style={styles.continueButtonText}>Continuar</Text>
+              </MotionPressable>
+            </View>
+          </View>
+        </Modal>
       </Animated.View>
     </GestureDetector>
   );
@@ -241,4 +341,82 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   responsibleName: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  completionSection: { gap: Spacing.two, alignItems: "flex-start" },
+  finishButton: {
+    backgroundColor: Caldera.ember,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
+  },
+  finishButtonDisabled: { opacity: 0.6 },
+  finishButtonText: {
+    color: Caldera.obsidian,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  errorText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(7, 6, 7, 0.58)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.four,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 520,
+    backgroundColor: Caldera.limestone,
+    borderRadius: 40,
+    padding: Spacing.five,
+    gap: Spacing.three,
+  },
+  modalEyebrow: {
+    color: Caldera.ember,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  modalTitle: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 48,
+    lineHeight: 48,
+    letterSpacing: 0.96,
+  },
+  modalBody: {
+    color: Caldera.obsidian,
+    fontSize: 18,
+    lineHeight: 28,
+    fontWeight: "500",
+  },
+  scoreCard: {
+    backgroundColor: Caldera.ember,
+    borderRadius: 40,
+    padding: Spacing.four,
+    gap: Spacing.two,
+  },
+  scoreLabel: { color: Caldera.chalk, fontSize: 14, fontWeight: "500" },
+  scoreValue: {
+    color: Caldera.chalk,
+    fontFamily: CompactFont,
+    fontSize: 64,
+    lineHeight: 64,
+  },
+  balanceText: {
+    color: Caldera.obsidian,
+    fontSize: 16,
+    lineHeight: 25,
+    fontWeight: "500",
+  },
+  continueButton: {
+    alignSelf: "flex-start",
+    backgroundColor: Caldera.obsidian,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
+  },
+  continueButtonText: {
+    color: Caldera.chalk,
+    fontSize: 16,
+    fontWeight: "500",
+  },
 });
