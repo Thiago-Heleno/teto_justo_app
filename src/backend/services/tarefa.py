@@ -248,12 +248,30 @@ class ServicoTarefa:
         id_usuario_atual: UUID,
     ):
         tarefa_atual = self._buscar_tarefa_bruta(id_tarefa)
-        ServicoAutorizacaoCasa(
-            self.supabase
-        ).garantir_administrador_da_casa(
-            tarefa_atual["fk_casa_id"],
-            id_usuario_atual,
+        finalizacao_pelo_responsavel = (
+            dados_tarefa.model_fields_set == {"estado_atual"}
+            and dados_tarefa.estado_atual == "finalizado"
         )
+        if finalizacao_pelo_responsavel:
+            tarefa_atual = self._sincronizar_estado_por_atraso(tarefa_atual)
+            responsaveis = self._buscar_usuarios_atribuidos(id_tarefa)
+            if str(id_usuario_atual) not in responsaveis:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Apenas um responsável pode finalizar esta tarefa.",
+                )
+            if tarefa_atual["estado_atual"] in _ESTADOS_FINAIS:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Esta tarefa não pode mais ser finalizada.",
+                )
+        else:
+            ServicoAutorizacaoCasa(
+                self.supabase
+            ).garantir_administrador_da_casa(
+                tarefa_atual["fk_casa_id"],
+                id_usuario_atual,
+            )
         usuarios_foram_informados = (
             "usuarios_atribuidos" in dados_tarefa.model_fields_set
         )

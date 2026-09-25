@@ -5,6 +5,8 @@ export type Casa = { id: string; nome: string };
 
 export type Morador = { id: string; nome: string; score: number };
 
+export type UsuarioAtual = { id: string };
+
 export type Tarefa = {
   id: string;
   nome: string;
@@ -67,6 +69,10 @@ export async function carregarContextoTarefas(signal?: AbortSignal) {
     requisitar<Casa>(`/casas/${casaId}`, signal),
     requisitar<Morador[]>(`/casas/${casaId}/moradores`, signal),
   ]);
+}
+
+export function carregarUsuarioAtual(signal?: AbortSignal) {
+  return requisitar<UsuarioAtual>("/usuarios/eu", signal);
 }
 
 export async function carregarTarefas(

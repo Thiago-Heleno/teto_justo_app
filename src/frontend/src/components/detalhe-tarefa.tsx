@@ -18,6 +18,7 @@ import { formatarPrazo } from "@/utils/filtros-tarefa";
 type Props = {
   tarefa: Tarefa;
   moradores: Morador[];
+  usuarioAtualId: string;
   onVoltar: () => void;
   onFinalizar: () => Promise<ResultadoFinalizacao>;
   onContinuar: () => void;
@@ -41,6 +42,7 @@ function iniciais(nome: string) {
 export function DetalheTarefa({
   tarefa,
   moradores,
+  usuarioAtualId,
   onVoltar,
   onFinalizar,
   onContinuar,
@@ -52,7 +54,10 @@ export function DetalheTarefa({
     tarefa.usuarios_atribuidos.includes(morador.id),
   );
   const finalizada = tarefa.estado_atual === "finalizado";
-  const podeFinalizar = !finalizada && tarefa.estado_atual !== "nao_feito";
+  const podeFinalizar =
+    !finalizada &&
+    tarefa.estado_atual !== "nao_feito" &&
+    tarefa.usuarios_atribuidos.includes(usuarioAtualId);
 
   async function concluirTarefa() {
     setFinalizando(true);
