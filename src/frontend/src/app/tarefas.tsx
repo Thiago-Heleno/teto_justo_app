@@ -23,10 +23,12 @@ import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
   carregarContextoTarefas,
   carregarTarefas,
+  carregarUsuarioAtual,
   finalizarTarefa,
   type Casa,
   type Morador,
   type Tarefa,
+  type UsuarioAtual,
 } from "@/services/tarefas-api";
 import {
   formatarPrazo,
@@ -90,6 +92,7 @@ function iniciais(nome: string) {
 export default function TarefasScreen() {
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
+  const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual>();
   const [tarefas, setTarefas] = useState<Tarefa[]>();
   const [tarefasEmAberto, setTarefasEmAberto] = useState(0);
   const [carregandoContexto, setCarregandoContexto] = useState(true);
@@ -114,14 +117,16 @@ export default function TarefasScreen() {
 
     Promise.all([
       carregarContextoTarefas(controlador.signal),
+      carregarUsuarioAtual(controlador.signal),
       carregarTarefas(
         { estado: "todos", responsavel: "todos", prazo: "todos" },
         controlador.signal,
       ),
     ])
-      .then(([[casaAtual, moradoresAtuais], todasTarefas]) => {
+      .then(([[casaAtual, moradoresAtuais], usuario, todasTarefas]) => {
         setCasa(casaAtual);
         setMoradores(moradoresAtuais);
+        setUsuarioAtual(usuario);
         setTarefasEmAberto(
           todasTarefas.filter((tarefa) => tarefa.estado_atual !== "finalizado")
             .length,
@@ -178,7 +183,11 @@ export default function TarefasScreen() {
       throw new Error("Tarefa não encontrada.");
     }
 
-    const responsavelId = tarefaSelecionada.usuarios_atribuidos[0];
+    if (!usuarioAtual) {
+      throw new Error("Usuário atual não encontrado.");
+    }
+
+    const responsavelId = usuarioAtual.id;
     const saldoAnterior =
       moradores.find((morador) => morador.id === responsavelId)?.score ?? 0;
     const tarefaFinalizada = await finalizarTarefa(tarefaSelecionada.id);
@@ -206,7 +215,12 @@ export default function TarefasScreen() {
     setTentativa((atual) => atual + 1);
   }
 
-  if (carregandoContexto || !casa || (carregandoTarefas && !tarefas)) {
+  if (
+    carregandoContexto ||
+    !casa ||
+    !usuarioAtual ||
+    (carregandoTarefas && !tarefas)
+  ) {
     const erro = erroContexto || erroTarefas;
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -240,6 +254,7 @@ export default function TarefasScreen() {
           <DetalheTarefa
             tarefa={tarefaSelecionada}
             moradores={moradores}
+            usuarioAtualId={usuarioAtual.id}
             onVoltar={() => setTarefaSelecionadaId(undefined)}
             onFinalizar={concluirTarefaSelecionada}
             onContinuar={continuarAposFinalizacao}

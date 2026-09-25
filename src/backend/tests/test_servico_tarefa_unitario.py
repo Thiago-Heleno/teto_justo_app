@@ -276,6 +276,48 @@ def test_atualizar_tarefa_envia_apenas_campos_informados(
     consulta.update.assert_called_once_with({"nome": "Novo nome"})
 
 
+def test_responsavel_pode_finalizar_a_propria_tarefa(
+    servico, consulta, id_tarefa, registro_tarefa, ids_relacionados
+):
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    finalizada = {**registro_tarefa, "estado_atual": "finalizado"}
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
+        SimpleNamespace(data=[finalizada]),
+        SimpleNamespace(data=[finalizada]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
+    ]
+
+    resultado = servico.atualizar_tarefa(
+        id_tarefa,
+        TarefaAtualizar(estado_atual="finalizado"),
+        responsavel,
+    )
+
+    assert resultado["estado_atual"] == "finalizado"
+    consulta.update.assert_called_once_with({"estado_atual": "finalizado"})
+
+
+def test_nao_responsavel_nao_pode_finalizar_tarefa(
+    servico, consulta, id_tarefa, registro_tarefa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(
+            id_tarefa,
+            TarefaAtualizar(estado_atual="finalizado"),
+            uuid4(),
+        )
+
+    assert erro.value.status_code == 403
+    consulta.update.assert_not_called()
+
+
 def test_excluir_tarefa_existente_retorna_true(
     servico, consulta, id_tarefa, registro_tarefa
 ):

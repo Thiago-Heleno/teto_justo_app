@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   carregarTarefas,
   carregarContextoTarefas,
+  carregarUsuarioAtual,
+  finalizarTarefa,
   temConfiguracaoTarefas,
 } from "../src/services/tarefas-api.ts";
 
@@ -44,17 +46,24 @@ test("consulta casa e moradores reais para a criação sem enviar gravações", 
   const chamadas = [];
   const casa = { id: "casa-123", nome: "Casa real" };
   const moradores = [{ id: "morador-real", nome: "Morador real", score: 0 }];
+  const usuario = { id: "morador-real" };
   globalThis.fetch = async (url, opcoes) => {
     chamadas.push({ url, opcoes });
     return {
       ok: true,
-      json: async () => (url.endsWith("/moradores") ? moradores : casa),
+      json: async () =>
+        url.endsWith("/moradores")
+          ? moradores
+          : url.endsWith("/eu")
+            ? usuario
+            : casa,
     };
   };
   try {
     const sinal = new AbortController().signal;
     assert.deepEqual(await carregarContextoTarefas(sinal), [casa, moradores]);
-    assert.equal(chamadas.length, 2);
+    assert.deepEqual(await carregarUsuarioAtual(sinal), usuario);
+    assert.equal(chamadas.length, 3);
     for (const chamada of chamadas) {
       assert.equal(chamada.opcoes.method, "GET");
       assert.equal(chamada.opcoes.signal, sinal);
@@ -63,6 +72,31 @@ test("consulta casa e moradores reais para a criação sem enviar gravações", 
         "Bearer sessao-valida",
       );
     }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("finaliza a tarefa pelo endpoint autenticado", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
+  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  const original = globalThis.fetch;
+  let requisicao;
+  globalThis.fetch = async (url, opcoes) => {
+    requisicao = { url, opcoes };
+    return { ok: true, json: async () => ({ id: "tarefa-123" }) };
+  };
+
+  try {
+    await finalizarTarefa("tarefa-123");
+    assert.equal(requisicao.url, "http://api.test/tarefas/tarefa-123");
+    assert.equal(requisicao.opcoes.method, "PATCH");
+    assert.equal(requisicao.opcoes.body, '{"estado_atual":"finalizado"}');
+    assert.equal(
+      requisicao.opcoes.headers.Authorization,
+      "Bearer sessao-valida",
+    );
   } finally {
     globalThis.fetch = original;
   }

@@ -31,6 +31,18 @@ Após **Continuar**, o pop-up é fechado e a lista de tarefas é recarregada.
 Esse comportamento evita que a tela de detalhes desapareça antes de o usuário
 ler o resultado, principalmente quando existe um filtro de tarefas pendentes.
 
+## Integração com autenticação
+
+- `GET /usuarios/eu` retorna a pessoa autenticada pela sessão atual.
+- A tela de tarefas consulta esse dado junto da casa, moradores e tarefas; o
+  botão **Finalizar tarefa** só aparece para quem está atribuído à tarefa.
+- O `PATCH /tarefas/{id}` com apenas `estado_atual: finalizado` permite a
+  conclusão por um responsável. As demais alterações seguem restritas ao
+  administrador da casa, e a API rejeita nova conclusão de tarefa finalizada
+  ou não feita.
+- O saldo mostrado no pop-up é o do usuário autenticado, em vez do primeiro
+  responsável da lista.
+
 ## Arquivos alterados
 
 - `src/frontend/src/services/tarefas-api.ts`: adiciona o campo `score` ao tipo
@@ -48,12 +60,13 @@ ler o resultado, principalmente quando existe um filtro de tarefas pendentes.
 - A checagem global do TypeScript continua bloqueada por declarações ausentes
   para dois arquivos CSS preexistentes, sem erros apontados nas alterações.
 
-## Limitação atual
+## Validação da integração
 
-O endpoint genérico `PATCH /tarefas/{id}` exige que o usuário autenticado seja
-administrador da casa. Por isso, o botão ainda não permite que qualquer
-responsável finalize sua própria tarefa.
-
-Como evolução, recomenda-se criar um endpoint específico de finalização que
-autorize o responsável e retorne de forma direta e atômica os pontos obtidos e
-o saldo atualizado.
+- `npm run test:tarefas`: 14 testes aprovados, incluindo as requisições de
+  contexto, usuário atual e finalização.
+- `tsc --noEmit`, ESLint direcionado e Prettier dos arquivos frontend
+  alterados: aprovados.
+- A sintaxe dos arquivos Python alterados foi compilada com `py_compile`.
+- Os testes Pytest e Ruff do backend não foram executados: o ambiente virtual
+  disponível não possui as dependências de teste e o outro ambiente local
+  referencia uma instalação Python sem acesso.

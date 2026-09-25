@@ -24,6 +24,11 @@ def listar_usuarios(
     return servico.listar_usuarios(inicio, limite)
 
 
+@router.get("/eu", response_model=UsuarioResposta)
+def buscar_usuario_atual(usuario_atual: UsuarioAtual):
+    return usuario_atual
+
+
 @router.get("/{id_usuario}", response_model=UsuarioResposta)
 def buscar_usuario(
     id_usuario: UUID,
