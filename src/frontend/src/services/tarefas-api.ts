@@ -1,9 +1,11 @@
 import type { EstadoTarefa } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
-export type Casa = { id: string; nome: string };
+export type Casa = { id: string; nome: string; fk_usuario_id: string };
 
 export type Morador = { id: string; nome: string; score: number };
+
+export type UsuarioAtual = { id: string };
 
 export type Tarefa = {
   id: string;
@@ -14,6 +16,22 @@ export type Tarefa = {
   data_fim: string;
   usuarios_atribuidos: string[];
 };
+
+export type TarefaAtualizar = {
+  nome: string;
+  descricao: string;
+  peso: number;
+  data_fim: string;
+  usuarios_atribuidos: string[];
+};
+
+export function temConfiguracaoTarefas() {
+  return Boolean(
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN ||
+    process.env.EXPO_PUBLIC_CASA_ID,
+  );
+}
 
 function configuracao() {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
@@ -53,7 +71,7 @@ async function requisitar<T>(
   return resposta.json() as Promise<T>;
 }
 
-export function carregarContextoTarefas(signal?: AbortSignal) {
+export async function carregarContextoTarefas(signal?: AbortSignal) {
   const { casaId } = configuracao();
   return Promise.all([
     requisitar<Casa>(`/casas/${casaId}`, signal),
@@ -61,7 +79,14 @@ export function carregarContextoTarefas(signal?: AbortSignal) {
   ]);
 }
 
-export function carregarTarefas(filtros: FiltrosTarefa, signal?: AbortSignal) {
+export function carregarUsuarioAtual(signal?: AbortSignal) {
+  return requisitar<UsuarioAtual>("/usuarios/eu", signal);
+}
+
+export async function carregarTarefas(
+  filtros: FiltrosTarefa,
+  signal?: AbortSignal,
+) {
   const { casaId } = configuracao();
   const parametros = new URLSearchParams({
     estado: filtros.estado,
@@ -82,5 +107,16 @@ export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
   return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal, {
     method: "PATCH",
     body: { estado_atual: "finalizado" },
+  });
+}
+
+export function editarTarefa(
+  idTarefa: string,
+  dados: TarefaAtualizar,
+  signal?: AbortSignal,
+) {
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal, {
+    method: "PATCH",
+    body: dados,
   });
 }
