@@ -77,7 +77,7 @@ export function EditarTarefa({
       <Text style={styles.eyebrow}>EDIÇÃO DE TAREFA</Text>
       <Text accessibilityRole="header" style={styles.title}>
         EDITAR TAREFA
-      </Text>
+    </Text>
       <Text style={styles.help}>Campos com * são obrigatórios.</Text>
 
       <View style={styles.card}>
@@ -94,3 +94,175 @@ export function EditarTarefa({
             style={styles.input}
             value={nome}
           />
+          <ErroCampo mensagem={erros.nome} />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Descrição</Text>
+          <TextInput
+            accessibilityLabel="Descrição da tarefa"
+            multiline
+            onChangeText={setDescricao}
+            selectionColor={Caldera.ember}
+            style={[styles.input, styles.description]}
+            textAlignVertical="top"
+            value={descricao}
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Peso *</Text>
+          <View accessibilityRole="radiogroup" style={styles.options}>
+            {pesosTarefa.map((opcao) => (
+              <MotionPressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: peso === opcao }}
+                key={opcao}
+                onPress={() => setPeso(opcao)}
+                style={[styles.option, peso === opcao && styles.selected]}
+              >
+                <Text style={styles.optionText}>{opcao}</Text>
+              </MotionPressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Prazo *</Text>
+          <Text style={styles.help}>Use o formato AAAA-MM-DD.</Text>
+          <TextInput
+            accessibilityLabel="Prazo da tarefa no formato ano, mês e dia"
+            autoCapitalize="none"
+            inputMode="numeric"
+            onChangeText={(valor) => {
+              setDataFim(valor);
+              setErros((atuais) => ({ ...atuais, dataFim: undefined }));
+            }}
+            placeholder="2026-10-01"
+            placeholderTextColor={Caldera.obsidian}
+            selectionColor={Caldera.ember}
+            style={styles.input}
+            value={dataFim}
+          />
+          <ErroCampo mensagem={erros.dataFim} />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Responsável *</Text>
+          <View accessibilityRole="radiogroup" style={styles.options}>
+            {moradores.map((morador) => (
+              <MotionPressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: responsavel === morador.id }}
+                key={morador.id}
+                onPress={() => {
+                  setResponsavel(morador.id);
+                  setErros((atuais) => ({ ...atuais, responsavel: undefined }));
+                }}
+                style={[
+                  styles.option,
+                  responsavel === morador.id && styles.selected,
+                ]}
+              >
+                <Text style={styles.optionText}>{morador.nome}</Text>
+              </MotionPressable>
+            ))}
+          </View>
+          <ErroCampo mensagem={erros.responsavel} />
+        </View>
+
+        {erroEnvio && (
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+            {erroEnvio}
+          </Text>
+        )}
+
+        <View style={styles.actions}>
+          <MotionPressable
+            accessibilityRole="button"
+            disabled={salvando}
+            onPress={() => void salvar()}
+            style={[styles.saveButton, salvando && styles.disabled]}
+          >
+            <Text style={styles.saveText}>
+              {salvando ? "Salvando..." : "Salvar alterações"}
+            </Text>
+          </MotionPressable>
+          <MotionPressable
+            accessibilityRole="button"
+            disabled={salvando}
+            onPress={onCancelar}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancelar</Text>
+          </MotionPressable>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
+    gap: Spacing.three,
+  },
+  eyebrow: { color: Caldera.ember, fontSize: 12, fontWeight: "500" },
+  title: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 48,
+    lineHeight: 48,
+    letterSpacing: 0.96,
+  },
+  help: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
+  card: {
+    backgroundColor: Caldera.limestone,
+    borderRadius: 40,
+    padding: Spacing.five,
+    gap: Spacing.four,
+  },
+  field: { gap: Spacing.two },
+  label: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  input: {
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    borderRadius: 20,
+    color: Caldera.obsidian,
+    fontSize: 16,
+    fontWeight: "500",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 12,
+  },
+  description: { minHeight: 112 },
+  options: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  option: {
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+  },
+  selected: { backgroundColor: Caldera.ember },
+  optionText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
+  errorText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  saveButton: {
+    backgroundColor: Caldera.ember,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
+  },
+  disabled: { opacity: 0.6 },
+  saveText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  cancelButton: {
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
+  },
+  cancelText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+});
