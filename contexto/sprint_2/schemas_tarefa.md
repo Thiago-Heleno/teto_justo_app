@@ -85,20 +85,21 @@ atualização dos dados, evitando alteração parcial em caso de vínculo invál
 - `src/backend/services/score.py`: cálculo puro com `atraso_maximo + 1`;
   `prazo_dias` deixa de ser argumento do cálculo da penalidade.
 - `docs/migrations/14.sql`: alinha a coluna `pontuacao` à dificuldade, adiciona
-  duração/referência/próxima ocorrência e valida os prazos. Remove o trigger e
-  a função de cálculo, e adiciona a operação transacional que persiste os pontos
-  calculados no backend, a conclusão e o saldo. Restringe essa operação ao papel
-  `service_role`.
+  duração/referência/próxima ocorrência, valida os prazos e atualiza o trigger
+  existente de crédito (versão anterior).
+- `docs/migrations/15.sql`: remove o trigger e a função de cálculo. Adiciona
+  somente a operação transacional que persiste os pontos calculados no backend,
+  a conclusão e o saldo. Restringe essa operação ao papel `service_role`.
 - Testes de schemas, serviço e cálculo; testes com Supabase adaptados e
   ampliados para conferir saldo, evento e bloqueio de conclusão repetida.
 - `.github/workflows/backend-pytest.yml`: inclui os testes novos de contrato.
 
-A migration `14.sql` deve ser aplicada após `13.sql` antes de usar este backend
-com o banco real. Ela atualiza os pontos-base das tarefas existentes e reutiliza
-`criado_em` quando falta `data_inicio`, preservando saldos e eventos históricos.
-Não deduz duração para registros antigos: `prazo_dias` permanece nulo. Também
-desativa o cálculo SQL; atualizar apenas o estado diretamente no banco deixa
-de gerar qualquer crédito.
+As migrations `14.sql` e `15.sql` devem ser aplicadas em ordem após `13.sql`
+antes de usar este backend com o banco real. A 14 atualiza os pontos-base das
+tarefas existentes e reutiliza `criado_em` quando falta `data_inicio`, preservando
+saldos e eventos históricos. Não deduz duração para registros antigos:
+`prazo_dias` permanece nulo. A 15 desativa o cálculo SQL; atualizar apenas o
+estado diretamente no banco deixa de gerar qualquer crédito.
 
 O backend utiliza uma chave do Supabase com papel `service_role` para a
 persistência da conclusão. O frontend continua usando apenas o token do Teto
@@ -116,7 +117,7 @@ com escritas separadas que possam duplicar ou perder créditos.
 - 188 testes unitários passaram, incluindo contrato HTTP com aplicação de teste
   e serviços com banco simulado. Não são testes de integração com Supabase.
 - Ruff dos arquivos Python alterados e `git diff --check`: aprovados.
-- Migration e testes de integração real não executados; acesso ao Supabase foi
+- Migrations e testes de integração real não executados; acesso ao Supabase foi
   adiado pelo usuário.
 - O frontend continua como prévia de criação: ainda falta incluir a tolerância
   no formulário e enviar os dados à API.
@@ -128,4 +129,4 @@ com escritas separadas que possam duplicar ou perder créditos.
   desse vínculo retorna 409 e não grava conclusão nem evento.
 - Testes de integração preparados cobrem crédito, ausência do trigger, reversão
   da gravação quando falta vínculo e duas conclusões simultâneas. Eles ainda
-  dependem do Supabase de testes com a migration 14 aplicada.
+  dependem do Supabase de testes com a migration 15 aplicada.
