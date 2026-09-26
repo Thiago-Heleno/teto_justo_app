@@ -2,6 +2,7 @@ from datetime import datetime, time, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
 from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
@@ -80,9 +81,12 @@ class ServicoTarefa:
             self.supabase.table("tarefa")
             .update({"estado_atual": "nao_feito"})
             .eq("id", str(tarefa["id"]))
+            .in_("estado_atual", ["pendente", "atrasada"])
+            .eq("data_fim", tarefa["data_fim"])
+            .eq("atraso_maximo", tarefa["atraso_maximo"])
             .execute()
         )
-        return resposta.data[0] if resposta.data else {**tarefa, "estado_atual": "nao_feito"}
+        return resposta.data[0] if resposta.data else self._buscar_tarefa_bruta(UUID(tarefa["id"]))
 
     def _montar_resposta(self, tarefa: dict) -> dict:
         tarefa = self._sincronizar_estado_por_atraso(tarefa)
@@ -242,6 +246,45 @@ class ServicoTarefa:
             tarefas.append(tarefa_resposta)
         return tarefas
 
+    def _finalizar_tarefa(self, tarefa: dict, responsaveis: list[str]) -> dict:
+        if len(responsaveis) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail="A tarefa precisa ter exatamente um responsável antes da conclusão.",
+            )
+        concluida_em = datetime.now(timezone.utc)
+        resultado = ServicoScore().calcular_score(
+            peso=tarefa["dificuldade"],
+            atraso_maximo=tarefa["atraso_maximo"],
+            data_fim=self._data_fim_com_fuso(tarefa["data_fim"]),
+            concluida_em=concluida_em,
+            usuarios_atribuidos=[UUID(responsaveis[0])],
+        )
+        if resultado.dias_atraso > tarefa["atraso_maximo"]:
+            raise HTTPException(status_code=409, detail="A tolerância de atraso foi ultrapassada.")
+        try:
+            resposta = self.supabase.rpc(
+                "registrar_conclusao_tarefa",
+                {
+                    "p_id_tarefa": str(tarefa["id"]),
+                    "p_id_usuario": str(resultado.usuario_id),
+                    "p_pontos": resultado.pontos_finais,
+                    "p_concluida_em": concluida_em.isoformat(),
+                    "p_dificuldade": tarefa["dificuldade"],
+                    "p_atraso_maximo": tarefa["atraso_maximo"],
+                    "p_data_fim": tarefa["data_fim"],
+                    "p_data_inicio": tarefa.get("data_inicio"),
+                    "p_id_casa": tarefa["fk_casa_id"],
+                },
+            ).execute()
+        except APIError as erro:
+            if erro.code == "PT409":
+                raise HTTPException(status_code=409, detail=erro.message) from erro
+            raise
+        if not resposta.data:
+            raise HTTPException(status_code=500, detail="Não foi possível registrar a conclusão.")
+        return self._montar_resposta(resposta.data)
+
     def atualizar_tarefa(
         self,
         id_tarefa: UUID,
@@ -276,6 +319,8 @@ class ServicoTarefa:
                 status_code=409,
                 detail="Uma tarefa encerrada não pode ser alterada ou finalizada novamente.",
             )
+        if finalizacao_pelo_responsavel:
+            return self._finalizar_tarefa(tarefa_atual, responsaveis)
         usuarios_foram_informados = "usuarios_atribuidos" in dados_tarefa.model_fields_set
         dados = dados_tarefa.model_dump(
             mode="json",

@@ -48,10 +48,26 @@ legadas sem fuso são tratadas como UTC.
 
 ## Crédito persistido
 
-A migration `docs/migrations/14.sql` alinha o trigger de conclusão à mesma
-fórmula. O trigger continua sendo o único mecanismo de crédito em `score_event`
-e `pertencer.score`. O Python não credita pontos em paralelo, evitando crédito
-duplo. A restrição existente por usuário/tarefa preserva a idempotência do evento.
+O `ServicoTarefa` chama `ServicoScore.calcular_score` na conclusão e define
+`concluida_em` no backend. Dificuldade, atraso, taxa e arredondamento são
+calculados exclusivamente em Python.
+
+A migration `docs/migrations/14.sql` remove o trigger e sua função de cálculo.
+O backend envia o resultado para `registrar_conclusao_tarefa`, uma operação
+explícita de persistência que grava conclusão, evento e incremento do saldo
+na mesma transação. Essa operação não contém a fórmula de pontuação.
+
+A gravação bloqueia a tarefa, confere se as regras e o responsável ainda são
+os usados no cálculo e rejeita uma conclusão já registrada. Qualquer falha
+reverte todas as escritas. O incremento do saldo é atômico para não perder
+créditos de tarefas concluídas simultaneamente.
+
+A operação aceita chamadas apenas com o papel `service_role`, usado pelo
+backend; os papéis públicos `anon` e `authenticated` não podem fornecer pontos.
+O responsável precisa ter vínculo em `pertencer`; se ele for apenas proprietário
+da casa sem esse vínculo, a conclusão retorna 409 sem gravação parcial.
+Tarefas legadas com múltiplos responsáveis também exigem regularização antes
+de serem concluídas.
 
 A penalidade reduz os pontos recebidos ao concluir a tarefa; não desconta
 periodicamente do saldo. Consultas após a tolerância marcam `nao_feito` sem
@@ -66,7 +82,9 @@ na criação nem na edição, inclusive quando autenticado como administrador.
 
 A suíte unitária aprovada inclui dificuldades, entradas inválidas, períodos
 parciais/exatos de 24 horas, N + 1, arredondamento, normalização de fuso e
-imutabilidade. A validação do trigger no Supabase está pendente: a migration
-foi preparada, mas não foi executada nesta sessão.
+imutabilidade, valor enviado à persistência e tratamento de conflitos/falhas.
+A validação real da transação no Supabase está pendente: a migration foi preparada,
+mas não foi executada nesta sessão. Os testes de integração incluem ausência
+do trigger, reversão por falta de vínculo e duas conclusões concorrentes.
 
 Veja [o contrato e as limitações desta entrega](schemas_tarefa.md).

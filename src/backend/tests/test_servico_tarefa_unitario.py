@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
+from postgrest.exceptions import APIError
 
 from schemas.tarefa import TarefaAtualizar, TarefaCriar, TarefaResposta
 from services.tarefa import ServicoTarefa
@@ -256,18 +257,40 @@ def test_atualizar_tarefa_envia_apenas_campos_informados(
     consulta.update.assert_called_once_with({"nome": "Novo nome"})
 
 
-def test_responsavel_pode_finalizar_a_propria_tarefa(
-    servico, consulta, id_tarefa, registro_tarefa, ids_relacionados
+@pytest.mark.parametrize("horas_atraso,pontos", [(-1, 50), (12, 33), (36, 17)])
+def test_responsavel_finaliza_com_pontos_calculados_no_backend(
+    servico,
+    banco,
+    consulta,
+    id_tarefa,
+    registro_tarefa,
+    ids_relacionados,
+    monkeypatch,
+    horas_atraso,
+    pontos,
 ):
+    agora = datetime(2030, 1, 10, tzinfo=timezone.utc)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return agora
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
     responsavel = ids_relacionados["usuarios_atribuidos"][0]
-    finalizada = {**registro_tarefa, "estado_atual": "finalizado"}
+    tarefa = {
+        **registro_tarefa,
+        "dificuldade": 3,
+        "atraso_maximo": 2,
+        "data_fim": (agora - timedelta(hours=horas_atraso)).isoformat(),
+    }
+    finalizada = {**tarefa, "estado_atual": "finalizado", "concluida_em": agora.isoformat()}
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
-        SimpleNamespace(data=[finalizada]),
-        SimpleNamespace(data=[finalizada]),
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
     ]
+    banco.rpc.return_value.execute.return_value = SimpleNamespace(data=finalizada)
 
     resultado = servico.atualizar_tarefa(
         id_tarefa,
@@ -276,7 +299,22 @@ def test_responsavel_pode_finalizar_a_propria_tarefa(
     )
 
     assert resultado["estado_atual"] == "finalizado"
-    consulta.update.assert_called_once_with({"estado_atual": "finalizado"})
+    banco.rpc.assert_called_once_with(
+        "registrar_conclusao_tarefa",
+        {
+            "p_id_tarefa": str(id_tarefa),
+            "p_id_usuario": str(responsavel),
+            "p_pontos": pontos,
+            "p_concluida_em": agora.isoformat(),
+            "p_dificuldade": 3,
+            "p_atraso_maximo": 2,
+            "p_data_fim": tarefa["data_fim"],
+            "p_data_inicio": None,
+            "p_id_casa": tarefa["fk_casa_id"],
+        },
+    )
+    consulta.update.assert_not_called()
+    consulta.insert.assert_not_called()
 
 
 def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa, registro_tarefa):
@@ -717,3 +755,70 @@ def test_responsavel_invalido_nao_produz_edicao_parcial(servico, consulta, regis
     assert erro.value.status_code == 400
     consulta.update.assert_not_called()
     consulta.delete.assert_not_called()
+
+
+@pytest.mark.parametrize("codigo,esperado", [("PT409", 409), ("08006", None)])
+def test_erro_na_persistencia_nao_produz_gravacoes_separadas(
+    servico, banco, consulta, registro_tarefa, codigo, esperado
+):
+    banco.rpc.return_value.execute.side_effect = APIError(
+        {
+            "code": codigo,
+            "message": "Falha simulada",
+            "details": None,
+            "hint": None,
+        }
+    )
+    with pytest.raises(HTTPException if esperado else APIError) as erro:
+        servico._finalizar_tarefa(registro_tarefa, [registro_tarefa["fk_usuario_id"]])
+    if esperado:
+        assert erro.value.status_code == esperado
+    consulta.insert.assert_not_called()
+    consulta.update.assert_not_called()
+
+
+def test_tolerancia_ultrapassada_durante_conclusao_nao_credita(servico, banco, registro_tarefa):
+    tarefa = {
+        **registro_tarefa,
+        "atraso_maximo": 2,
+        "data_fim": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),
+    }
+    with pytest.raises(HTTPException) as erro:
+        servico._finalizar_tarefa(tarefa, [tarefa["fk_usuario_id"]])
+    assert erro.value.status_code == 409
+    banco.rpc.assert_not_called()
+
+
+@pytest.mark.parametrize("responsaveis", [[], [str(uuid4()), str(uuid4())]])
+def test_conclusao_legada_exige_um_responsavel(servico, banco, registro_tarefa, responsaveis):
+    with pytest.raises(HTTPException) as erro:
+        servico._finalizar_tarefa(registro_tarefa, responsaveis)
+    assert erro.value.status_code == 409
+    banco.rpc.assert_not_called()
+
+
+def test_responsavel_nao_finaliza_duas_vezes(servico, banco, consulta, registro_tarefa):
+    finalizada = {**registro_tarefa, "estado_atual": "finalizado"}
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[finalizada]),
+        SimpleNamespace(data=[{"fk_usuario_id": finalizada["fk_usuario_id"]}]),
+    ]
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(
+            UUID(finalizada["id"]),
+            TarefaAtualizar(estado_atual="finalizado"),
+            UUID(finalizada["fk_usuario_id"]),
+        )
+    assert erro.value.status_code == 409
+    banco.rpc.assert_not_called()
+
+
+def test_consulta_expirada_nao_sobrescreve_conclusao_concorrente(
+    servico, consulta, registro_tarefa
+):
+    tarefa = {**registro_tarefa, "data_fim": "2020-01-01T00:00:00Z"}
+    finalizada = {**tarefa, "estado_atual": "finalizado"}
+    consulta.execute.side_effect = [SimpleNamespace(data=[]), SimpleNamespace(data=[finalizada])]
+    resultado = servico._sincronizar_estado_por_atraso(tarefa)
+    assert resultado["estado_atual"] == "finalizado"
+    consulta.in_.assert_called_once_with("estado_atual", ["pendente", "atrasada"])

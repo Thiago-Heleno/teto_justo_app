@@ -437,3 +437,136 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
         .execute()
     )
     assert saldo.data[0]["score"] == pontos
+
+
+def test_atualizar_estado_diretamente_no_banco_nao_calcula_pontos(
+    dependencias_temporarias, autenticacao_temporaria
+):
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    supabase.table("pertencer").insert(
+        {
+            "fk_usuario_id": usuario,
+            "fk_casa_id": casa,
+            "score": 0,
+        }
+    ).execute()
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Sem trigger de cálculo",
+                "peso": 3,
+                "prazo_dias": 3,
+                "atraso_maximo": 2,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+    tarefa_id = criada.json()["id"]
+    atualizada = (
+        supabase.table("tarefa")
+        .update({"estado_atual": "finalizado"})
+        .eq("id", tarefa_id)
+        .execute()
+    )
+    assert atualizada.data[0]["concluida_em"] is None
+    eventos = supabase.table("score_event").select("id").eq("fk_tarefa_id", tarefa_id).execute()
+    assert eventos.data == []
+    saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
+    assert saldo.data[0]["score"] == 0
+
+
+def test_conclusao_sem_vinculo_reverte_toda_a_gravacao(
+    dependencias_temporarias, autenticacao_temporaria
+):
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Conclusão atômica",
+                "peso": 2,
+                "prazo_dias": 3,
+                "atraso_maximo": 1,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+        tarefa_id = criada.json()["id"]
+        falha = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        assert falha.status_code == 409, falha.text
+        tarefa = (
+            supabase.table("tarefa")
+            .select("estado_atual,concluida_em")
+            .eq("id", tarefa_id)
+            .execute()
+        )
+        assert tarefa.data[0] == {"estado_atual": "pendente", "concluida_em": None}
+        eventos = supabase.table("score_event").select("id").eq("fk_tarefa_id", tarefa_id).execute()
+        assert eventos.data == []
+        supabase.table("pertencer").insert(
+            {
+                "fk_usuario_id": usuario,
+                "fk_casa_id": casa,
+                "score": 0,
+            }
+        ).execute()
+        concluida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        assert concluida.status_code == 200, concluida.text
+    saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
+    assert saldo.data[0]["score"] == 25
+
+
+def test_conclusoes_simultaneas_creditam_uma_unica_vez(
+    dependencias_temporarias, autenticacao_temporaria
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    supabase.table("pertencer").insert(
+        {
+            "fk_usuario_id": usuario,
+            "fk_casa_id": casa,
+            "score": 0,
+        }
+    ).execute()
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Conclusões concorrentes",
+                "peso": 3,
+                "prazo_dias": 3,
+                "atraso_maximo": 2,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+    tarefa_id = criada.json()["id"]
+    barreira = Barrier(2, timeout=10)
+
+    def concluir():
+        with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+            barreira.wait()
+            return cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futuros = [executor.submit(concluir) for _ in range(2)]
+        respostas = [futuro.result(timeout=30) for futuro in futuros]
+    assert sorted(resposta.status_code for resposta in respostas) == [200, 409]
+    eventos = (
+        supabase.table("score_event").select("pontuacao").eq("fk_tarefa_id", tarefa_id).execute()
+    )
+    assert eventos.data == [{"pontuacao": 50}]
+    saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
+    assert saldo.data[0]["score"] == 50
