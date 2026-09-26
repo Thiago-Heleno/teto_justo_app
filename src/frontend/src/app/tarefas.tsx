@@ -17,6 +17,7 @@ import {
   DetalheTarefa,
   type ResultadoFinalizacao,
 } from "@/components/detalhe-tarefa";
+import { EditarTarefa } from "@/components/editar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
@@ -24,11 +25,13 @@ import {
   carregarContextoTarefas,
   carregarTarefas,
   carregarUsuarioAtual,
+  editarTarefa,
   finalizarTarefa,
   type Casa,
   type Morador,
   type Tarefa,
   type UsuarioAtual,
+  type TarefaAtualizar,
 } from "@/services/tarefas-api";
 import {
   formatarPrazo,
@@ -106,6 +109,7 @@ export default function TarefasScreen() {
     prazo: "todos",
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
+  const [editando, setEditando] = useState(false);
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -215,6 +219,17 @@ export default function TarefasScreen() {
     setTentativa((atual) => atual + 1);
   }
 
+  async function salvarEdicao(dados: TarefaAtualizar) {
+    if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
+    const tarefaAtualizada = await editarTarefa(tarefaSelecionada.id, dados);
+    setTarefas((atuais) =>
+      atuais?.map((tarefa) =>
+        tarefa.id === tarefaAtualizada.id ? tarefaAtualizada : tarefa,
+      ),
+    );
+    setEditando(false);
+  }
+
   if (
     carregandoContexto ||
     !casa ||
@@ -250,12 +265,27 @@ export default function TarefasScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.page}>
-        {tarefaSelecionada ? (
+        {tarefaSelecionada && editando ? (
+          <EditarTarefa
+            tarefa={tarefaSelecionada}
+            moradores={moradores}
+            onCancelar={() => setEditando(false)}
+            onSalvar={salvarEdicao}
+          />
+        ) : tarefaSelecionada ? (
           <DetalheTarefa
             tarefa={tarefaSelecionada}
             moradores={moradores}
             usuarioAtualId={usuarioAtual.id}
-            onVoltar={() => setTarefaSelecionadaId(undefined)}
+            onVoltar={() => {
+              setEditando(false);
+              setTarefaSelecionadaId(undefined);
+            }}
+            onEditar={
+              casa.fk_usuario_id === usuarioAtual.id
+                ? () => setEditando(true)
+                : undefined
+            }
             onFinalizar={concluirTarefaSelecionada}
             onContinuar={continuarAposFinalizacao}
           />

@@ -1,7 +1,7 @@
 import type { EstadoTarefa } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
-export type Casa = { id: string; nome: string };
+export type Casa = { id: string; nome: string; fk_usuario_id: string };
 
 export type Morador = { id: string; nome: string; score: number };
 
@@ -12,6 +12,14 @@ export type Tarefa = {
   nome: string;
   descricao: string | null;
   estado_atual: EstadoTarefa;
+  peso: number;
+  data_fim: string;
+  usuarios_atribuidos: string[];
+};
+
+export type TarefaAtualizar = {
+  nome: string;
+  descricao: string;
   peso: number;
   data_fim: string;
   usuarios_atribuidos: string[];
@@ -99,5 +107,16 @@ export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
   return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal, {
     method: "PATCH",
     body: { estado_atual: "finalizado" },
+  });
+}
+
+export function editarTarefa(
+  idTarefa: string,
+  dados: TarefaAtualizar,
+  signal?: AbortSignal,
+) {
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal, {
+    method: "PATCH",
+    body: dados,
   });
 }

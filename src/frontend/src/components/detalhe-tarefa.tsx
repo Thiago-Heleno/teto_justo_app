@@ -6,8 +6,8 @@ import Animated, {
   FadeInRight,
   FadeOut,
   ReduceMotion,
-  runOnJS,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
@@ -20,6 +20,7 @@ type Props = {
   moradores: Morador[];
   usuarioAtualId: string;
   onVoltar: () => void;
+  onEditar?: () => void;
   onFinalizar: () => Promise<ResultadoFinalizacao>;
   onContinuar: () => void;
 };
@@ -44,6 +45,7 @@ export function DetalheTarefa({
   moradores,
   usuarioAtualId,
   onVoltar,
+  onEditar,
   onFinalizar,
   onContinuar,
 }: Props) {
@@ -80,7 +82,7 @@ export function DetalheTarefa({
     .failOffsetY([-20, 20])
     .onEnd((event) => {
       if (event.translationX > 96 || event.velocityX > 700) {
-        runOnJS(onVoltar)();
+        scheduleOnRN(onVoltar);
       }
     });
 
@@ -174,25 +176,36 @@ export function DetalheTarefa({
             </View>
           </View>
 
-          {podeFinalizar && (
+          {(onEditar || podeFinalizar) && (
             <View style={styles.completionSection}>
-              <MotionPressable
-                accessibilityRole="button"
-                accessibilityState={{
-                  busy: finalizando,
-                  disabled: finalizando,
-                }}
-                disabled={finalizando}
-                onPress={concluirTarefa}
-                style={[
-                  styles.finishButton,
-                  finalizando && styles.finishButtonDisabled,
-                ]}
-              >
-                <Text style={styles.finishButtonText}>
-                  {finalizando ? "Finalizando..." : "Finalizar tarefa"}
-                </Text>
-              </MotionPressable>
+              {onEditar && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  onPress={onEditar}
+                  style={styles.editButton}
+                >
+                  <Text style={styles.editButtonText}>Editar tarefa</Text>
+                </MotionPressable>
+              )}
+              {podeFinalizar && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    busy: finalizando,
+                    disabled: finalizando,
+                  }}
+                  disabled={finalizando}
+                  onPress={concluirTarefa}
+                  style={[
+                    styles.finishButton,
+                    finalizando && styles.finishButtonDisabled,
+                  ]}
+                >
+                  <Text style={styles.finishButtonText}>
+                    {finalizando ? "Finalizando..." : "Finalizar tarefa"}
+                  </Text>
+                </MotionPressable>
+              )}
               {erroFinalizacao && (
                 <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                   {erroFinalizacao}
@@ -347,6 +360,18 @@ const styles = StyleSheet.create({
   avatarText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   responsibleName: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   completionSection: { gap: Spacing.two, alignItems: "flex-start" },
+  editButton: {
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
+  },
+  editButtonText: {
+    color: Caldera.obsidian,
+    fontSize: 16,
+    fontWeight: "500",
+  },
   finishButton: {
     backgroundColor: Caldera.ember,
     borderRadius: 800,
