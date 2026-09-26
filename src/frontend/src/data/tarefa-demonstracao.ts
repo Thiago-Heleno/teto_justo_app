@@ -1,11 +1,12 @@
 import type { EstadoTarefa, PesoTarefa } from "@/constants/tarefa";
 
+export const usuarioDemonstracaoId = "morador-ana";
+
 export const casaDemonstracao = {
   id: "casa-teste",
   nome: "República Girassol",
+  fk_usuario_id: usuarioDemonstracaoId,
 };
-
-export const usuarioDemonstracaoId = "morador-ana";
 
 export const moradoresDemonstracao = [
   { id: usuarioDemonstracaoId, nome: "Ana Silva", iniciais: "AS" },

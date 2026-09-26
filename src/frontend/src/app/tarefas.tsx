@@ -17,16 +17,21 @@ import {
   DetalheTarefa,
   type ResultadoFinalizacao,
 } from "@/components/detalhe-tarefa";
+import { EditarTarefa } from "@/components/editar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
   carregarContextoTarefas,
   carregarTarefas,
+  carregarUsuarioAtual,
+  editarTarefa,
   finalizarTarefa,
   type Casa,
   type Morador,
   type Tarefa,
+  type UsuarioAtual,
+  type TarefaAtualizar,
 } from "@/services/tarefas-api";
 import {
   formatarPrazo,
@@ -90,6 +95,7 @@ function iniciais(nome: string) {
 export default function TarefasScreen() {
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
+  const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual>();
   const [tarefas, setTarefas] = useState<Tarefa[]>();
   const [tarefasEmAberto, setTarefasEmAberto] = useState(0);
   const [carregandoContexto, setCarregandoContexto] = useState(true);
@@ -103,6 +109,7 @@ export default function TarefasScreen() {
     prazo: "todos",
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
+  const [editando, setEditando] = useState(false);
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -114,14 +121,16 @@ export default function TarefasScreen() {
 
     Promise.all([
       carregarContextoTarefas(controlador.signal),
+      carregarUsuarioAtual(controlador.signal),
       carregarTarefas(
         { estado: "todos", responsavel: "todos", prazo: "todos" },
         controlador.signal,
       ),
     ])
-      .then(([[casaAtual, moradoresAtuais], todasTarefas]) => {
+      .then(([[casaAtual, moradoresAtuais], usuario, todasTarefas]) => {
         setCasa(casaAtual);
         setMoradores(moradoresAtuais);
+        setUsuarioAtual(usuario);
         setTarefasEmAberto(
           todasTarefas.filter((tarefa) => tarefa.estado_atual !== "finalizado")
             .length,
@@ -178,7 +187,11 @@ export default function TarefasScreen() {
       throw new Error("Tarefa não encontrada.");
     }
 
-    const responsavelId = tarefaSelecionada.usuarios_atribuidos[0];
+    if (!usuarioAtual) {
+      throw new Error("Usuário atual não encontrado.");
+    }
+
+    const responsavelId = usuarioAtual.id;
     const saldoAnterior =
       moradores.find((morador) => morador.id === responsavelId)?.score ?? 0;
     const tarefaFinalizada = await finalizarTarefa(tarefaSelecionada.id);
@@ -206,7 +219,23 @@ export default function TarefasScreen() {
     setTentativa((atual) => atual + 1);
   }
 
-  if (carregandoContexto || !casa || (carregandoTarefas && !tarefas)) {
+  async function salvarEdicao(dados: TarefaAtualizar) {
+    if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
+    const tarefaAtualizada = await editarTarefa(tarefaSelecionada.id, dados);
+    setTarefas((atuais) =>
+      atuais?.map((tarefa) =>
+        tarefa.id === tarefaAtualizada.id ? tarefaAtualizada : tarefa,
+      ),
+    );
+    setEditando(false);
+  }
+
+  if (
+    carregandoContexto ||
+    !casa ||
+    !usuarioAtual ||
+    (carregandoTarefas && !tarefas)
+  ) {
     const erro = erroContexto || erroTarefas;
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -236,11 +265,27 @@ export default function TarefasScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.page}>
-        {tarefaSelecionada ? (
+        {tarefaSelecionada && editando ? (
+          <EditarTarefa
+            tarefa={tarefaSelecionada}
+            moradores={moradores}
+            onCancelar={() => setEditando(false)}
+            onSalvar={salvarEdicao}
+          />
+        ) : tarefaSelecionada ? (
           <DetalheTarefa
             tarefa={tarefaSelecionada}
             moradores={moradores}
-            onVoltar={() => setTarefaSelecionadaId(undefined)}
+            usuarioAtualId={usuarioAtual.id}
+            onVoltar={() => {
+              setEditando(false);
+              setTarefaSelecionadaId(undefined);
+            }}
+            onEditar={
+              casa.fk_usuario_id === usuarioAtual.id
+                ? () => setEditando(true)
+                : undefined
+            }
             onFinalizar={concluirTarefaSelecionada}
             onContinuar={continuarAposFinalizacao}
           />
