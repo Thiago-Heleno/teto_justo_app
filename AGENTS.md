@@ -14,6 +14,12 @@ Estas instruções se aplicam a todo o repositório.
 - Preserve o código e as alterações existentes que não fazem parte da tarefa.
 - Nunca registre secrets, tokens, senhas ou valores de `.env` em código, testes, logs ou documentação.
 
+## Caminhos na documentação
+
+- Em documentos de contexto, tutoriais e explicações de ferramentas, use caminhos relativos à raiz do repositório ou exemplos genéricos.
+- Nunca inclua caminhos absolutos da máquina, nomes de pastas pessoais ou diretórios de usuário locais.
+- Em comandos com caminhos relativos, indique a pasta de partida.
+
 ## Skill recomendada
 
 - Para reforçar mudanças pequenas e reaproveitar recursos já existentes, recomenda-se instalar o plugin/skill [Ponytail](https://github.com/dietrichgebert/ponytail) no Codex. A instalação é opcional e feita localmente por cada pessoa:
@@ -25,9 +31,9 @@ Estas instruções se aplicam a todo o repositório.
 
 - Após instalar, execute `codex`, revise os hooks em `/hooks` antes de confiar neles e inicie uma nova conversa.
 
-## Resumo obrigatório por sprint
+## Resumos de implementações importantes
 
-- Ao finalizar cada sessão de trabalho que altere o repositório, crie ou atualize um arquivo Markdown em `contexto/sprint_N/`, usando a sprint correspondente à tarefa.
+- Crie ou atualize um arquivo Markdown em `contexto/sprint_N/` apenas para implementações importantes, usando a sprint correspondente à tarefa. Ajustes pequenos de código, documentação ou configuração não exigem resumo.
 - Use um nome curto e descritivo, como `testes_sessao.md` ou `autenticacao.md`.
 - Se já existir um resumo para a mesma funcionalidade, atualize-o em vez de criar outro arquivo duplicado.
 - O resumo deve registrar apenas fatos relevantes:

@@ -31,20 +31,16 @@ def calcular(
     data_fim,
     *,
     peso=1,
-    prazo_dias=2,
+    atraso_maximo=1,
     concluida_em=None,
     usuarios_atribuidos=None,
 ):
     return servico.calcular_score(
         peso=peso,
-        prazo_dias=prazo_dias,
+        atraso_maximo=atraso_maximo,
         data_fim=data_fim,
         concluida_em=concluida_em or data_fim,
-        usuarios_atribuidos=(
-            [usuario_id]
-            if usuarios_atribuidos is None
-            else usuarios_atribuidos
-        ),
+        usuarios_atribuidos=([usuario_id] if usuarios_atribuidos is None else usuarios_atribuidos),
     )
 
 
@@ -52,9 +48,7 @@ def calcular(
     "peso,pontos_base",
     [(1, 10), (2, 25), (3, 50)],
 )
-def test_mapeia_peso_para_pontos_base(
-    servico, usuario_id, data_fim, peso, pontos_base
-):
+def test_mapeia_peso_para_pontos_base(servico, usuario_id, data_fim, peso, pontos_base):
     resultado = calcular(
         servico,
         usuario_id,
@@ -65,36 +59,30 @@ def test_mapeia_peso_para_pontos_base(
     assert resultado.usuario_id == usuario_id
     assert resultado.peso == peso
     assert resultado.pontos_base == pontos_base
-    assert resultado.prazo_dias == 2
+    assert resultado.atraso_maximo == 1
     assert resultado.pontos_finais == pontos_base
 
 
 @pytest.mark.parametrize("peso", [0, 4, -1, 1.5, "1", True, None])
-def test_rejeita_peso_fora_do_contrato(
-    servico, usuario_id, data_fim, peso
-):
+def test_rejeita_peso_fora_do_contrato(servico, usuario_id, data_fim, peso):
     with pytest.raises(ValueError):
         calcular(servico, usuario_id, data_fim, peso=peso)
 
 
-@pytest.mark.parametrize("prazo_dias", [0, -1, 1.5, "2", True, None])
-def test_rejeita_prazo_que_nao_seja_inteiro_positivo(
-    servico, usuario_id, data_fim, prazo_dias
-):
+@pytest.mark.parametrize("atraso_maximo", [0, -1, 1.5, "2", True, None])
+def test_rejeita_prazo_que_nao_seja_inteiro_positivo(servico, usuario_id, data_fim, atraso_maximo):
     with pytest.raises(ValueError):
-        calcular(servico, usuario_id, data_fim, prazo_dias=prazo_dias)
+        calcular(servico, usuario_id, data_fim, atraso_maximo=atraso_maximo)
 
 
 @pytest.mark.parametrize("diferenca", [timedelta(days=-2), timedelta(0)])
-def test_conclusao_antecipada_ou_no_prazo_nao_desconta(
-    servico, usuario_id, data_fim, diferenca
-):
+def test_conclusao_antecipada_ou_no_prazo_nao_desconta(servico, usuario_id, data_fim, diferenca):
     resultado = calcular(
         servico,
         usuario_id,
         data_fim,
         peso=3,
-        prazo_dias=5,
+        atraso_maximo=4,
         concluida_em=data_fim + diferenca,
     )
 
@@ -108,9 +96,10 @@ def test_conclusao_antecipada_ou_no_prazo_nao_desconta(
     [
         (timedelta(microseconds=1), 1),
         (timedelta(hours=23, minutes=59, seconds=59), 1),
-        (timedelta(hours=24), 2),
+        (timedelta(hours=24), 1),
         (timedelta(hours=47, minutes=59, seconds=59), 2),
-        (timedelta(hours=48), 3),
+        (timedelta(hours=48), 2),
+        (timedelta(hours=48, microseconds=1), 3),
     ],
 )
 def test_atraso_usa_faixas_iniciadas_de_vinte_e_quatro_horas(
@@ -120,7 +109,7 @@ def test_atraso_usa_faixas_iniciadas_de_vinte_e_quatro_horas(
         servico,
         usuario_id,
         data_fim,
-        prazo_dias=5,
+        atraso_maximo=4,
         concluida_em=data_fim + atraso,
     )
 
@@ -129,21 +118,19 @@ def test_atraso_usa_faixas_iniciadas_de_vinte_e_quatro_horas(
     assert resultado.pontos_finais == 10 - (2 * dias_atraso)
 
 
-def test_pontuacao_chega_a_zero_e_nunca_fica_negativa(
-    servico, usuario_id, data_fim
-):
+def test_pontuacao_chega_a_zero_e_nunca_fica_negativa(servico, usuario_id, data_fim):
     no_limite = calcular(
         servico,
         usuario_id,
         data_fim,
-        prazo_dias=2,
-        concluida_em=data_fim + timedelta(hours=24),
+        atraso_maximo=1,
+        concluida_em=data_fim + timedelta(hours=24, microseconds=1),
     )
     muito_atrasada = calcular(
         servico,
         usuario_id,
         data_fim,
-        prazo_dias=2,
+        atraso_maximo=1,
         concluida_em=data_fim + timedelta(days=30),
     )
 
@@ -151,15 +138,13 @@ def test_pontuacao_chega_a_zero_e_nunca_fica_negativa(
     assert muito_atrasada.pontos_finais == 0
 
 
-def test_arredonda_meio_ponto_para_cima_apenas_no_resultado_final(
-    servico, usuario_id, data_fim
-):
+def test_arredonda_meio_ponto_para_cima_apenas_no_resultado_final(servico, usuario_id, data_fim):
     resultado = calcular(
         servico,
         usuario_id,
         data_fim,
         peso=2,
-        prazo_dias=2,
+        atraso_maximo=1,
         concluida_em=data_fim + timedelta(microseconds=1),
     )
 
@@ -169,16 +154,14 @@ def test_arredonda_meio_ponto_para_cima_apenas_no_resultado_final(
     assert resultado.pontos_finais == 13
 
 
-def test_nao_arredonda_desconto_intermediario(
-    servico, usuario_id, data_fim
-):
+def test_nao_arredonda_desconto_intermediario(servico, usuario_id, data_fim):
     resultado = calcular(
         servico,
         usuario_id,
         data_fim,
         peso=2,
-        prazo_dias=6,
-        concluida_em=data_fim + timedelta(hours=72),
+        atraso_maximo=5,
+        concluida_em=data_fim + timedelta(hours=72, microseconds=1),
     )
 
     assert resultado.percentual_por_dia == Decimal(100) / Decimal(6)
@@ -187,16 +170,14 @@ def test_nao_arredonda_desconto_intermediario(
     assert resultado.pontos_finais == 8
 
 
-def test_calcula_resultado_final_pela_fracao_exata(
-    servico, usuario_id, data_fim
-):
+def test_calcula_resultado_final_pela_fracao_exata(servico, usuario_id, data_fim):
     resultado = calcular(
         servico,
         usuario_id,
         data_fim,
         peso=1,
-        prazo_dias=24,
-        concluida_em=data_fim + timedelta(days=17),
+        atraso_maximo=23,
+        concluida_em=data_fim + timedelta(days=17, microseconds=1),
     )
 
     assert resultado.dias_atraso == 18
@@ -212,9 +193,7 @@ def test_calcula_resultado_final_pela_fracao_exata(
     ],
     ids=["sem-responsavel", "varios-responsaveis", "responsavel-duplicado"],
 )
-def test_exige_exatamente_um_responsavel(
-    servico, usuario_id, data_fim, usuarios_atribuidos
-):
+def test_exige_exatamente_um_responsavel(servico, usuario_id, data_fim, usuarios_atribuidos):
     with pytest.raises(ValueError):
         calcular(
             servico,
@@ -231,23 +210,21 @@ def test_datas_sem_fuso_sao_interpretadas_como_utc(servico, usuario_id):
         servico,
         usuario_id,
         data_fim_sem_fuso,
-        prazo_dias=3,
+        atraso_maximo=3,
         concluida_em=concluida_sem_fuso,
     )
     resultado_utc = calcular(
         servico,
         usuario_id,
         data_fim_sem_fuso.replace(tzinfo=timezone.utc),
-        prazo_dias=3,
+        atraso_maximo=3,
         concluida_em=concluida_sem_fuso.replace(tzinfo=timezone.utc),
     )
 
     assert resultado_sem_fuso == resultado_utc
 
 
-def test_datas_com_fusos_diferentes_representam_o_mesmo_instante(
-    servico, usuario_id
-):
+def test_datas_com_fusos_diferentes_representam_o_mesmo_instante(servico, usuario_id):
     fuso_brasilia = timezone(timedelta(hours=-3))
     data_fim = datetime(2026, 10, 10, 12, tzinfo=fuso_brasilia)
     concluida_em = datetime(2026, 10, 10, 15, tzinfo=timezone.utc)
@@ -263,12 +240,10 @@ def test_datas_com_fusos_diferentes_representam_o_mesmo_instante(
     assert resultado.pontos_finais == 10
 
 
-def test_calculo_e_deterministico_e_resultado_e_imutavel(
-    servico, usuario_id, data_fim
-):
+def test_calculo_e_deterministico_e_resultado_e_imutavel(servico, usuario_id, data_fim):
     argumentos = {
         "peso": 2,
-        "prazo_dias": 3,
+        "atraso_maximo": 3,
         "data_fim": data_fim,
         "concluida_em": data_fim + timedelta(hours=24),
         "usuarios_atribuidos": [usuario_id],
@@ -280,3 +255,19 @@ def test_calculo_e_deterministico_e_resultado_e_imutavel(
     assert primeiro == segundo
     with pytest.raises(FrozenInstanceError):
         primeiro.pontos_finais = 999
+
+
+@pytest.mark.parametrize("dias,pontos", [(0, 50), (1, 33), (2, 17), (3, 0), (30, 0)])
+def test_exemplo_de_cinquenta_pontos_com_dois_dias_de_tolerancia(
+    servico, usuario_id, data_fim, dias, pontos
+):
+    resultado = calcular(
+        servico,
+        usuario_id,
+        data_fim,
+        peso=3,
+        atraso_maximo=2,
+        concluida_em=data_fim + timedelta(days=dias),
+    )
+    assert resultado.pontos_finais == pontos
+    assert resultado.percentual_por_dia == Decimal(100) / Decimal(3)

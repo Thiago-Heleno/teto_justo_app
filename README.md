@@ -34,9 +34,10 @@ acessa o Supabase para persistir os dados.
 ## Como rodar localmente
 
 Para visualizar somente a tela **Nova tarefa**, siga diretamente a
-[etapa 3 — Frontend](#3-inicie-o-frontend). Essa demonstração usa dados
-fictícios e não precisa de backend, Docker, Supabase ou `.env`. A tela
-**Tarefas** consulta a API e requer a configuração abaixo.
+[etapa 3 — Frontend](#3-inicie-o-frontend). Sem configuração da API, essa demonstração usa dados
+fictícios e não precisa de backend, Docker, Supabase ou `.env`. Com a API
+configurada, a criação consulta casa e moradores reais, mas ainda não grava
+tarefas. A tela **Tarefas** consulta a API e requer a configuração abaixo.
 
 ### Pré-requisitos
 
@@ -122,8 +123,12 @@ npm run web -- --port 8081
 Mantenha o terminal aberto e acesse
 [Nova tarefa](http://localhost:8081/nova-tarefa), ou escolha **Criar**
 na navegação do app. O formulário contém nome, descrição opcional, peso de
-1 a 3, prazo de 1 a 5 dias e seleção de exatamente um morador responsável.
-A criação é simulada: nada é salvo no banco.
+1 a 3 e prazo de 1 a 5 dias. Uma tarefa **Comum** tem um responsável; uma
+**Rotativa** recebe pelo menos dois participantes, ordem ajustável e um ou
+mais dias da semana, com repetição a cada 1, 2, 3 ou 4 semanas (por exemplo,
+segunda-feira a cada 2 semanas). Quatro semanas correspondem a 28 dias,
+aproximadamente um mês. Use **Conferir tarefa** para visualizar o resumo. A criação
+é uma prévia: nada é salvo no banco e o rodízio não começa automaticamente.
 
 Se a porta estiver ocupada, use a instância já aberta ou inicie com
 `npm run web -- --port 8082` e ajuste a porta no endereço do navegador.

@@ -2,9 +2,11 @@ from datetime import datetime, time, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
 from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
+from services.score import ServicoScore
 
 _ESTADOS_FINAIS = ("finalizado", "nao_feito")
 _FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "atrasadas")
@@ -70,18 +72,21 @@ class ServicoTarefa:
 
         data_fim = self._data_fim_com_fuso(tarefa["data_fim"])
         agora = datetime.now(timezone.utc)
-        dias_atraso = max(0, int((agora - data_fim).total_seconds() // 86400))
+        dias_atraso = ServicoScore.calcular_dias_atraso(data_fim, agora)
 
-        if dias_atraso < tarefa["atraso_maximo"]:
+        if dias_atraso <= tarefa["atraso_maximo"]:
             return tarefa
 
         resposta = (
             self.supabase.table("tarefa")
             .update({"estado_atual": "nao_feito"})
             .eq("id", str(tarefa["id"]))
+            .in_("estado_atual", ["pendente", "atrasada"])
+            .eq("data_fim", tarefa["data_fim"])
+            .eq("atraso_maximo", tarefa["atraso_maximo"])
             .execute()
         )
-        return resposta.data[0] if resposta.data else {**tarefa, "estado_atual": "nao_feito"}
+        return resposta.data[0] if resposta.data else self._buscar_tarefa_bruta(UUID(tarefa["id"]))
 
     def _montar_resposta(self, tarefa: dict) -> dict:
         tarefa = self._sincronizar_estado_por_atraso(tarefa)
@@ -91,15 +96,18 @@ class ServicoTarefa:
             "descricao": tarefa.get("descricao"),
             "estado_atual": tarefa["estado_atual"],
             "peso": tarefa["dificuldade"],
-            "pontuacao": tarefa["pontuacao"],
+            "pontuacao": ServicoScore.pontos_por_peso(tarefa["dificuldade"]),
+            "estrategia_penalidade": "proporcional",
+            "referencia_inicio": tarefa.get("referencia_inicio", "criacao"),
+            "prazo_dias": tarefa.get("prazo_dias"),
+            "data_inicio": tarefa.get("data_inicio") or tarefa.get("criado_em"),
+            "proxima_ocorrencia": tarefa.get("proxima_ocorrencia"),
             "atraso_maximo": tarefa["atraso_maximo"],
             "data_fim": tarefa["data_fim"],
             "fk_casa_id": tarefa["fk_casa_id"],
             "fk_usuario_id": tarefa["fk_usuario_id"],
         }
-        resposta["usuarios_atribuidos"] = self._buscar_usuarios_atribuidos(
-            tarefa["id"]
-        )
+        resposta["usuarios_atribuidos"] = self._buscar_usuarios_atribuidos(tarefa["id"])
         return resposta
 
     def criar_tarefa(
@@ -107,15 +115,12 @@ class ServicoTarefa:
         dados_tarefa: TarefaCriar,
         id_usuario_atual: UUID,
     ):
-        id_administrador = ServicoAutorizacaoCasa(
-            self.supabase
-        ).garantir_administrador_da_casa(
+        id_administrador = ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
             dados_tarefa.fk_casa_id,
             id_usuario_atual,
         )
         ids_responsaveis = list(
-            dict.fromkeys(str(id_usuario)
-                          for id_usuario in dados_tarefa.usuarios_atribuidos)
+            dict.fromkeys(str(id_usuario) for id_usuario in dados_tarefa.usuarios_atribuidos)
         )
         resposta_membros = (
             self.supabase.table("pertencer")
@@ -124,9 +129,7 @@ class ServicoTarefa:
             .in_("fk_usuario_id", ids_responsaveis)
             .execute()
         )
-        ids_membros = {
-            str(registro["fk_usuario_id"]) for registro in resposta_membros.data
-        }
+        ids_membros = {str(registro["fk_usuario_id"]) for registro in resposta_membros.data}
         ids_membros.add(str(id_administrador))
         if set(ids_responsaveis) - ids_membros:
             raise HTTPException(
@@ -136,11 +139,13 @@ class ServicoTarefa:
         dados = dados_tarefa.model_dump(mode="json")
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
         dados["dificuldade"] = dados.pop("peso")
-        resposta = (
-            self.supabase.table("tarefa")
-            .insert(dados)
-            .execute()
-        )
+        dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
+        dados["fk_usuario_id"] = str(id_usuario_atual)
+        dados.pop("estrategia_penalidade")
+        inicio = dados_tarefa.data_inicio or datetime.now(timezone.utc)
+        dados["data_inicio"] = inicio.isoformat()
+        dados["data_fim"] = (inicio + timedelta(days=dados_tarefa.prazo_dias)).isoformat()
+        resposta = self.supabase.table("tarefa").insert(dados).execute()
         if not resposta.data:
             raise HTTPException(
                 status_code=500,
@@ -241,6 +246,45 @@ class ServicoTarefa:
             tarefas.append(tarefa_resposta)
         return tarefas
 
+    def _finalizar_tarefa(self, tarefa: dict, responsaveis: list[str]) -> dict:
+        if len(responsaveis) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail="A tarefa precisa ter exatamente um responsável antes da conclusão.",
+            )
+        concluida_em = datetime.now(timezone.utc)
+        resultado = ServicoScore().calcular_score(
+            peso=tarefa["dificuldade"],
+            atraso_maximo=tarefa["atraso_maximo"],
+            data_fim=self._data_fim_com_fuso(tarefa["data_fim"]),
+            concluida_em=concluida_em,
+            usuarios_atribuidos=[UUID(responsaveis[0])],
+        )
+        if resultado.dias_atraso > tarefa["atraso_maximo"]:
+            raise HTTPException(status_code=409, detail="A tolerância de atraso foi ultrapassada.")
+        try:
+            resposta = self.supabase.rpc(
+                "registrar_conclusao_tarefa",
+                {
+                    "p_id_tarefa": str(tarefa["id"]),
+                    "p_id_usuario": str(resultado.usuario_id),
+                    "p_pontos": resultado.pontos_finais,
+                    "p_concluida_em": concluida_em.isoformat(),
+                    "p_dificuldade": tarefa["dificuldade"],
+                    "p_atraso_maximo": tarefa["atraso_maximo"],
+                    "p_data_fim": tarefa["data_fim"],
+                    "p_data_inicio": tarefa.get("data_inicio"),
+                    "p_id_casa": tarefa["fk_casa_id"],
+                },
+            ).execute()
+        except APIError as erro:
+            if erro.code == "PT409":
+                raise HTTPException(status_code=409, detail=erro.message) from erro
+            raise
+        if not resposta.data:
+            raise HTTPException(status_code=500, detail="Não foi possível registrar a conclusão.")
+        return self._montar_resposta(resposta.data)
+
     def atualizar_tarefa(
         self,
         id_tarefa: UUID,
@@ -248,15 +292,36 @@ class ServicoTarefa:
         id_usuario_atual: UUID,
     ):
         tarefa_atual = self._buscar_tarefa_bruta(id_tarefa)
-        ServicoAutorizacaoCasa(
-            self.supabase
-        ).garantir_administrador_da_casa(
-            tarefa_atual["fk_casa_id"],
-            id_usuario_atual,
-        )
-        usuarios_foram_informados = (
-            "usuarios_atribuidos" in dados_tarefa.model_fields_set
-        )
+        finalizacao_pelo_responsavel = dados_tarefa.estado_atual == "finalizado"
+        if finalizacao_pelo_responsavel:
+            if dados_tarefa.model_fields_set != {"estado_atual"}:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Finalize a tarefa sem alterar suas regras na mesma requisição.",
+                )
+            responsaveis = self._buscar_usuarios_atribuidos(id_tarefa)
+            if str(id_usuario_atual) not in responsaveis:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Apenas um responsável pode finalizar esta tarefa.",
+                )
+            tarefa_atual = self._sincronizar_estado_por_atraso(tarefa_atual)
+            inicio = tarefa_atual.get("data_inicio")
+            if inicio and self._data_fim_com_fuso(inicio) > datetime.now(timezone.utc):
+                raise HTTPException(status_code=409, detail="Esta ocorrência ainda não começou.")
+        else:
+            ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+                tarefa_atual["fk_casa_id"],
+                id_usuario_atual,
+            )
+        if tarefa_atual["estado_atual"] in _ESTADOS_FINAIS:
+            raise HTTPException(
+                status_code=409,
+                detail="Uma tarefa encerrada não pode ser alterada ou finalizada novamente.",
+            )
+        if finalizacao_pelo_responsavel:
+            return self._finalizar_tarefa(tarefa_atual, responsaveis)
+        usuarios_foram_informados = "usuarios_atribuidos" in dados_tarefa.model_fields_set
         dados = dados_tarefa.model_dump(
             mode="json",
             exclude_unset=True,
@@ -264,6 +329,29 @@ class ServicoTarefa:
         )
         if "peso" in dados:
             dados["dificuldade"] = dados.pop("peso")
+            dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
+        if "prazo_dias" in dados:
+            inicio = tarefa_atual.get("data_inicio") or tarefa_atual.get("criado_em")
+            if inicio is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="A tarefa legada não possui referência de início do prazo.",
+                )
+            data_fim = self._data_fim_com_fuso(inicio) + timedelta(days=dados["prazo_dias"])
+            if data_fim <= datetime.now(timezone.utc):
+                raise HTTPException(status_code=422, detail="O novo prazo deve estar no futuro.")
+            dados["data_fim"] = data_fim.isoformat()
+        if {"prazo_dias", "atraso_maximo"} & dados.keys():
+            proxima = tarefa_atual.get("proxima_ocorrencia")
+            if proxima:
+                fim = self._data_fim_com_fuso(dados.get("data_fim", tarefa_atual["data_fim"]))
+                tolerancia = dados.get("atraso_maximo", tarefa_atual["atraso_maximo"])
+                janela = (self._data_fim_com_fuso(proxima) - fim).total_seconds()
+                if tolerancia * 86400 >= janela:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="O prazo e a tolerância devem terminar antes da próxima ocorrência.",
+                    )
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
         if not dados and not usuarios_foram_informados:
             raise HTTPException(
@@ -271,12 +359,14 @@ class ServicoTarefa:
                 detail="Nenhum dado para atualização.",
             )
 
+        if usuarios_foram_informados:
+            ServicoAutorizacaoCasa(self.supabase).garantir_responsaveis_da_casa(
+                tarefa_atual["fk_casa_id"], usuarios_atribuidos
+            )
+
         if dados:
             resposta = (
-                self.supabase.table("tarefa")
-                .update(dados)
-                .eq("id", str(id_tarefa))
-                .execute()
+                self.supabase.table("tarefa").update(dados).eq("id", str(id_tarefa)).execute()
             )
             if not resposta.data:
                 raise HTTPException(
@@ -285,20 +375,7 @@ class ServicoTarefa:
                 )
 
         if usuarios_foram_informados:
-            if usuarios_atribuidos:
-                ServicoAutorizacaoCasa(
-                    self.supabase
-                ).garantir_responsaveis_da_casa(
-                    tarefa_atual["fk_casa_id"],
-                    usuarios_atribuidos,
-                )
-
-            (
-                self.supabase.table("atribuida")
-                .delete()
-                .eq("fk_tarefa_id", str(id_tarefa))
-                .execute()
-            )
+            (self.supabase.table("atribuida").delete().eq("fk_tarefa_id", str(id_tarefa)).execute())
             if usuarios_atribuidos:
                 self._atribuir_usuarios(id_tarefa, usuarios_atribuidos)
 
