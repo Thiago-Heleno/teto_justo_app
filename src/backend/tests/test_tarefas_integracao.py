@@ -16,10 +16,7 @@ def dependencias_temporarias(autenticacao_temporaria):
 
     res_casa = (
         supabase.table("casa")
-        .insert({
-            "nome": f"Casa Teste {marcador}",
-            "fk_usuario_id": usuario_id
-        })
+        .insert({"nome": f"Casa Teste {marcador}", "fk_usuario_id": usuario_id})
         .execute()
     )
     casa_id = res_casa.data[0]["id"]
@@ -38,7 +35,6 @@ def test_crud_tarefa_no_supabase(
 ):
     usuario_id = dependencias_temporarias["usuario_id"]
     casa_id = dependencias_temporarias["casa_id"]
-    data_fim = datetime.now(timezone.utc) + timedelta(days=2)
 
     with TestClient(
         app,
@@ -53,17 +49,20 @@ def test_crud_tarefa_no_supabase(
                 "descricao": "Usar a pá nova",
                 "estado_atual": "pendente",
                 "peso": 2,
-                "pontuacao": 20,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": usuario_id,
                 "usuarios_atribuidos": [usuario_id],
             },
         )
         assert criada.status_code == 201, criada.text
         tarefa = criada.json()
         assert tarefa["nome"] == "Limpar a caixa de areia"
+        assert tarefa["pontuacao"] == 25
+        assert tarefa["fk_usuario_id"] == usuario_id
+        assert datetime.fromisoformat(tarefa["data_fim"]) - datetime.fromisoformat(
+            tarefa["data_inicio"]
+        ) == timedelta(days=2)
         assert tarefa["fk_casa_id"] == casa_id
         assert len(tarefa["usuarios_atribuidos"]) == 1
 
@@ -87,6 +86,7 @@ def test_crud_tarefa_no_supabase(
         assert atualizada.json()["nome"] == novo_nome
         assert atualizada.json()["estado_atual"] == "atrasada"
         assert atualizada.json()["peso"] == 3
+        assert atualizada.json()["pontuacao"] == 50
 
         # TESTE: Excluir
         excluida = cliente.delete(f"/tarefas/{tarefa['id']}")
@@ -107,7 +107,6 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
     casa_id = dependencias_temporarias["casa_id"]
     administrador_id = autenticacao_temporaria["usuario_id"]
     morador = criar_autenticacao_temporaria()
-    data_fim = datetime.now(timezone.utc) + timedelta(days=2)
 
     vinculo = (
         supabase.table("pertencer")
@@ -133,11 +132,9 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "nome": "Tarefa que o morador não pode criar",
                 "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": morador["usuario_id"],
                 "usuarios_atribuidos": [morador["usuario_id"]],
             },
         )
@@ -154,11 +151,9 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "nome": "Tarefa protegida",
                 "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": administrador_id,
                 "usuarios_atribuidos": [administrador_id],
             },
         )
@@ -206,31 +201,26 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
     casa_id = dependencias_temporarias["casa_id"]
     administrador_id = autenticacao_temporaria["usuario_id"]
     morador_de_outra_casa = criar_autenticacao_temporaria()
-    data_fim = datetime.now(timezone.utc) + timedelta(days=2)
 
     with TestClient(
         app,
         raise_server_exceptions=False,
         headers=autenticacao_temporaria["headers"],
     ) as cliente_admin:
-        # Responsável duplicado na mesma lista é deduplicado silenciosamente
-        # na criação (mesmo comportamento de `_atribuir_usuarios`).
+        # Cada ocorrência deve ter exatamente um responsável.
         duplicado = cliente_admin.post(
             "/tarefas/",
             json={
                 "nome": "Tarefa nascendo com responsável duplicado",
                 "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": administrador_id,
                 "usuarios_atribuidos": [administrador_id, administrador_id],
             },
         )
-        assert duplicado.status_code == 201, duplicado.text
-        assert duplicado.json()["usuarios_atribuidos"] == [administrador_id]
+        assert duplicado.status_code == 422, duplicado.text
 
         # Responsável que não pertence a esta casa
         de_outra_casa = cliente_admin.post(
@@ -239,11 +229,9 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
                 "nome": "Tarefa nascendo com responsável de outra casa",
                 "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": administrador_id,
                 "usuarios_atribuidos": [morador_de_outra_casa["usuario_id"]],
             },
         )
@@ -256,11 +244,9 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
                 "nome": "Tarefa nascendo com responsável válido",
                 "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": administrador_id,
                 "usuarios_atribuidos": [administrador_id],
             },
         )
@@ -278,7 +264,6 @@ def test_atualizar_tarefa_rejeita_responsaveis_invalidos(
     administrador_id = autenticacao_temporaria["usuario_id"]
     morador_da_casa = criar_autenticacao_temporaria()
     morador_de_outra_casa = criar_autenticacao_temporaria()
-    data_fim = datetime.now(timezone.utc) + timedelta(days=2)
 
     vinculo = (
         supabase.table("pertencer")
@@ -304,11 +289,9 @@ def test_atualizar_tarefa_rejeita_responsaveis_invalidos(
                 "nome": "Tarefa com responsáveis a validar",
                 "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 5,
-                "data_fim": data_fim.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": administrador_id,
                 "usuarios_atribuidos": [administrador_id],
             },
         )
@@ -325,7 +308,7 @@ def test_atualizar_tarefa_rejeita_responsaveis_invalidos(
                 ]
             },
         )
-        assert duplicado.status_code == 400, duplicado.text
+        assert duplicado.status_code == 422, duplicado.text
 
         # Responsável que não pertence a esta casa
         de_outra_casa = cliente_admin.patch(
@@ -334,20 +317,18 @@ def test_atualizar_tarefa_rejeita_responsaveis_invalidos(
         )
         assert de_outra_casa.status_code == 400, de_outra_casa.text
 
-        # Responsáveis válidos: morador vinculado à casa e o próprio administrador
+        # Troca para um morador vinculado à casa
         validos = cliente_admin.patch(
             f"/tarefas/{tarefa['id']}",
             json={
                 "usuarios_atribuidos": [
                     morador_da_casa["usuario_id"],
-                    administrador_id,
                 ]
             },
         )
         assert validos.status_code == 200, validos.text
         assert set(validos.json()["usuarios_atribuidos"]) == {
             morador_da_casa["usuario_id"],
-            administrador_id,
         }
 
 
@@ -358,7 +339,6 @@ def test_tarefa_expirada_vira_nao_feito_ao_ser_consultada(
     supabase = get_supabase()
     casa_id = dependencias_temporarias["casa_id"]
     usuario_id = dependencias_temporarias["usuario_id"]
-    data_fim_futura = datetime.now(timezone.utc) + timedelta(days=2)
 
     with TestClient(
         app,
@@ -371,13 +351,11 @@ def test_tarefa_expirada_vira_nao_feito_ao_ser_consultada(
             "/tarefas/",
             json={
                 "nome": "Tarefa vencida",
-                "estado_atual": "atrasada",
+                "estado_atual": "pendente",
                 "peso": 1,
-                "pontuacao": 10,
                 "atraso_maximo": 2,
-                "data_fim": data_fim_futura.isoformat(),
+                "prazo_dias": 2,
                 "fk_casa_id": casa_id,
-                "fk_usuario_id": usuario_id,
                 "usuarios_atribuidos": [usuario_id],
             },
         )
@@ -389,9 +367,206 @@ def test_tarefa_expirada_vira_nao_feito_ao_ser_consultada(
         # sozinha na primeira consulta, sem nenhum job/cron envolvido.
         data_fim_passada = datetime.now(timezone.utc) - timedelta(days=10)
         supabase.table("tarefa").update(
-            {"data_fim": data_fim_passada.isoformat()}
+            {
+                "data_fim": data_fim_passada.isoformat(),
+                "data_inicio": (data_fim_passada - timedelta(days=2)).isoformat(),
+            }
         ).eq("id", tarefa["id"]).execute()
 
         consultada = cliente.get(f"/tarefas/{tarefa['id']}")
         assert consultada.status_code == 200, consultada.text
         assert consultada.json()["estado_atual"] == "nao_feito"
+
+
+@pytest.mark.parametrize(
+    "horas_atraso,pontos,status",
+    [
+        (-1, 50, 200),
+        (12, 33, 200),
+        (36, 17, 200),
+        (60, 0, 409),
+    ],
+)
+def test_credito_real_respeita_tolerancia_e_nao_duplica(
+    dependencias_temporarias, autenticacao_temporaria, horas_atraso, pontos, status
+):
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    supabase.table("pertencer").insert(
+        {
+            "fk_usuario_id": usuario,
+            "fk_casa_id": casa,
+            "score": 0,
+        }
+    ).execute()
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Crédito proporcional",
+                "peso": 3,
+                "prazo_dias": 3,
+                "atraso_maximo": 2,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+        tarefa_id = criada.json()["id"]
+        fim = datetime.now(timezone.utc) - timedelta(hours=horas_atraso)
+        supabase.table("tarefa").update(
+            {
+                "data_inicio": (fim - timedelta(days=3)).isoformat(),
+                "data_fim": fim.isoformat(),
+            }
+        ).eq("id", tarefa_id).execute()
+        concluida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        assert concluida.status_code == status, concluida.text
+        repetida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        assert repetida.status_code == 409, repetida.text
+    eventos = (
+        supabase.table("score_event").select("pontuacao").eq("fk_tarefa_id", tarefa_id).execute()
+    )
+    assert [evento["pontuacao"] for evento in eventos.data] == ([pontos] if status == 200 else [])
+    saldo = (
+        supabase.table("pertencer")
+        .select("score")
+        .eq("fk_casa_id", casa)
+        .eq("fk_usuario_id", usuario)
+        .execute()
+    )
+    assert saldo.data[0]["score"] == pontos
+
+
+def test_atualizar_estado_diretamente_no_banco_nao_calcula_pontos(
+    dependencias_temporarias, autenticacao_temporaria
+):
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    supabase.table("pertencer").insert(
+        {
+            "fk_usuario_id": usuario,
+            "fk_casa_id": casa,
+            "score": 0,
+        }
+    ).execute()
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Sem trigger de cálculo",
+                "peso": 3,
+                "prazo_dias": 3,
+                "atraso_maximo": 2,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+    tarefa_id = criada.json()["id"]
+    atualizada = (
+        supabase.table("tarefa")
+        .update({"estado_atual": "finalizado"})
+        .eq("id", tarefa_id)
+        .execute()
+    )
+    assert atualizada.data[0]["concluida_em"] is None
+    eventos = supabase.table("score_event").select("id").eq("fk_tarefa_id", tarefa_id).execute()
+    assert eventos.data == []
+    saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
+    assert saldo.data[0]["score"] == 0
+
+
+def test_conclusao_sem_vinculo_reverte_toda_a_gravacao(
+    dependencias_temporarias, autenticacao_temporaria
+):
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Conclusão atômica",
+                "peso": 2,
+                "prazo_dias": 3,
+                "atraso_maximo": 1,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+        tarefa_id = criada.json()["id"]
+        falha = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        assert falha.status_code == 409, falha.text
+        tarefa = (
+            supabase.table("tarefa")
+            .select("estado_atual,concluida_em")
+            .eq("id", tarefa_id)
+            .execute()
+        )
+        assert tarefa.data[0] == {"estado_atual": "pendente", "concluida_em": None}
+        eventos = supabase.table("score_event").select("id").eq("fk_tarefa_id", tarefa_id).execute()
+        assert eventos.data == []
+        supabase.table("pertencer").insert(
+            {
+                "fk_usuario_id": usuario,
+                "fk_casa_id": casa,
+                "score": 0,
+            }
+        ).execute()
+        concluida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        assert concluida.status_code == 200, concluida.text
+    saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
+    assert saldo.data[0]["score"] == 25
+
+
+def test_conclusoes_simultaneas_creditam_uma_unica_vez(
+    dependencias_temporarias, autenticacao_temporaria
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    supabase = get_supabase()
+    usuario = dependencias_temporarias["usuario_id"]
+    casa = dependencias_temporarias["casa_id"]
+    supabase.table("pertencer").insert(
+        {
+            "fk_usuario_id": usuario,
+            "fk_casa_id": casa,
+            "score": 0,
+        }
+    ).execute()
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        criada = cliente.post(
+            "/tarefas/",
+            json={
+                "nome": "Conclusões concorrentes",
+                "peso": 3,
+                "prazo_dias": 3,
+                "atraso_maximo": 2,
+                "fk_casa_id": casa,
+                "usuarios_atribuidos": [usuario],
+            },
+        )
+        assert criada.status_code == 201, criada.text
+    tarefa_id = criada.json()["id"]
+    barreira = Barrier(2, timeout=10)
+
+    def concluir():
+        with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+            barreira.wait()
+            return cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futuros = [executor.submit(concluir) for _ in range(2)]
+        respostas = [futuro.result(timeout=30) for futuro in futuros]
+    assert sorted(resposta.status_code for resposta in respostas) == [200, 409]
+    eventos = (
+        supabase.table("score_event").select("pontuacao").eq("fk_tarefa_id", tarefa_id).execute()
+    )
+    assert eventos.data == [{"pontuacao": 50}]
+    saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
+    assert saldo.data[0]["score"] == 50

@@ -17,7 +17,7 @@ class ResultadoScore:
     usuario_id: UUID
     peso: int
     pontos_base: int
-    prazo_dias: int
+    atraso_maximo: int
     dias_atraso: int
     percentual_por_dia: Decimal
     desconto_por_dia: Decimal
@@ -26,6 +26,12 @@ class ResultadoScore:
 
 
 class ServicoScore:
+    @staticmethod
+    def pontos_por_peso(peso: int) -> int:
+        if isinstance(peso, bool) or not isinstance(peso, int) or peso not in _PONTOS_POR_PESO:
+            raise ValueError("Peso deve ser 1, 2 ou 3.")
+        return _PONTOS_POR_PESO[peso]
+
     @staticmethod
     def _normalizar_data(valor: datetime, nome_campo: str) -> datetime:
         if not isinstance(valor, datetime):
@@ -53,7 +59,7 @@ class ServicoScore:
         return usuarios[0]
 
     @staticmethod
-    def _calcular_dias_atraso(
+    def calcular_dias_atraso(
         data_fim: datetime,
         concluida_em: datetime,
     ) -> int:
@@ -61,28 +67,23 @@ class ServicoScore:
             return 0
 
         diferenca = concluida_em - data_fim
-        return diferenca.days + 1
+        return diferenca.days + int(bool(diferenca.seconds or diferenca.microseconds))
 
     def calcular_score(
         self,
         peso: int,
-        prazo_dias: int,
+        atraso_maximo: int,
         data_fim: datetime,
         concluida_em: datetime,
         usuarios_atribuidos: Sequence[UUID],
     ) -> ResultadoScore:
+        pontos_base = self.pontos_por_peso(peso)
         if (
-            isinstance(peso, bool)
-            or not isinstance(peso, int)
-            or peso not in _PONTOS_POR_PESO
+            isinstance(atraso_maximo, bool)
+            or not isinstance(atraso_maximo, int)
+            or atraso_maximo <= 0
         ):
-            raise ValueError("Peso deve ser 1, 2 ou 3.")
-        if (
-            isinstance(prazo_dias, bool)
-            or not isinstance(prazo_dias, int)
-            or prazo_dias <= 0
-        ):
-            raise ValueError("Prazo em dias deve ser um inteiro positivo.")
+            raise ValueError("Atraso máximo deve ser um inteiro positivo.")
 
         usuario_id = self._validar_responsavel(usuarios_atribuidos)
         data_fim_utc = self._normalizar_data(data_fim, "data_fim")
@@ -90,31 +91,26 @@ class ServicoScore:
             concluida_em,
             "concluida_em",
         )
-        dias_atraso = self._calcular_dias_atraso(
+        dias_atraso = self.calcular_dias_atraso(
             data_fim_utc,
             concluida_em_utc,
         )
-        pontos_base = _PONTOS_POR_PESO[peso]
+        divisor = atraso_maximo + 1
 
         with localcontext() as contexto:
             contexto.prec = 28
-            percentual_por_dia = Decimal(100) / Decimal(prazo_dias)
-            desconto_por_dia = Decimal(pontos_base) / Decimal(prazo_dias)
-            dias_penalizados = min(dias_atraso, prazo_dias)
-            pontos_brutos = (
-                Decimal(pontos_base * (prazo_dias - dias_penalizados))
-                / Decimal(prazo_dias)
-            )
+            percentual_por_dia = Decimal(100) / Decimal(divisor)
+            desconto_por_dia = Decimal(pontos_base) / Decimal(divisor)
+            dias_penalizados = min(dias_atraso, divisor)
+            pontos_brutos = Decimal(pontos_base * (divisor - dias_penalizados)) / Decimal(divisor)
             desconto_total = Decimal(pontos_base) - pontos_brutos
-            pontos_finais = int(
-                pontos_brutos.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-            )
+            pontos_finais = int(pontos_brutos.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
         return ResultadoScore(
             usuario_id=usuario_id,
             peso=peso,
             pontos_base=pontos_base,
-            prazo_dias=prazo_dias,
+            atraso_maximo=atraso_maximo,
             dias_atraso=dias_atraso,
             percentual_por_dia=percentual_por_dia,
             desconto_por_dia=desconto_por_dia,
