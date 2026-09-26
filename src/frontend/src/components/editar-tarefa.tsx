@@ -77,7 +77,7 @@ export function EditarTarefa({
       <Text style={styles.eyebrow}>EDIÇÃO DE TAREFA</Text>
       <Text accessibilityRole="header" style={styles.title}>
         EDITAR TAREFA
-    </Text>
+      </Text>
       <Text style={styles.help}>Campos com * são obrigatórios.</Text>
 
       <View style={styles.card}>
