@@ -52,7 +52,7 @@ O `ServicoTarefa` chama `ServicoScore.calcular_score` na conclusão e define
 `concluida_em` no backend. Dificuldade, atraso, taxa e arredondamento são
 calculados exclusivamente em Python.
 
-A migration `docs/migrations/14.sql` remove o trigger e sua função de cálculo.
+A migration `docs/migrations/15.sql` remove o trigger e sua função de cálculo.
 O backend envia o resultado para `registrar_conclusao_tarefa`, uma operação
 explícita de persistência que grava conclusão, evento e incremento do saldo
 na mesma transação. Essa operação não contém a fórmula de pontuação.
