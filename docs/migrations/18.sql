@@ -1,305 +1,111 @@
 BEGIN;
 
--- A escolha do responsável e as datas são calculadas no backend. As funções
--- abaixo somente persistem um conjunto de escritas de forma atômica.
-CREATE FUNCTION public.criar_rotatividade(
-    p_config JSONB,
-    p_participantes UUID[]
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = ''
-AS $$
-DECLARE
-    configuracao public.rotatividade%ROWTYPE;
-    id_casa UUID;
-    fuso_casa TEXT;
+DO $$
 BEGIN
-    id_casa := (p_config->>'fk_casa_id')::UUID;
-    SELECT timezone INTO fuso_casa FROM public.casa
-        WHERE id = id_casa FOR UPDATE;
-    IF NOT FOUND THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Casa indisponível.';
-    END IF;
-    IF p_config->>'timezone_esperado' IS DISTINCT FROM fuso_casa THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Fuso da casa mudou. Recalcule a agenda.';
-    END IF;
-    IF p_participantes IS NULL OR cardinality(p_participantes) < 2
-        OR (SELECT COUNT(DISTINCT participante.id)
-            FROM unnest(p_participantes) AS participante(id))
-            <> cardinality(p_participantes) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Selecione moradores diferentes para o rodízio.';
-    END IF;
     IF EXISTS (
-        SELECT 1 FROM unnest(p_participantes) AS participante(id)
-        LEFT JOIN public.pertencer AS vinculo
-            ON vinculo.fk_usuario_id = participante.id AND vinculo.fk_casa_id = id_casa
-        WHERE vinculo.fk_usuario_id IS NULL
+        SELECT 1 FROM pg_trigger
+        WHERE tgrelid = 'tarefa'::regclass
+            AND tgname = 'trg_tarefa_finalizada_credita_pontos'
+            AND NOT tgisinternal
     ) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Todos os participantes precisam morar na casa.';
+        RAISE EXCEPTION 'Aplique 15.sql para remover o trigger de crédito antes de 17.sql.';
     END IF;
-
-    INSERT INTO public.rotatividade (
-        fk_casa_id, fk_usuario_id, timezone, nome, descricao, dificuldade, pontuacao,
-        prazo_dias, atraso_maximo, modo_prazo, dias_semana, intervalo_semanas,
-        semana_ancora
-    ) VALUES (
-        id_casa,
-        (p_config->>'fk_usuario_id')::UUID,
-        fuso_casa,
-        p_config->>'nome',
-        p_config->>'descricao',
-        (p_config->>'dificuldade')::INT,
-        (p_config->>'pontuacao')::INT,
-        (p_config->>'prazo_dias')::INT,
-        (p_config->>'atraso_maximo')::INT,
-        p_config->>'modo_prazo',
-        ARRAY(SELECT jsonb_array_elements_text(p_config->'dias_semana')::INT),
-        (p_config->>'intervalo_semanas')::INT,
-        (p_config->>'semana_ancora')::DATE
-    ) RETURNING * INTO configuracao;
-
-    INSERT INTO public.rotatividade_participante (
-        fk_rotatividade_id, fk_usuario_id, ordem
-    )
-    SELECT configuracao.id, participante.id, participante.ordem::INT
-    FROM unnest(p_participantes) WITH ORDINALITY AS participante(id, ordem);
-
-    RETURN to_jsonb(configuracao);
 END;
 $$;
 
-CREATE FUNCTION public.registrar_ocorrencia_rotativa(
-    p_id_rotatividade UUID,
-    p_ocorrencia_em TIMESTAMPTZ,
-    p_data_inicio TIMESTAMPTZ,
-    p_data_fim TIMESTAMPTZ,
-    p_id_usuario UUID,
-    p_versao_casa INT
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = ''
-AS $$
-DECLARE
-    configuracao public.rotatividade%ROWTYPE;
-    tarefa_atual public.tarefa%ROWTYPE;
-    versao_atual INT;
-BEGIN
-    SELECT * INTO configuracao FROM public.rotatividade
-        WHERE id = p_id_rotatividade;
-    IF NOT FOUND OR NOT configuracao.ativa THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Rodízio indisponível.';
-    END IF;
+-- Datas legadas sem fuso seguem a convenção UTC adotada pelo backend.
+ALTER TABLE score_event ALTER COLUMN criado_em DROP DEFAULT;
+ALTER TABLE score_event
+    ALTER COLUMN criado_em TYPE TIMESTAMPTZ
+    USING criado_em AT TIME ZONE 'UTC';
+ALTER TABLE score_event ALTER COLUMN criado_em SET DEFAULT CURRENT_TIMESTAMP;
+CREATE INDEX idx_score_event_casa_periodo_usuario
+    ON score_event (fk_casa_id, criado_em, fk_usuario_id);
 
-    SELECT rotacao_versao INTO versao_atual FROM public.casa
-        WHERE id = configuracao.fk_casa_id FOR UPDATE;
-    IF NOT FOUND THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Casa indisponível.';
-    END IF;
+-- Os eventos são o histórico do saldo e não podem sumir com a tarefa ou casa.
+ALTER TABLE score_event DROP CONSTRAINT fk_scoreevent_casa;
+ALTER TABLE score_event ADD CONSTRAINT fk_scoreevent_casa
+    FOREIGN KEY (fk_casa_id) REFERENCES casa (id) ON DELETE RESTRICT;
+ALTER TABLE score_event DROP CONSTRAINT fk_scoreevent_tarefa;
+ALTER TABLE score_event ADD CONSTRAINT fk_scoreevent_tarefa
+    FOREIGN KEY (fk_tarefa_id) REFERENCES tarefa (id) ON DELETE RESTRICT;
+REVOKE INSERT, UPDATE, DELETE ON score_event FROM PUBLIC, anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE ON pertencer FROM PUBLIC, anon, authenticated;
 
-    SELECT * INTO tarefa_atual FROM public.tarefa
-        WHERE rotatividade_id = p_id_rotatividade AND ocorrencia_em = p_ocorrencia_em;
-    IF FOUND THEN
-        RETURN to_jsonb(tarefa_atual);
-    END IF;
+ALTER TABLE casa
+    ADD COLUMN timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+    ADD COLUMN rotacao_versao INT NOT NULL DEFAULT 0;
 
-    IF versao_atual IS DISTINCT FROM p_versao_casa THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Rodízio alterado. Recalcule a distribuição.';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM public.rotatividade_participante AS participante
-        JOIN public.pertencer AS vinculo
-            ON vinculo.fk_usuario_id = participante.fk_usuario_id
-            AND vinculo.fk_casa_id = configuracao.fk_casa_id
-        WHERE participante.fk_rotatividade_id = p_id_rotatividade
-            AND participante.fk_usuario_id = p_id_usuario
-    ) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Responsável não elegível para esta ocorrência.';
-    END IF;
+-- Um dono também precisa ter o vínculo que recebe créditos.
+INSERT INTO pertencer (fk_usuario_id, fk_casa_id, score)
+SELECT fk_usuario_id, id, 0 FROM casa WHERE fk_usuario_id IS NOT NULL
+ON CONFLICT (fk_usuario_id, fk_casa_id) DO NOTHING;
 
-    INSERT INTO public.tarefa (
-        nome, descricao, estado_atual, dificuldade, pontuacao, prazo_dias,
-        atraso_maximo, modo_prazo, tipo, referencia_inicio,
-        data_inicio, data_fim, fk_casa_id, fk_usuario_id,
-        rotatividade_id, ocorrencia_em, timezone
-    ) VALUES (
-        configuracao.nome, configuracao.descricao, 'pendente',
-        configuracao.dificuldade, configuracao.pontuacao, configuracao.prazo_dias,
-        configuracao.atraso_maximo, configuracao.modo_prazo, 'rotativa', 'ocorrencia',
-        p_data_inicio AT TIME ZONE 'UTC', p_data_fim AT TIME ZONE 'UTC',
-        configuracao.fk_casa_id, configuracao.fk_usuario_id,
-        configuracao.id, p_ocorrencia_em, configuracao.timezone
-    ) RETURNING * INTO tarefa_atual;
+UPDATE tarefa SET tipo = 'unitaria' WHERE tipo IS NULL;
+UPDATE tarefa SET modo_prazo =
+    CASE WHEN prazo_dias IS NULL THEN 'dia_fixo' ELSE 'intervalo' END
+WHERE modo_prazo IS NULL;
+ALTER TABLE tarefa
+    ALTER COLUMN tipo SET NOT NULL,
+    ALTER COLUMN modo_prazo SET NOT NULL;
 
-    INSERT INTO public.atribuida (fk_usuario_id, fk_tarefa_id)
-        VALUES (p_id_usuario, tarefa_atual.id);
-    UPDATE public.casa SET rotacao_versao = rotacao_versao + 1
-        WHERE id = configuracao.fk_casa_id;
+-- Ocorrências podem se sobrepor, portanto a próxima não depende da tolerância atual.
+ALTER TABLE tarefa DROP CONSTRAINT ck_tarefa_referencia_inicio;
+ALTER TABLE tarefa ADD CONSTRAINT ck_tarefa_referencia_inicio CHECK (
+    (referencia_inicio = 'criacao' AND proxima_ocorrencia IS NULL)
+    OR (referencia_inicio = 'ocorrencia' AND data_inicio IS NOT NULL
+        AND prazo_dias IS NOT NULL)
+);
 
-    RETURN to_jsonb(tarefa_atual);
-END;
-$$;
+CREATE TABLE rotatividade (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fk_casa_id UUID NOT NULL REFERENCES casa (id) ON DELETE RESTRICT,
+    fk_usuario_id UUID NOT NULL REFERENCES usuario (id) ON DELETE RESTRICT,
+    timezone TEXT NOT NULL,
+    nome TEXT NOT NULL CHECK (length(trim(nome)) > 0),
+    descricao TEXT,
+    dificuldade INT NOT NULL CHECK (dificuldade IN (1, 2, 3)),
+    pontuacao INT NOT NULL CHECK (
+        pontuacao = CASE dificuldade WHEN 1 THEN 10 WHEN 2 THEN 25 WHEN 3 THEN 50 END
+    ),
+    prazo_dias INT NOT NULL CHECK (prazo_dias BETWEEN 1 AND 5),
+    atraso_maximo INT NOT NULL CHECK (atraso_maximo BETWEEN 1 AND 5),
+    modo_prazo VARCHAR(9) NOT NULL CHECK (modo_prazo IN ('dia_fixo', 'intervalo')),
+    dias_semana INT[] NOT NULL CHECK (
+        cardinality(dias_semana) BETWEEN 1 AND 7
+        AND dias_semana <@ ARRAY[1, 2, 3, 4, 5, 6, 7]
+    ),
+    intervalo_semanas INT NOT NULL CHECK (intervalo_semanas BETWEEN 1 AND 4),
+    semana_ancora DATE NOT NULL,
+    ativa BOOLEAN NOT NULL DEFAULT TRUE,
+    criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-CREATE FUNCTION public.excluir_tarefa_sem_credito(
-    p_id_tarefa UUID
-) RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = ''
-AS $$
-DECLARE
-    tarefa_atual public.tarefa%ROWTYPE;
-BEGIN
-    SELECT * INTO tarefa_atual FROM public.tarefa
-        WHERE id = p_id_tarefa FOR UPDATE;
-    IF NOT FOUND THEN
-        RETURN FALSE;
-    END IF;
-    IF tarefa_atual.rotatividade_id IS NOT NULL
-        OR EXISTS (SELECT 1 FROM public.score_event WHERE fk_tarefa_id = p_id_tarefa) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'O histórico desta tarefa deve ser preservado.';
-    END IF;
-
-    DELETE FROM public.atribuida WHERE fk_tarefa_id = p_id_tarefa;
-    DELETE FROM public.tarefa WHERE id = p_id_tarefa;
-    RETURN TRUE;
-END;
-$$;
-
-CREATE FUNCTION public.excluir_vinculo_sem_credito(
-    p_id_usuario UUID,
-    p_id_casa UUID
-) RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = ''
-AS $$
-BEGIN
-    PERFORM 1 FROM public.casa WHERE id = p_id_casa FOR UPDATE;
-    IF NOT FOUND THEN
-        RETURN FALSE;
-    END IF;
-    PERFORM 1 FROM public.pertencer
-        WHERE fk_usuario_id = p_id_usuario AND fk_casa_id = p_id_casa FOR UPDATE;
-    IF NOT FOUND THEN
-        RETURN FALSE;
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM public.casa
-        WHERE id = p_id_casa AND fk_usuario_id = p_id_usuario
-    ) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'O proprietário deve permanecer vinculado à casa.';
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM public.score_event
-        WHERE fk_usuario_id = p_id_usuario AND fk_casa_id = p_id_casa
-    ) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'O histórico de pontos deste morador deve ser preservado.';
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM public.atribuida AS atribuicao
-        JOIN public.tarefa AS tarefa_atual ON tarefa_atual.id = atribuicao.fk_tarefa_id
-        WHERE atribuicao.fk_usuario_id = p_id_usuario
-            AND tarefa_atual.fk_casa_id = p_id_casa
-            AND tarefa_atual.estado_atual IN ('pendente', 'atrasada')
-    ) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'O morador possui tarefas abertas nesta casa.';
-    END IF;
-    DELETE FROM public.pertencer
-        WHERE fk_usuario_id = p_id_usuario AND fk_casa_id = p_id_casa;
-    UPDATE public.casa SET rotacao_versao = rotacao_versao + 1 WHERE id = p_id_casa;
-    RETURN TRUE;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.registrar_conclusao_tarefa(
-    p_id_tarefa UUID,
-    p_id_usuario UUID,
-    p_pontos INT,
-    p_concluida_em TIMESTAMPTZ,
-    p_dificuldade INT,
-    p_atraso_maximo INT,
-    p_data_fim TIMESTAMP,
-    p_data_inicio TIMESTAMP,
-    p_id_casa UUID
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = ''
-AS $$
-DECLARE
-    tarefa_atual public.tarefa%ROWTYPE;
-    quantidade_responsaveis INT;
-    responsavel_valido BOOLEAN;
-    saldo_atual INT;
-BEGIN
-    IF p_pontos IS NULL OR p_pontos < 0 OR p_concluida_em IS NULL THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Conclusão inválida.';
-    END IF;
-
-    SELECT * INTO tarefa_atual FROM public.tarefa WHERE id = p_id_tarefa FOR UPDATE;
-    IF NOT FOUND OR tarefa_atual.estado_atual NOT IN ('pendente', 'atrasada') THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'A tarefa não está disponível para conclusão.';
-    END IF;
-    IF tarefa_atual.dificuldade IS DISTINCT FROM p_dificuldade
-        OR tarefa_atual.atraso_maximo IS DISTINCT FROM p_atraso_maximo
-        OR tarefa_atual.data_fim IS DISTINCT FROM p_data_fim
-        OR tarefa_atual.data_inicio IS DISTINCT FROM p_data_inicio
-        OR tarefa_atual.fk_casa_id IS DISTINCT FROM p_id_casa THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'A tarefa mudou. Atualize antes de concluir.';
-    END IF;
-
-    PERFORM 1 FROM public.atribuida WHERE fk_tarefa_id = p_id_tarefa FOR UPDATE;
-    SELECT COUNT(*), BOOL_AND(fk_usuario_id = p_id_usuario)
-        INTO quantidade_responsaveis, responsavel_valido
-        FROM public.atribuida WHERE fk_tarefa_id = p_id_tarefa;
-    IF quantidade_responsaveis <> 1 OR responsavel_valido IS DISTINCT FROM TRUE THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'O responsável pela tarefa mudou.';
-    END IF;
-    IF EXISTS (SELECT 1 FROM public.score_event WHERE fk_tarefa_id = p_id_tarefa) THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'Esta tarefa já possui crédito registrado.';
-    END IF;
-
-    UPDATE public.pertencer SET score = COALESCE(score, 0) + p_pontos
-        WHERE fk_usuario_id = p_id_usuario AND fk_casa_id = p_id_casa
-        RETURNING score INTO saldo_atual;
-    IF NOT FOUND THEN
-        RAISE EXCEPTION USING ERRCODE = 'PT409', MESSAGE = 'O responsável precisa ter vínculo de morador na casa.';
-    END IF;
-    INSERT INTO public.score_event (fk_usuario_id, fk_casa_id, fk_tarefa_id, pontuacao, criado_em)
-        VALUES (p_id_usuario, p_id_casa, p_id_tarefa, p_pontos, p_concluida_em);
-    UPDATE public.tarefa SET estado_atual = 'finalizado',
-        concluida_em = p_concluida_em AT TIME ZONE 'UTC'
-        WHERE id = p_id_tarefa RETURNING * INTO tarefa_atual;
-
-    RETURN to_jsonb(tarefa_atual) || jsonb_build_object(
-        'resultado_pontuacao', jsonb_build_object(
-            'pontos_possiveis', tarefa_atual.pontuacao,
-            'pontos_ganhos', p_pontos,
-            'saldo_atual', saldo_atual
-        )
-    );
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.criar_rotatividade(JSONB, UUID[])
+CREATE TABLE rotatividade_participante (
+    fk_rotatividade_id UUID NOT NULL REFERENCES rotatividade (id) ON DELETE RESTRICT,
+    fk_usuario_id UUID NOT NULL REFERENCES usuario (id) ON DELETE RESTRICT,
+    ordem INT NOT NULL CHECK (ordem > 0),
+    PRIMARY KEY (fk_rotatividade_id, fk_usuario_id),
+    UNIQUE (fk_rotatividade_id, ordem)
+);
+REVOKE ALL ON rotatividade, rotatividade_participante
     FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.criar_rotatividade(JSONB, UUID[])
-    TO service_role;
-REVOKE ALL ON FUNCTION public.registrar_ocorrencia_rotativa(
-    UUID, TIMESTAMPTZ, TIMESTAMPTZ, TIMESTAMPTZ, UUID, INT
-) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.registrar_ocorrencia_rotativa(
-    UUID, TIMESTAMPTZ, TIMESTAMPTZ, TIMESTAMPTZ, UUID, INT
-) TO service_role;
-REVOKE ALL ON FUNCTION public.excluir_tarefa_sem_credito(UUID)
-    FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.excluir_tarefa_sem_credito(UUID)
-    TO service_role;
-REVOKE ALL ON FUNCTION public.excluir_vinculo_sem_credito(UUID, UUID)
-    FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.excluir_vinculo_sem_credito(UUID, UUID)
-    TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON rotatividade, rotatividade_participante TO service_role;
+
+ALTER TABLE tarefa
+    ADD COLUMN rotatividade_id UUID REFERENCES rotatividade (id) ON DELETE RESTRICT,
+    ADD COLUMN ocorrencia_em TIMESTAMPTZ,
+    ADD COLUMN timezone TEXT;
+ALTER TABLE tarefa ADD CONSTRAINT ck_tarefa_ocorrencia CHECK (
+    (rotatividade_id IS NULL AND ocorrencia_em IS NULL)
+    OR (rotatividade_id IS NOT NULL AND ocorrencia_em IS NOT NULL AND tipo = 'rotativa')
+);
+CREATE UNIQUE INDEX uq_tarefa_rotatividade_ocorrencia
+    ON tarefa (rotatividade_id, ocorrencia_em)
+    WHERE rotatividade_id IS NOT NULL;
+CREATE INDEX idx_tarefa_rotatividade_casa_mes
+    ON tarefa (fk_casa_id, ocorrencia_em)
+    WHERE rotatividade_id IS NOT NULL;
 
 COMMIT;
