@@ -21,12 +21,15 @@ históricas.
   calculada pelo backend e não é aceita como entrada. Datas de instante na
   resposta usam UTC explícito, inclusive para registros legados armazenados
   sem fuso.
-- `PATCH /tarefas/{id}` com apenas `{"estado_atual":"finalizado"}` calcula o
-  desconto em Python: `100 / (atraso_maximo + 1)` por dia de atraso, com
-  arredondamento final. A operação transacional registra conclusão, um evento
-  de crédito e o saldo. A resposta inclui `concluida_em` e
-  `resultado_pontuacao` com `pontos_possiveis`, `pontos_ganhos` e
-  `saldo_atual`. O frontend mostra os dois valores de pontos da resposta.
+- `POST /tarefas/{id}/conclusoes` só pode ser chamado pelo responsável
+  atribuído. O desconto é calculado em Python:
+  `100 / (atraso_maximo + 1)` por dia de atraso, com arredondamento final. A
+  operação transacional registra conclusão, um evento de crédito e o saldo,
+  impedindo crédito duplicado inclusive em requisições concorrentes. A resposta
+  inclui `concluida_em` e `resultado_pontuacao` com `pontos_possiveis`,
+  `pontos_ganhos` e `saldo_atual`. O endpoint `PATCH /tarefas/{id}` com apenas
+  `{"estado_atual":"finalizado"}` permanece compatível com clientes anteriores.
+  O frontend usa o endpoint dedicado e mostra os dois valores de pontos.
 - `pertencer.score` é o saldo vitalício materializado. `GET /casas/{id}/placar`
   soma `score_event` por semana (domingo a sábado), mês e ano correntes no
   fuso IANA da casa; também retorna o acumulado dos eventos. O administrador

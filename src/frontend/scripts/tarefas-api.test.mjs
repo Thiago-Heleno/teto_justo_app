@@ -164,9 +164,9 @@ test("finaliza a tarefa pelo endpoint autenticado", async () => {
   try {
     await finalizarTarefa("tarefa-123");
 
-    assert.equal(requisicao.url, "http://api.test/tarefas/tarefa-123");
-    assert.equal(requisicao.opcoes.method, "PATCH");
-    assert.equal(requisicao.opcoes.body, '{"estado_atual":"finalizado"}');
+    assert.equal(requisicao.url, "http://api.test/tarefas/tarefa-123/conclusoes");
+    assert.equal(requisicao.opcoes.method, "POST");
+    assert.equal(requisicao.opcoes.body, undefined);
     assert.equal(
       requisicao.opcoes.headers.Authorization,
       "Bearer sessao-valida",

@@ -336,6 +336,28 @@ class ServicoTarefa:
             raise HTTPException(status_code=500, detail="Não foi possível registrar a conclusão.")
         return self._montar_resposta(resposta.data)
 
+    def _concluir_tarefa(self, tarefa: dict, id_usuario_atual: UUID):
+        responsaveis = self._buscar_usuarios_atribuidos(tarefa["id"])
+        if str(id_usuario_atual) not in responsaveis:
+            raise HTTPException(
+                status_code=403,
+                detail="Apenas um responsável pode finalizar esta tarefa.",
+            )
+        tarefa = self._sincronizar_estado_por_atraso(tarefa)
+        inicio = tarefa.get("data_inicio")
+        if inicio and self._data_fim_com_fuso(inicio) > datetime.now(timezone.utc):
+            raise HTTPException(status_code=409, detail="Esta ocorrência ainda não começou.")
+        if tarefa["estado_atual"] in _ESTADOS_FINAIS:
+            raise HTTPException(
+                status_code=409,
+                detail="Uma tarefa encerrada não pode ser alterada ou finalizada novamente.",
+            )
+        return self._finalizar_tarefa(tarefa, responsaveis)
+
+    def concluir_tarefa(self, id_tarefa: UUID, id_usuario_atual: UUID):
+        tarefa = self._buscar_tarefa_bruta(id_tarefa)
+        return self._concluir_tarefa(tarefa, id_usuario_atual)
+
     def atualizar_tarefa(
         self,
         id_tarefa: UUID,
@@ -350,16 +372,7 @@ class ServicoTarefa:
                     status_code=422,
                     detail="Finalize a tarefa sem alterar suas regras na mesma requisição.",
                 )
-            responsaveis = self._buscar_usuarios_atribuidos(id_tarefa)
-            if str(id_usuario_atual) not in responsaveis:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Apenas um responsável pode finalizar esta tarefa.",
-                )
-            tarefa_atual = self._sincronizar_estado_por_atraso(tarefa_atual)
-            inicio = tarefa_atual.get("data_inicio")
-            if inicio and self._data_fim_com_fuso(inicio) > datetime.now(timezone.utc):
-                raise HTTPException(status_code=409, detail="Esta ocorrência ainda não começou.")
+            return self._concluir_tarefa(tarefa_atual, id_usuario_atual)
         else:
             ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
                 tarefa_atual["fk_casa_id"],
@@ -370,8 +383,6 @@ class ServicoTarefa:
                 status_code=409,
                 detail="Uma tarefa encerrada não pode ser alterada ou finalizada novamente.",
             )
-        if finalizacao_pelo_responsavel:
-            return self._finalizar_tarefa(tarefa_atual, responsaveis)
         usuarios_foram_informados = "usuarios_atribuidos" in dados_tarefa.model_fields_set
         dados = dados_tarefa.model_dump(
             mode="json",

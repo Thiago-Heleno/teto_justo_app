@@ -18,7 +18,7 @@ mostra o texto **Finalizando...**.
 Ao concluir a operação, o frontend:
 
 1. consulta o saldo atual do responsável;
-2. envia um `PATCH /tarefas/{id}` com `estado_atual: "finalizado"`;
+2. envia um `POST /tarefas/{id}/conclusoes`;
 3. consulta novamente os moradores da casa;
 4. calcula os pontos obtidos pela diferença entre o saldo novo e o anterior;
 5. atualiza a tarefa e a quantidade de tarefas em aberto;
@@ -40,17 +40,18 @@ ler o resultado, principalmente quando existe um filtro de tarefas pendentes.
 - `GET /usuarios/eu` retorna a pessoa autenticada pela sessão atual.
 - A tela de tarefas consulta esse dado junto da casa, moradores e tarefas; o
   botão **Finalizar tarefa** só aparece para quem está atribuído à tarefa.
-- O `PATCH /tarefas/{id}` com apenas `estado_atual: finalizado` permite a
-  conclusão por um responsável. As demais alterações seguem restritas ao
-  administrador da casa, e a API rejeita nova conclusão de tarefa finalizada
-  ou não feita.
+- O `POST /tarefas/{id}/conclusoes` permite a conclusão somente pelo
+  responsável atribuído. A API rejeita nova conclusão de tarefa finalizada ou
+  não feita. O endpoint `PATCH /tarefas/{id}` com apenas
+  `estado_atual: finalizado` continua aceito para compatibilidade.
 - O saldo mostrado no pop-up é o do usuário autenticado, em vez do primeiro
   responsável da lista.
 
 ## Arquivos alterados
 
 - `src/frontend/src/services/tarefas-api.ts`: adiciona o campo `score` ao tipo
-  `Morador`, suporte a requisições `PATCH` e a função `finalizarTarefa`.
+  `Morador`, suporte a requisições `PATCH` e `POST` e a função
+  `finalizarTarefa`, que usa `POST /tarefas/{id}/conclusoes`.
 - `src/frontend/src/components/detalhe-tarefa.tsx`: adiciona o botão, os estados
   de carregamento e erro e o pop-up seguindo o visual Caldera.
 - `src/frontend/src/app/tarefas.tsx`: coordena a finalização, atualiza os dados
