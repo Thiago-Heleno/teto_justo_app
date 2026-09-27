@@ -346,6 +346,70 @@ def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa,
     consulta.update.assert_not_called()
 
 
+def test_endpoint_de_conclusao_usa_responsavel_e_persistencia_atomica(
+    servico, banco, consulta, id_tarefa, registro_tarefa, ids_relacionados
+):
+    agora = datetime.now(timezone.utc)
+    tarefa = {
+        **registro_tarefa,
+        "data_fim": (agora + timedelta(days=1)).isoformat(),
+    }
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    finalizada = {
+        **tarefa,
+        "estado_atual": "finalizado",
+        "concluida_em": agora.isoformat(),
+        "resultado_pontuacao": {
+            "pontos_possiveis": 25,
+            "pontos_ganhos": 25,
+            "saldo_atual": 25,
+        },
+    }
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
+    ]
+    banco.rpc.return_value.execute.return_value = SimpleNamespace(data=finalizada)
+
+    resultado = servico.concluir_tarefa(id_tarefa, responsavel)
+
+    assert resultado["estado_atual"] == "finalizado"
+    assert resultado["resultado_pontuacao"]["pontos_ganhos"] == 25
+    banco.rpc.assert_called_once()
+    nome_rpc, parametros = banco.rpc.call_args.args
+    assert nome_rpc == "registrar_conclusao_tarefa"
+    concluida_em = parametros.pop("p_concluida_em")
+    assert parametros == {
+        "p_id_tarefa": str(id_tarefa),
+        "p_id_usuario": str(responsavel),
+        "p_pontos": 25,
+        "p_dificuldade": tarefa["dificuldade"],
+        "p_atraso_maximo": tarefa["atraso_maximo"],
+        "p_data_fim": tarefa["data_fim"],
+        "p_data_inicio": tarefa.get("data_inicio"),
+        "p_id_casa": tarefa["fk_casa_id"],
+    }
+    assert datetime.fromisoformat(concluida_em).tzinfo == timezone.utc
+    consulta.update.assert_not_called()
+    consulta.insert.assert_not_called()
+
+
+def test_endpoint_de_conclusao_rejeita_nao_responsavel(
+    servico, banco, consulta, id_tarefa, registro_tarefa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.concluir_tarefa(id_tarefa, uuid4())
+
+    assert erro.value.status_code == 403
+    banco.rpc.assert_not_called()
+
+
 def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, registro_tarefa):
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),

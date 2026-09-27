@@ -422,7 +422,7 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
                 "data_fim": fim.isoformat(),
             }
         ).eq("id", tarefa_id).execute()
-        concluida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        concluida = cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
         assert concluida.status_code == status, concluida.text
         if status == 200:
             assert concluida.json()["resultado_pontuacao"] == {
@@ -433,7 +433,7 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
             assert concluida.json()["concluida_em"] is not None
             preservada = cliente.delete(f"/tarefas/{tarefa_id}")
             assert preservada.status_code == 409, preservada.text
-        repetida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        repetida = cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
         assert repetida.status_code == 409, repetida.text
     eventos = (
         supabase.table("score_event").select("pontuacao").eq("fk_tarefa_id", tarefa_id).execute()
@@ -516,7 +516,7 @@ def test_conclusao_sem_vinculo_reverte_toda_a_gravacao(
         )
         assert criada.status_code == 201, criada.text
         tarefa_id = criada.json()["id"]
-        falha = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        falha = cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
         assert falha.status_code == 409, falha.text
         tarefa = (
             supabase.table("tarefa")
@@ -534,7 +534,7 @@ def test_conclusao_sem_vinculo_reverte_toda_a_gravacao(
                 "score": 0,
             }
         ).execute()
-        concluida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+        concluida = cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
         assert concluida.status_code == 200, concluida.text
     saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
     assert saldo.data[0]["score"] == 25
@@ -575,7 +575,7 @@ def test_conclusoes_simultaneas_creditam_uma_unica_vez(
     def concluir():
         with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
             barreira.wait()
-            return cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
+            return cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futuros = [executor.submit(concluir) for _ in range(2)]

@@ -166,9 +166,8 @@ export async function carregarTarefas(
 }
 
 export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
-  return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal, {
-    method: "PATCH",
-    body: { estado_atual: "finalizado" },
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}/conclusoes`, signal, {
+    method: "POST",
   });
 }
 

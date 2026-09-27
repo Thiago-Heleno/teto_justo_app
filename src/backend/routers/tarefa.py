@@ -57,6 +57,16 @@ def buscar_tarefa(
     return servico.buscar_tarefa(id_tarefa)
 
 
+@router.post("/{id_tarefa}/conclusoes", response_model=TarefaResposta)
+def concluir_tarefa(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
+    servico = ServicoTarefa(supabase)
+    return servico.concluir_tarefa(id_tarefa, usuario_atual.id)
+
+
 @router.patch("/{id_tarefa}", response_model=TarefaResposta)
 def atualizar_tarefa(
     id_tarefa: UUID,
