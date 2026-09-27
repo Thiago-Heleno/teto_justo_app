@@ -193,7 +193,11 @@ export default function TarefasScreen() {
       })
       .catch((erro: unknown) => {
         if (!controlador.signal.aborted)
-          setErroPlacar(erro instanceof Error ? erro.message : "Não foi possível carregar o placar.");
+          setErroPlacar(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível carregar o placar.",
+          );
       });
     return () => controlador.abort();
   }, [tentativa]);
@@ -213,11 +217,16 @@ export default function TarefasScreen() {
 
     const tarefaFinalizada = await finalizarTarefa(tarefaSelecionada.id);
     const pontuacao = tarefaFinalizada.resultado_pontuacao;
-    if (!pontuacao) throw new Error("O servidor não retornou a pontuação da tarefa.");
+    if (!pontuacao)
+      throw new Error("O servidor não retornou a pontuação da tarefa.");
 
-    setMoradores((atuais) => atuais.map((morador) =>
-      morador.id === usuarioAtual.id ? { ...morador, score: pontuacao.saldo_atual } : morador,
-    ));
+    setMoradores((atuais) =>
+      atuais.map((morador) =>
+        morador.id === usuarioAtual.id
+          ? { ...morador, score: pontuacao.saldo_atual }
+          : morador,
+      ),
+    );
     setTarefas((atuais) =>
       atuais?.map((tarefa) =>
         tarefa.id === tarefaFinalizada.id ? tarefaFinalizada : tarefa,
@@ -331,18 +340,33 @@ export default function TarefasScreen() {
             </View>
 
             <View style={styles.filtersCard}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>PLACAR DA CASA</Text>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                PLACAR DA CASA
+              </Text>
               {placar ? (
                 <>
-                  <Text style={styles.filterLabel}>Períodos no fuso {placar.fuso_horario}</Text>
+                  <Text style={styles.filterLabel}>
+                    Períodos no fuso {placar.fuso_horario}
+                  </Text>
                   <View style={styles.placarGrid}>
                     {placar.moradores.map((morador) => (
-                      <View key={morador.usuario_id} style={styles.placarMorador}>
+                      <View
+                        key={morador.usuario_id}
+                        style={styles.placarMorador}
+                      >
                         <Text style={styles.placarNome}>{morador.nome}</Text>
-                        <Text style={styles.metaValue}>Semana: {morador.semanal}</Text>
-                        <Text style={styles.metaValue}>Mês: {morador.mensal}</Text>
-                        <Text style={styles.metaValue}>Ano: {morador.anual}</Text>
-                        <Text style={styles.metaValue}>Total: {morador.acumulado}</Text>
+                        <Text style={styles.metaValue}>
+                          Semana: {morador.semanal}
+                        </Text>
+                        <Text style={styles.metaValue}>
+                          Mês: {morador.mensal}
+                        </Text>
+                        <Text style={styles.metaValue}>
+                          Ano: {morador.anual}
+                        </Text>
+                        <Text style={styles.metaValue}>
+                          Total: {morador.acumulado}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -618,7 +642,14 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   placarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
-  placarMorador: { flexGrow: 1, minWidth: 180, gap: 6, padding: Spacing.three, backgroundColor: Caldera.pumice, borderRadius: 20 },
+  placarMorador: {
+    flexGrow: 1,
+    minWidth: 180,
+    gap: 6,
+    padding: Spacing.three,
+    backgroundColor: Caldera.pumice,
+    borderRadius: 20,
+  },
   placarNome: { color: Caldera.obsidian, fontSize: 18, fontWeight: "600" },
   filterGroup: { gap: 12 },
   filterLabel: { color: Caldera.obsidian, fontSize: 12, fontWeight: "500" },

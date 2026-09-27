@@ -3,7 +3,12 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
 
 import { MotionPressable } from "@/components/motion-pressable";
-import { pesosTarefa, prazosTarefa, type PesoTarefa, type PrazoDias } from "@/constants/tarefa";
+import {
+  pesosTarefa,
+  prazosTarefa,
+  type PesoTarefa,
+  type PrazoDias,
+} from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import type { Morador, Tarefa, TarefaAtualizar } from "@/services/tarefas-api";
 import {
@@ -36,7 +41,9 @@ export function EditarTarefa({
   const [nome, setNome] = useState(tarefa.nome);
   const [descricao, setDescricao] = useState(tarefa.descricao ?? "");
   const [peso, setPeso] = useState<PesoTarefa>(tarefa.peso as PesoTarefa);
-  const [prazoDias, setPrazoDias] = useState<PrazoDias | null>((tarefa.prazo_dias ?? null) as PrazoDias | null);
+  const [prazoDias, setPrazoDias] = useState<PrazoDias | null>(
+    (tarefa.prazo_dias ?? null) as PrazoDias | null,
+  );
   const [atrasoMaximo, setAtrasoMaximo] = useState(tarefa.atraso_maximo);
   const [dataFixa, setDataFixa] = useState(tarefa.data_fixa ?? "");
   const [responsavel, setResponsavel] = useState(
@@ -139,7 +146,9 @@ export function EditarTarefa({
                 onPress={() => setPrazoDias(opcao)}
                 style={[styles.option, prazoDias === opcao && styles.selected]}
               >
-                <Text style={styles.optionText}>{opcao} {opcao === 1 ? "dia" : "dias"}</Text>
+                <Text style={styles.optionText}>
+                  {opcao} {opcao === 1 ? "dia" : "dias"}
+                </Text>
               </MotionPressable>
             ))}
           </View>
@@ -155,9 +164,14 @@ export function EditarTarefa({
                 accessibilityState={{ checked: atrasoMaximo === opcao }}
                 key={opcao}
                 onPress={() => setAtrasoMaximo(opcao)}
-                style={[styles.option, atrasoMaximo === opcao && styles.selected]}
+                style={[
+                  styles.option,
+                  atrasoMaximo === opcao && styles.selected,
+                ]}
               >
-                <Text style={styles.optionText}>{opcao} {opcao === 1 ? "dia" : "dias"}</Text>
+                <Text style={styles.optionText}>
+                  {opcao} {opcao === 1 ? "dia" : "dias"}
+                </Text>
               </MotionPressable>
             ))}
           </View>

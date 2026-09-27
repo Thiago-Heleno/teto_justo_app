@@ -41,7 +41,11 @@ function dataValida(valor: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
   const [ano, mes, dia] = valor.split("-").map(Number);
   const data = new Date(Date.UTC(ano, mes - 1, dia));
-  return data.getUTCFullYear() === ano && data.getUTCMonth() === mes - 1 && data.getUTCDate() === dia;
+  return (
+    data.getUTCFullYear() === ano &&
+    data.getUTCMonth() === mes - 1 &&
+    data.getUTCDate() === dia
+  );
 }
 
 export function prepararTarefa(
@@ -101,7 +105,12 @@ export function prepararTarefa(
     erros.responsavel = "Selecione um responsável.";
   }
 
-  if (Object.keys(erros).length || peso === null || dias === null || atrasoMaximo === null)
+  if (
+    Object.keys(erros).length ||
+    peso === null ||
+    dias === null ||
+    atrasoMaximo === null
+  )
     return { erros };
 
   return {

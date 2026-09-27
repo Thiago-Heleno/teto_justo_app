@@ -151,7 +151,11 @@ export default function NovaTarefaScreen() {
           });
           setTarefa(preparada);
         } catch (erro: unknown) {
-          setErroEnvio(erro instanceof Error ? erro.message : "Não foi possível criar a tarefa.");
+          setErroEnvio(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível criar a tarefa.",
+          );
         } finally {
           envioEmAndamento.current = false;
           setSalvando(false);
@@ -300,10 +304,21 @@ export default function NovaTarefaScreen() {
                   </View>
                   <View style={styles.section}>
                     <Text style={styles.help}>Tolerância após o prazo</Text>
-                    <Text style={styles.body}>{tarefa.atraso_maximo} {tarefa.atraso_maximo === 1 ? "dia" : "dias"}</Text>
+                    <Text style={styles.body}>
+                      {tarefa.atraso_maximo}{" "}
+                      {tarefa.atraso_maximo === 1 ? "dia" : "dias"}
+                    </Text>
                     <Text style={styles.help}>Modo do prazo</Text>
-                    <Text style={styles.body}>{tarefa.modo_prazo === "dia_fixo" ? "Dia fixo" : "Intervalo"}</Text>
-                    {tarefa.data_fixa && <Text style={styles.body}>Vencimento: {tarefa.data_fixa}</Text>}
+                    <Text style={styles.body}>
+                      {tarefa.modo_prazo === "dia_fixo"
+                        ? "Dia fixo"
+                        : "Intervalo"}
+                    </Text>
+                    {tarefa.data_fixa && (
+                      <Text style={styles.body}>
+                        Vencimento: {tarefa.data_fixa}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.section}>
                     <Text style={styles.help}>
@@ -312,7 +327,12 @@ export default function NovaTarefaScreen() {
                         : "Responsável"}
                     </Text>
                     <Text style={styles.body}>
-                      {moradores.find((morador) => morador.id === tarefa.usuarios_atribuidos[0])?.nome}
+                      {
+                        moradores.find(
+                          (morador) =>
+                            morador.id === tarefa.usuarios_atribuidos[0],
+                        )?.nome
+                      }
                     </Text>
                   </View>
                   {tarefa.rotatividade && (
@@ -479,21 +499,34 @@ export default function NovaTarefaScreen() {
                   </View>
                   <View style={styles.section}>
                     <Text style={styles.body}>Tolerância após o prazo *</Text>
-                    <Text style={styles.help}>Escolha de 1 a 5 dias. A pontuação diminui a cada dia de atraso.</Text>
+                    <Text style={styles.help}>
+                      Escolha de 1 a 5 dias. A pontuação diminui a cada dia de
+                      atraso.
+                    </Text>
                     <View style={styles.options} accessibilityRole="radiogroup">
                       {prazosTarefa.map((opcao) => (
                         <MotionPressable
                           key={opcao}
                           accessibilityRole="radio"
                           accessibilityLabel={`${opcao} ${opcao === 1 ? "dia" : "dias"} de tolerância`}
-                          accessibilityState={{ checked: atrasoMaximo === opcao }}
+                          accessibilityState={{
+                            checked: atrasoMaximo === opcao,
+                          }}
                           onPress={() => {
                             setAtrasoMaximo(opcao);
-                            setErros((atuais) => ({ ...atuais, atrasoMaximo: undefined }));
+                            setErros((atuais) => ({
+                              ...atuais,
+                              atrasoMaximo: undefined,
+                            }));
                           }}
-                          style={[styles.option, atrasoMaximo === opcao && styles.selected]}
+                          style={[
+                            styles.option,
+                            atrasoMaximo === opcao && styles.selected,
+                          ]}
                         >
-                          <IndicadorSelecao selecionado={atrasoMaximo === opcao} />
+                          <IndicadorSelecao
+                            selecionado={atrasoMaximo === opcao}
+                          />
                           <Text style={styles.body}>{opcao}</Text>
                         </MotionPressable>
                       ))}
@@ -505,20 +538,34 @@ export default function NovaTarefaScreen() {
                     <View style={styles.options} accessibilityRole="radiogroup">
                       <MotionPressable
                         accessibilityRole="radio"
-                        accessibilityState={{ checked: modoPrazo === "intervalo" }}
+                        accessibilityState={{
+                          checked: modoPrazo === "intervalo",
+                        }}
                         onPress={() => setModoPrazo("intervalo")}
-                        style={[styles.option, modoPrazo === "intervalo" && styles.selected]}
+                        style={[
+                          styles.option,
+                          modoPrazo === "intervalo" && styles.selected,
+                        ]}
                       >
-                        <IndicadorSelecao selecionado={modoPrazo === "intervalo"} />
+                        <IndicadorSelecao
+                          selecionado={modoPrazo === "intervalo"}
+                        />
                         <Text style={styles.body}>Intervalo</Text>
                       </MotionPressable>
                       <MotionPressable
                         accessibilityRole="radio"
-                        accessibilityState={{ checked: modoPrazo === "dia_fixo" }}
+                        accessibilityState={{
+                          checked: modoPrazo === "dia_fixo",
+                        }}
                         onPress={() => setModoPrazo("dia_fixo")}
-                        style={[styles.option, modoPrazo === "dia_fixo" && styles.selected]}
+                        style={[
+                          styles.option,
+                          modoPrazo === "dia_fixo" && styles.selected,
+                        ]}
                       >
-                        <IndicadorSelecao selecionado={modoPrazo === "dia_fixo"} />
+                        <IndicadorSelecao
+                          selecionado={modoPrazo === "dia_fixo"}
+                        />
                         <Text style={styles.body}>Dia fixo</Text>
                       </MotionPressable>
                     </View>
@@ -541,7 +588,10 @@ export default function NovaTarefaScreen() {
                           value={dataFixa}
                           onChangeText={(valor) => {
                             setDataFixa(valor);
-                            setErros((atuais) => ({ ...atuais, dataFixa: undefined }));
+                            setErros((atuais) => ({
+                              ...atuais,
+                              dataFixa: undefined,
+                            }));
                           }}
                         />
                       </>
@@ -835,7 +885,11 @@ export default function NovaTarefaScreen() {
                     </>
                   )}
                 </View>
-                {erroEnvio && <Text accessibilityLiveRegion="polite" style={styles.help}>{erroEnvio}</Text>}
+                {erroEnvio && (
+                  <Text accessibilityLiveRegion="polite" style={styles.help}>
+                    {erroEnvio}
+                  </Text>
+                )}
                 <MotionPressable
                   accessibilityRole="button"
                   accessibilityState={{ busy: salvando, disabled: salvando }}

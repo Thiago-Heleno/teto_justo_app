@@ -106,11 +106,15 @@ async function requisitar<T>(
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => null);
     const detalhe = corpo?.detail;
-    const mensagem = typeof detalhe === "string"
-      ? detalhe
-      : Array.isArray(detalhe)
-        ? detalhe.map((erro: { msg?: string }) => erro.msg).filter(Boolean).join(" ")
-        : "";
+    const mensagem =
+      typeof detalhe === "string"
+        ? detalhe
+        : Array.isArray(detalhe)
+          ? detalhe
+              .map((erro: { msg?: string }) => erro.msg)
+              .filter(Boolean)
+              .join(" ")
+          : "";
     throw new Error(mensagem || "Não foi possível concluir a operação.");
   }
 
@@ -135,7 +139,10 @@ export function carregarPlacar(signal?: AbortSignal) {
 }
 
 export function criarTarefa(dados: TarefaCriar, signal?: AbortSignal) {
-  return requisitar<Tarefa>("/tarefas/", signal, { method: "POST", body: dados });
+  return requisitar<Tarefa>("/tarefas/", signal, {
+    method: "POST",
+    body: dados,
+  });
 }
 
 export async function carregarTarefas(

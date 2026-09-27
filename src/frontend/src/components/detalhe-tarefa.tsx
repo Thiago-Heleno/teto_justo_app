@@ -58,7 +58,10 @@ export function DetalheTarefa({
     if (!tarefa.data_inicio) return;
     const espera = new Date(tarefa.data_inicio).getTime() - agora;
     if (espera <= 0) return;
-    const temporizador = setTimeout(() => setAgora(Date.now()), Math.min(espera, 2147483647));
+    const temporizador = setTimeout(
+      () => setAgora(Date.now()),
+      Math.min(espera, 2147483647),
+    );
     return () => clearTimeout(temporizador);
   }, [tarefa.data_inicio, agora]);
   const responsaveis = moradores.filter((morador) =>
@@ -243,7 +246,9 @@ export function DetalheTarefa({
 
               <View style={styles.scoreCard}>
                 <Text style={styles.scoreLabel}>PONTOS POSSÍVEIS</Text>
-                <Text style={styles.scoreValue}>{resultado?.pontosPossiveis ?? 0}</Text>
+                <Text style={styles.scoreValue}>
+                  {resultado?.pontosPossiveis ?? 0}
+                </Text>
                 <Text style={styles.scoreLabel}>PONTOS OBTIDOS</Text>
                 <Text style={styles.scoreValue}>
                   +{resultado?.pontosObtidos ?? 0}
