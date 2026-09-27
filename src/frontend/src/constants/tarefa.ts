@@ -5,6 +5,7 @@ export type PesoTarefa = (typeof pesosTarefa)[number];
 export const prazosTarefa = [1, 2, 3, 4, 5] as const;
 
 export type PrazoDias = (typeof prazosTarefa)[number];
+export type ModoPrazo = "intervalo" | "dia_fixo";
 
 export const diasSemanaTarefa = [
   { valor: 1, rotulo: "Segunda-feira", abreviacao: "Seg" },
@@ -33,6 +34,9 @@ export type TarefaDemonstracao = {
   descricao: string;
   peso: PesoTarefa;
   prazo_dias: PrazoDias;
+  atraso_maximo: PrazoDias;
+  modo_prazo: ModoPrazo;
+  data_fixa?: string;
   usuarios_atribuidos: [string];
   rotatividade: RotatividadeTarefa | null;
 };

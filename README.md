@@ -34,10 +34,11 @@ acessa o Supabase para persistir os dados.
 ## Como rodar localmente
 
 Para visualizar somente a tela **Nova tarefa**, siga diretamente a
-[etapa 3 — Frontend](#3-inicie-o-frontend). Sem configuração da API, essa demonstração usa dados
-fictícios e não precisa de backend, Docker, Supabase ou `.env`. Com a API
-configurada, a criação consulta casa e moradores reais, mas ainda não grava
-tarefas. A tela **Tarefas** consulta a API e requer a configuração abaixo.
+[etapa 3 — Frontend](#3-inicie-o-frontend). Sem configuração da API, a tela usa
+dados fictícios e não precisa de backend, Docker, Supabase ou `.env`. Com a API
+configurada, a criação grava tarefas comuns no Supabase por meio do backend.
+A opção rotativa permanece como prévia local e não grava rodízios.
+A tela **Tarefas** consulta a API e requer a configuração abaixo.
 
 ### Pré-requisitos
 
@@ -56,6 +57,16 @@ SUPABASE_KEY=sua-chave-do-supabase
 ```
 
 Não versione esse arquivo nem exponha as credenciais.
+
+Antes de iniciar o backend com um banco existente, confira quais migrations de
+`docs/migrations/` já foram aplicadas. A sequência dos arquivos é `14.sql`,
+`15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam do banco.
+As migrations `17.sql` e `18.sql` também contêm estruturas de rodízio que não
+têm integração ativa na aplicação. Esta retirada não executa migrations.
+O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve ser
+aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Nenhuma
+migration anterior deve ser editada ou reaplicada indiscriminadamente. Veja o
+[resumo da sprint 2](./contexto/sprint_2/alinhamento_tarefas_pontuacao.md).
 
 ### 2. Inicie o backend
 
@@ -127,8 +138,9 @@ na navegação do app. O formulário contém nome, descrição opcional, peso de
 **Rotativa** recebe pelo menos dois participantes, ordem ajustável e um ou
 mais dias da semana, com repetição a cada 1, 2, 3 ou 4 semanas (por exemplo,
 segunda-feira a cada 2 semanas). Quatro semanas correspondem a 28 dias,
-aproximadamente um mês. Use **Conferir tarefa** para visualizar o resumo. A criação
-é uma prévia: nada é salvo no banco e o rodízio não começa automaticamente.
+aproximadamente um mês. Com a API configurada, **Criar tarefa** grava apenas
+tarefas comuns. A opção rotativa mostra uma prévia local e não inicia um
+rodízio. Sem a API, **Conferir tarefa** mostra uma prévia em memória.
 
 Se a porta estiver ocupada, use a instância já aberta ou inicie com
 `npm run web -- --port 8082` e ajuste a porta no endereço do navegador.

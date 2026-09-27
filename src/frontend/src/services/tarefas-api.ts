@@ -1,4 +1,4 @@
-import type { EstadoTarefa } from "@/constants/tarefa";
+import type { EstadoTarefa, PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
 export type Casa = { id: string; nome: string; fk_usuario_id: string };
@@ -13,16 +13,56 @@ export type Tarefa = {
   descricao: string | null;
   estado_atual: EstadoTarefa;
   peso: number;
+  prazo_dias: number | null;
+  atraso_maximo: number;
+  tipo: "unitaria" | "rotativa";
+  modo_prazo: "intervalo" | "dia_fixo";
+  data_fixa: string | null;
+  data_inicio: string | null;
   data_fim: string;
   usuarios_atribuidos: string[];
+  concluida_em?: string | null;
+  resultado_pontuacao?: {
+    pontos_possiveis: number;
+    pontos_ganhos: number;
+    saldo_atual: number;
+  } | null;
 };
 
 export type TarefaAtualizar = {
   nome: string;
   descricao: string;
   peso: number;
-  data_fim: string;
+  prazo_dias?: number;
+  atraso_maximo?: number;
+  data_fixa?: string;
   usuarios_atribuidos: string[];
+};
+
+export type TarefaCriar = {
+  fk_casa_id: string;
+  nome: string;
+  descricao: string;
+  peso: PesoTarefa;
+  prazo_dias: PrazoDias;
+  atraso_maximo: PrazoDias;
+  tipo: "unitaria";
+  modo_prazo: "intervalo" | "dia_fixo";
+  data_fixa?: string;
+  usuarios_atribuidos: [string];
+};
+
+export type Placar = {
+  casa_id: string;
+  fuso_horario: string;
+  moradores: {
+    usuario_id: string;
+    nome: string;
+    semanal: number;
+    mensal: number;
+    anual: number;
+    acumulado: number;
+  }[];
 };
 
 export function temConfiguracaoTarefas() {
@@ -50,7 +90,7 @@ function configuracao() {
 async function requisitar<T>(
   caminho: string,
   signal?: AbortSignal,
-  opcoes?: { method?: "GET" | "PATCH"; body?: unknown },
+  opcoes?: { method?: "GET" | "PATCH" | "POST"; body?: unknown },
 ): Promise<T> {
   const { apiUrl, token } = configuracao();
   const resposta = await fetch(`${apiUrl}${caminho}`, {
@@ -65,7 +105,17 @@ async function requisitar<T>(
 
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => null);
-    throw new Error(corpo?.detail || "Não foi possível carregar as tarefas.");
+    const detalhe = corpo?.detail;
+    const mensagem =
+      typeof detalhe === "string"
+        ? detalhe
+        : Array.isArray(detalhe)
+          ? detalhe
+              .map((erro: { msg?: string }) => erro.msg)
+              .filter(Boolean)
+              .join(" ")
+          : "";
+    throw new Error(mensagem || "Não foi possível concluir a operação.");
   }
 
   return resposta.json() as Promise<T>;
@@ -81,6 +131,18 @@ export async function carregarContextoTarefas(signal?: AbortSignal) {
 
 export function carregarUsuarioAtual(signal?: AbortSignal) {
   return requisitar<UsuarioAtual>("/usuarios/eu", signal);
+}
+
+export function carregarPlacar(signal?: AbortSignal) {
+  const { casaId } = configuracao();
+  return requisitar<Placar>(`/casas/${casaId}/placar`, signal);
+}
+
+export function criarTarefa(dados: TarefaCriar, signal?: AbortSignal) {
+  return requisitar<Tarefa>("/tarefas/", signal, {
+    method: "POST",
+    body: dados,
+  });
 }
 
 export async function carregarTarefas(

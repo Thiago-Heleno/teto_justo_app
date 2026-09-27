@@ -1,5 +1,9 @@
 # Penalidade de pontuação proporcional ao atraso máximo — Sprint 2
 
+> Registro histórico do desconto `100 / atraso_maximo` no trigger. A regra
+> posterior `100 / (atraso_maximo + 1)` e o cálculo Python constam em
+> [documentacao_sistema_pontuacao.md](documentacao_sistema_pontuacao.md).
+
 ## Objetivo
 
 Fazer a perda de pontuação por atraso ser proporcional ao `atraso_maximo` de

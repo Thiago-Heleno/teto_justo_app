@@ -8,6 +8,9 @@ const formulario = {
   descricao: "  Limpar bancada  ",
   peso: 2,
   dias: 3,
+  atrasoMaximo: 2,
+  modoPrazo: "intervalo",
+  dataFixa: "",
   responsavel: "ana",
   rotativa: false,
   participantes: [],
@@ -25,6 +28,8 @@ test("tarefa comum mantém um responsável e descarta campos ocultos do rodízio
   assert.deepEqual(erros, {});
   assert.equal(tarefa.nome, "Limpar cozinha");
   assert.equal(tarefa.descricao, "Limpar bancada");
+  assert.equal(tarefa.atraso_maximo, 2);
+  assert.equal(tarefa.modo_prazo, "intervalo");
   assert.deepEqual(tarefa.usuarios_atribuidos, ["ana"]);
   assert.equal(tarefa.rotatividade, null);
 });
@@ -165,4 +170,20 @@ test("repetição aceita de 1 a 4 semanas sem alterar os dias nem os participant
     assert.equal(resultado.tarefa, undefined);
   }
   assert.equal(preparar({ semanas: 0 }).tarefa.rotatividade, null);
+});
+
+test("dia fixo unitário exige data válida e não altera agendamento de rodízio", () => {
+  assert.ok(preparar({ modoPrazo: "dia_fixo", dataFixa: "2026-02-30" }).erros.dataFixa);
+  assert.equal(preparar({ modoPrazo: "dia_fixo", dataFixa: "2026-10-05" }).tarefa.data_fixa, "2026-10-05");
+  const rotativa = preparar({ rotativa: true, responsavel: null, participantes: ["ana", "bruno"], diasSemana: [1], modoPrazo: "dia_fixo" });
+  assert.deepEqual(rotativa.erros, {});
+  assert.equal(rotativa.tarefa.data_fixa, undefined);
+});
+
+test("tolerância fora do intervalo 1 a 5 impede criação", () => {
+  for (const atrasoMaximo of [null, 0, 6, 1.5]) {
+    const resultado = preparar({ atrasoMaximo });
+    assert.ok(resultado.erros.atrasoMaximo);
+    assert.equal(resultado.tarefa, undefined);
+  }
 });

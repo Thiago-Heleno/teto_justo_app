@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, status
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.pertencer import (
-    PertencerAtualizar,
     PertencerCriar,
     PertencerResposta,
 )
+from services.autorizacao import ServicoAutorizacaoCasa
 from services.pertencer import ServicoPertencer
 
 
@@ -21,6 +21,9 @@ def registrar_pertencer(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(
+        pertencer.fk_casa_id, usuario_atual.id
+    )
     return ServicoPertencer(supabase).criar_pertencer(pertencer)
 
 
@@ -47,24 +50,6 @@ def buscar_pertencer(
     return ServicoPertencer(supabase).buscar_pertencer(fk_usuario_id, fk_casa_id)
 
 
-@router.patch(
-    "/{fk_usuario_id}/{fk_casa_id}",
-    response_model=PertencerResposta,
-)
-def atualizar_score(
-    fk_usuario_id: UUID,
-    fk_casa_id: UUID,
-    dados: PertencerAtualizar,
-    usuario_atual: UsuarioAtual,
-    supabase=Depends(get_supabase),
-):
-    return ServicoPertencer(supabase).atualizar_pertencer(
-        fk_usuario_id,
-        fk_casa_id,
-        dados,
-    )
-
-
 @router.delete(
     "/{fk_usuario_id}/{fk_casa_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -75,5 +60,8 @@ def deletar_pertencer(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(
+        fk_casa_id, usuario_atual.id
+    )
     ServicoPertencer(supabase).deletar_pertencer(fk_usuario_id, fk_casa_id)
     return None

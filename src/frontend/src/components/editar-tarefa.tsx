@@ -3,11 +3,15 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
 
 import { MotionPressable } from "@/components/motion-pressable";
-import { pesosTarefa, type PesoTarefa } from "@/constants/tarefa";
+import {
+  pesosTarefa,
+  prazosTarefa,
+  type PesoTarefa,
+  type PrazoDias,
+} from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import type { Morador, Tarefa, TarefaAtualizar } from "@/services/tarefas-api";
 import {
-  dataTarefaParaCampo,
   prepararEdicaoTarefa,
   type ErrosEdicaoTarefa,
 } from "@/utils/edicao-tarefa";
@@ -37,7 +41,11 @@ export function EditarTarefa({
   const [nome, setNome] = useState(tarefa.nome);
   const [descricao, setDescricao] = useState(tarefa.descricao ?? "");
   const [peso, setPeso] = useState<PesoTarefa>(tarefa.peso as PesoTarefa);
-  const [dataFim, setDataFim] = useState(dataTarefaParaCampo(tarefa.data_fim));
+  const [prazoDias, setPrazoDias] = useState<PrazoDias | null>(
+    (tarefa.prazo_dias ?? null) as PrazoDias | null,
+  );
+  const [atrasoMaximo, setAtrasoMaximo] = useState(tarefa.atraso_maximo);
+  const [dataFixa, setDataFixa] = useState(tarefa.data_fixa ?? "");
   const [responsavel, setResponsavel] = useState(
     tarefa.usuarios_atribuidos[0] ?? "",
   );
@@ -47,7 +55,7 @@ export function EditarTarefa({
 
   async function salvar() {
     const resultado = prepararEdicaoTarefa(
-      { nome, descricao, peso, dataFim, responsavel },
+      { nome, descricao, peso, prazoDias, atrasoMaximo, dataFixa, responsavel },
       tarefa,
       moradores,
     );
@@ -129,23 +137,65 @@ export function EditarTarefa({
 
         <View style={styles.field}>
           <Text style={styles.label}>Prazo *</Text>
-          <Text style={styles.help}>Use o formato AAAA-MM-DD.</Text>
-          <TextInput
-            accessibilityLabel="Prazo da tarefa no formato ano, mês e dia"
-            autoCapitalize="none"
-            inputMode="numeric"
-            onChangeText={(valor) => {
-              setDataFim(valor);
-              setErros((atuais) => ({ ...atuais, dataFim: undefined }));
-            }}
-            placeholder="2026-10-01"
-            placeholderTextColor={Caldera.obsidian}
-            selectionColor={Caldera.ember}
-            style={styles.input}
-            value={dataFim}
-          />
-          <ErroCampo mensagem={erros.dataFim} />
+          <View accessibilityRole="radiogroup" style={styles.options}>
+            {prazosTarefa.map((opcao) => (
+              <MotionPressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: prazoDias === opcao }}
+                key={opcao}
+                onPress={() => setPrazoDias(opcao)}
+                style={[styles.option, prazoDias === opcao && styles.selected]}
+              >
+                <Text style={styles.optionText}>
+                  {opcao} {opcao === 1 ? "dia" : "dias"}
+                </Text>
+              </MotionPressable>
+            ))}
+          </View>
+          <ErroCampo mensagem={erros.prazoDias} />
         </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Tolerância após o prazo</Text>
+          <View accessibilityRole="radiogroup" style={styles.options}>
+            {prazosTarefa.map((opcao) => (
+              <MotionPressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: atrasoMaximo === opcao }}
+                key={opcao}
+                onPress={() => setAtrasoMaximo(opcao)}
+                style={[
+                  styles.option,
+                  atrasoMaximo === opcao && styles.selected,
+                ]}
+              >
+                <Text style={styles.optionText}>
+                  {opcao} {opcao === 1 ? "dia" : "dias"}
+                </Text>
+              </MotionPressable>
+            ))}
+          </View>
+          <ErroCampo mensagem={erros.atrasoMaximo} />
+        </View>
+
+        {tarefa.tipo === "unitaria" && tarefa.modo_prazo === "dia_fixo" && (
+          <View style={styles.field}>
+            <Text style={styles.label}>Data do vencimento</Text>
+            <Text style={styles.help}>Use o formato AAAA-MM-DD.</Text>
+            <TextInput
+              accessibilityLabel="Data do vencimento no formato ano, mês e dia"
+              autoCapitalize="none"
+              inputMode="numeric"
+              onChangeText={setDataFixa}
+              placeholder="2026-10-01"
+              placeholderTextColor={Caldera.obsidian}
+              selectionColor={Caldera.ember}
+              style={styles.input}
+              value={dataFixa}
+            />
+            <ErroCampo mensagem={erros.dataFixa} />
+          </View>
+        )}
 
         <View style={styles.field}>
           <Text style={styles.label}>Responsável *</Text>

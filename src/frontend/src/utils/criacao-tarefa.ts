@@ -1,6 +1,7 @@
 import type {
   DiaSemana,
   IntervaloSemanas,
+  ModoPrazo,
   PesoTarefa,
   PrazoDias,
   TarefaDemonstracao,
@@ -11,6 +12,9 @@ export type FormularioTarefa = {
   descricao: string;
   peso: PesoTarefa | null;
   dias: PrazoDias | null;
+  atrasoMaximo: PrazoDias | null;
+  modoPrazo: ModoPrazo;
+  dataFixa: string;
   responsavel: string | null;
   rotativa: boolean;
   participantes: string[];
@@ -23,6 +27,8 @@ export type ErrosCriacao = Partial<
     | "nome"
     | "peso"
     | "prazo"
+    | "atrasoMaximo"
+    | "dataFixa"
     | "responsavel"
     | "participantes"
     | "diasSemana"
@@ -30,6 +36,17 @@ export type ErrosCriacao = Partial<
     string
   >
 >;
+
+function dataValida(valor: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  const [ano, mes, dia] = valor.split("-").map(Number);
+  const data = new Date(Date.UTC(ano, mes - 1, dia));
+  return (
+    data.getUTCFullYear() === ano &&
+    data.getUTCMonth() === mes - 1 &&
+    data.getUTCDate() === dia
+  );
+}
 
 export function prepararTarefa(
   formulario: FormularioTarefa,
@@ -40,6 +57,9 @@ export function prepararTarefa(
     descricao,
     peso,
     dias,
+    atrasoMaximo,
+    modoPrazo,
+    dataFixa,
     responsavel,
     rotativa,
     participantes,
@@ -54,6 +74,12 @@ export function prepararTarefa(
     erros.peso = "Selecione um peso de 1 a 3.";
   if (dias === null || ![1, 2, 3, 4, 5].includes(dias))
     erros.prazo = "Selecione um prazo de 1 a 5 dias.";
+  if (atrasoMaximo === null || ![1, 2, 3, 4, 5].includes(atrasoMaximo))
+    erros.atrasoMaximo = "Selecione a tolerância de 1 a 5 dias.";
+  if (modoPrazo !== "intervalo" && modoPrazo !== "dia_fixo")
+    erros.dataFixa = "Selecione um modo de prazo.";
+  if (!rotativa && modoPrazo === "dia_fixo" && !dataValida(dataFixa))
+    erros.dataFixa = "Informe uma data válida no formato AAAA-MM-DD.";
   if (rotativa) {
     if (![1, 2, 3, 4].includes(semanas)) {
       erros.semanas = "Selecione um intervalo de 1 a 4 semanas.";
@@ -79,7 +105,12 @@ export function prepararTarefa(
     erros.responsavel = "Selecione um responsável.";
   }
 
-  if (Object.keys(erros).length || peso === null || dias === null)
+  if (
+    Object.keys(erros).length ||
+    peso === null ||
+    dias === null ||
+    atrasoMaximo === null
+  )
     return { erros };
 
   return {
@@ -89,6 +120,9 @@ export function prepararTarefa(
       descricao: descricao.trim(),
       peso,
       prazo_dias: dias,
+      atraso_maximo: atrasoMaximo,
+      modo_prazo: modoPrazo,
+      ...(rotativa || modoPrazo !== "dia_fixo" ? {} : { data_fixa: dataFixa }),
       usuarios_atribuidos: [rotativa ? participantes[0] : responsavel!],
       rotatividade: rotativa
         ? {

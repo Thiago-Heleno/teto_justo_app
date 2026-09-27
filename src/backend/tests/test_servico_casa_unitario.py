@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
+from postgrest.exceptions import APIError
 
 from schemas.casa import CasaAtualizar,  CasaCriar
 from services.casa import ServicoCasa
@@ -64,6 +65,7 @@ def registro_casa(id_casa, id_usuario, foto):
         "endereco": "Rua Tursi, 10",
         "foto": foto["banco"],
         "fk_usuario_id": str(id_usuario),
+        "timezone": "America/Sao_Paulo",
     }
 
 def test_criar_casa_insere_dados_com_foto_convertida(
@@ -82,16 +84,22 @@ def test_criar_casa_insere_dados_com_foto_convertida(
     assert resultado["nome"] == "Casa Azul"
     assert resultado["foto"] == foto["base64"]
 
-    banco.table.assert_called_once_with("casa")
+    assert banco.table.call_args_list == [call("casa"), call("pertencer")]
 
-    consulta.insert.assert_called_once_with(
-        {
+    assert consulta.insert.call_args_list == [
+        call({
             "nome": "Casa Azul",
             "endereco": "Rua Tursi, 10",
             "foto": foto["banco"],
+            "timezone": "America/Sao_Paulo",
             "fk_usuario_id": str(id_usuario),
-        }
-    )
+        }),
+        call({
+            "fk_usuario_id": str(id_usuario),
+            "fk_casa_id": registro_casa["id"],
+            "score": 0,
+        }),
+    ]
 
 def test_criar_casa_sem_foto(
     servico, consulta, id_usuario, registro_casa
@@ -109,14 +117,13 @@ def test_criar_casa_sem_foto(
 
     assert resultado["foto"] is None
 
-    consulta.insert.assert_called_once_with(
-        {
-            "nome": "Casa Azul",
-            "endereco": "Rua Tursi, 10",
-            "foto": None,
-            "fk_usuario_id": str(id_usuario),
-        }
-    )
+    assert consulta.insert.call_args_list[0] == call({
+        "nome": "Casa Azul",
+        "endereco": "Rua Tursi, 10",
+        "foto": None,
+        "timezone": "America/Sao_Paulo",
+        "fk_usuario_id": str(id_usuario),
+    })
 
 def test_criar_casa_com_foto_base64_invalida_gera_400(
     servico, consulta, id_usuario
@@ -149,6 +156,32 @@ def test_criar_casa_sem_retorno_do_banco_gera_500(
 
     assert erro.value.status_code == 500
     assert erro.value.detail == "Erro ao criar casa no banco."
+
+
+def test_criar_casa_reverte_casa_se_vinculo_do_proprietario_falhar(
+    servico, consulta, id_usuario, registro_casa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_casa]),
+        SimpleNamespace(data=[]),
+        SimpleNamespace(data=[registro_casa]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.criar_casa(
+            CasaCriar(nome="Casa Azul", endereco="Rua Tursi, 10"), id_usuario
+        )
+
+    assert erro.value.status_code == 500
+    consulta.delete.assert_called_once_with()
+    consulta.eq.assert_called_once_with("id", registro_casa["id"])
+
+
+def test_criar_casa_rejeita_fuso_invalido():
+    with pytest.raises(ValidationError):
+        CasaCriar(
+            nome="Casa Azul", endereco="Rua Tursi, 10", timezone="Fuso/Inexistente"
+        )
 
 
 def test_criar_casa_rejeita_proprietario_informado_pelo_cliente():
@@ -258,6 +291,23 @@ def test_atualizar_casa_converte_nova_foto(
     )
     assert resultado["foto"] == nova_foto_base64
 
+
+def test_atualizar_fuso_da_casa(
+    servico, consulta, id_casa, id_usuario, registro_casa
+):
+    atualizado = {**registro_casa, "timezone": "UTC"}
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}]),
+        SimpleNamespace(data=[atualizado]),
+    ]
+
+    resultado = servico.atualizar_casa(
+        id_casa, CasaAtualizar(timezone="UTC"), id_usuario
+    )
+
+    assert resultado["timezone"] == "UTC"
+    consulta.update.assert_called_once_with({"timezone": "UTC"})
+
 def test_atualizar_casa_sem_dados_gera_400(
     servico, consulta, id_casa, id_usuario
 ):
@@ -325,6 +375,20 @@ def test_excluir_casa_inexistente_gera_404(
     assert erro.value.status_code == 404
     assert erro.value.detail == "Casa não encontrada."
     consulta.delete.assert_called_once_with()
+
+
+def test_excluir_casa_com_eventos_preserva_historico(
+    servico, consulta, id_casa, id_usuario
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}]),
+        APIError({"code": "23503", "message": "foreign key violation"}),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.excluir_casa(id_casa, id_usuario)
+
+    assert erro.value.status_code == 409
 
 
 def test_morador_nao_pode_atualizar_casa(

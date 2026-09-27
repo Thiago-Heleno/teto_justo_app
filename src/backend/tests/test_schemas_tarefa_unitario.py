@@ -87,37 +87,24 @@ def test_cliente_nao_define_autor_vencimento_ou_credito_inicial(cliente, payload
     assert cliente.post("/tarefas/", json={**payload, campo: valor}).status_code == 422
 
 
-def test_ocorrencia_exige_inicio_e_proxima_ocorrencia(payload):
+def test_ocorrencia_so_pode_ser_criada_pelo_worker(payload):
     with pytest.raises(ValidationError):
         TarefaCriar(**payload, referencia_inicio="ocorrencia")
 
 
-@pytest.mark.parametrize("dias_proxima,aceita", [(3, False), (4, False), (5, True), (7, True)])
-def test_prazo_e_tolerancia_terminam_antes_da_proxima_ocorrencia(payload, dias_proxima, aceita):
+def test_datas_internas_da_ocorrencia_nao_sao_aceitas_na_criacao(payload):
     inicio = datetime.now(timezone.utc) + timedelta(days=1)
-    dados = {
-        **payload,
-        "referencia_inicio": "ocorrencia",
-        "data_inicio": inicio,
-        "proxima_ocorrencia": inicio + timedelta(days=dias_proxima),
-    }
-    if aceita:
-        assert TarefaCriar(**dados).data_inicio == inicio
-    else:
+    for campo in ["data_inicio", "proxima_ocorrencia"]:
         with pytest.raises(ValidationError):
-            TarefaCriar(**dados)
+            TarefaCriar(**payload, **{campo: inicio})
 
 
-def test_ocorrencia_rejeita_datas_sem_fuso_e_inicio_passado(payload):
-    inicio = datetime.now(timezone.utc) - timedelta(days=1)
-    for data_inicio in [inicio, inicio.replace(tzinfo=None)]:
-        with pytest.raises(ValidationError):
-            TarefaCriar(
-                **payload,
-                referencia_inicio="ocorrencia",
-                data_inicio=data_inicio,
-                proxima_ocorrencia=inicio + timedelta(days=7),
-            )
+def test_dia_fixo_exige_data_e_intervalo_a_proibe(payload):
+    with pytest.raises(ValidationError):
+        TarefaCriar(**payload, modo_prazo="dia_fixo")
+    with pytest.raises(ValidationError):
+        TarefaCriar(**payload, data_fixa="2030-01-01")
+    assert TarefaCriar(**payload, modo_prazo="dia_fixo", data_fixa="2030-01-01").data_fixa
 
 
 def test_atualizacao_nao_pode_reiniciar_prazo_ou_apagar_regras(cliente):

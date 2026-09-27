@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { filtrarTarefas } from "../src/utils/filtros-tarefa.ts";
+import { filtrarTarefas, formatarPrazo } from "../src/utils/filtros-tarefa.ts";
 
 const agora = new Date("2026-09-20T12:00:00-03:00");
 const tarefas = [
@@ -49,5 +49,12 @@ test("combina filtros de status, responsável e prazo", () => {
       agora,
     ).map(({ id }) => id),
     ["atrasada"],
+  );
+});
+
+test("dia fixo mostra a data da casa sem depender do fuso do aparelho", () => {
+  assert.equal(
+    formatarPrazo("2026-10-03T02:59:59Z", "2026-10-02"),
+    "02/10/2026 23:59",
   );
 });

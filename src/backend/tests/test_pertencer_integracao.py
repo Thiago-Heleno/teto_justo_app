@@ -1,4 +1,4 @@
-"""Integração real do CRUD de pertencer com o Supabase de teste."""
+"""Integração real dos vínculos de moradores com o Supabase de teste."""
 
 from uuid import uuid4
 
@@ -9,36 +9,35 @@ from core.database import get_supabase
 from main import app
 
 
-# Cria um usuário e uma casa temporários no Supabase de teste — dependências
-# de FK exigidas por um vínculo de pertencer — e os remove ao final do teste.
+# Cria uma casa do usuário autenticado e outro usuário para ser morador.
 @pytest.fixture
-def dependencias_temporarias():
+def dependencias_temporarias(autenticacao_temporaria):
     supabase = get_supabase()
     marcador = uuid4().hex
-
-    # Usuário temporário, que também será o dono da casa criada a seguir.
-    res_usuario = (
-        supabase.table("usuario")
-        .insert({
-            "nome": "Usuário Teste Pertencer",
-            "email": f"teste-pertencer-{marcador}@example.com",
-            "senha_hash": "hash-falso",
-            "usuario_tipo": 0,
-        })
-        .execute()
-    )
-    usuario_id = res_usuario.data[0]["id"]
+    proprietario_id = autenticacao_temporaria["usuario_id"]
 
     # Casa temporária, vinculada ao usuário acima.
     res_casa = (
         supabase.table("casa")
         .insert({
             "nome": f"Casa Teste {marcador}",
-            "fk_usuario_id": usuario_id,
+            "fk_usuario_id": proprietario_id,
         })
         .execute()
     )
     casa_id = res_casa.data[0]["id"]
+
+    res_morador = (
+        supabase.table("usuario")
+        .insert({
+            "nome": "Morador teste pertencer",
+            "email": f"morador-teste-pertencer-{marcador}@example.com",
+            "senha_hash": "hash-falso",
+            "usuario_tipo": 0,
+        })
+        .execute()
+    )
+    usuario_id = res_morador.data[0]["id"]
 
     yield {"usuario_id": usuario_id, "casa_id": casa_id}
 
@@ -52,8 +51,8 @@ def dependencias_temporarias():
     supabase.table("usuario").delete().eq("id", usuario_id).execute()
 
 
-# Percorre o ciclo completo de CRUD via HTTP contra o Supabase real: cria,
-# busca, lista, atualiza o score, deleta e confirma que o vínculo some depois.
+# Percorre o ciclo do vínculo via HTTP contra o Supabase real: cria,
+# busca, lista, rejeita alteração direta de score, deleta e confirma remoção.
 def test_crud_pertencer_no_supabase(
     dependencias_temporarias,
     autenticacao_temporaria,
@@ -77,6 +76,12 @@ def test_crud_pertencer_no_supabase(
         assert vinculo["fk_casa_id"] == casa_id
         assert vinculo["score"] == 0
 
+        arbitrario = cliente.post(
+            "/pertencer/",
+            json={"fk_usuario_id": usuario_id, "fk_casa_id": casa_id, "score": 50},
+        )
+        assert arbitrario.status_code == 422, arbitrario.text
+
         # Busca o vínculo recém-criado pela chave composta (usuário, casa).
         encontrado = cliente.get(f"/pertencer/{usuario_id}/{casa_id}")
         assert encontrado.status_code == 200, encontrado.text
@@ -90,12 +95,11 @@ def test_crud_pertencer_no_supabase(
             for v in listados.json()
         )
 
-        # Atualiza o score do vínculo.
+        # O saldo só pode ser alterado por crédito de tarefa.
         atualizado = cliente.patch(
             f"/pertencer/{usuario_id}/{casa_id}", json={"score": 50}
         )
-        assert atualizado.status_code == 200, atualizado.text
-        assert atualizado.json()["score"] == 50
+        assert atualizado.status_code == 405, atualizado.text
 
         # Exclui o vínculo e confirma o corpo vazio de um 204.
         excluido = cliente.delete(f"/pertencer/{usuario_id}/{casa_id}")
@@ -130,6 +134,33 @@ def test_pertencer_duplicado_retorna_400(
         assert segundo.status_code == 400, segundo.text
 
 
+def test_outro_usuario_nao_pode_gerenciar_moradores(
+    dependencias_temporarias,
+    autenticacao_temporaria,
+    criar_autenticacao_temporaria,
+):
+    usuario_id = dependencias_temporarias["usuario_id"]
+    casa_id = dependencias_temporarias["casa_id"]
+    outro_usuario = criar_autenticacao_temporaria()
+
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as dono:
+        criado = dono.post(
+            "/pertencer/",
+            json={"fk_usuario_id": usuario_id, "fk_casa_id": casa_id},
+        )
+        assert criado.status_code == 201, criado.text
+
+    with TestClient(app, headers=outro_usuario["headers"]) as estranho:
+        criado = estranho.post(
+            "/pertencer/",
+            json={"fk_usuario_id": outro_usuario["usuario_id"], "fk_casa_id": casa_id},
+        )
+        removido = estranho.delete(f"/pertencer/{usuario_id}/{casa_id}")
+
+    assert criado.status_code == 403
+    assert removido.status_code == 403
+
+
 # Cobre casos de erro das rotas: id malformado (422) e operações
 # (GET/PATCH/DELETE) sobre uma chave composta inexistente (404).
 def test_validacoes_e_erros(autenticacao_temporaria):
@@ -147,7 +178,7 @@ def test_validacoes_e_erros(autenticacao_temporaria):
             cliente.patch(
                 f"/pertencer/{uuid4()}/{uuid4()}", json={"score": 10}
             ).status_code
-            == 404
+            == 405
         )
         # Exclusão de um vínculo inexistente.
         assert cliente.delete(f"/pertencer/{uuid4()}/{uuid4()}").status_code == 404

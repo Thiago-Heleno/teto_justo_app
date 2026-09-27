@@ -3,6 +3,7 @@ import binascii
 from uuid import UUID
 
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
 from schemas.casa import CasaAtualizar, CasaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
@@ -52,6 +53,7 @@ class ServicoCasa:
             "endereco": casa["endereco"],
             "foto": self._foto_para_resposta(casa.get("foto")),
             "fk_usuario_id": casa["fk_usuario_id"],
+            "timezone": casa.get("timezone") or "America/Sao_Paulo",
         }
 
     def _buscar_casa_bruta(self, id_casa: UUID):
@@ -89,7 +91,27 @@ class ServicoCasa:
                 detail="Erro ao criar casa no banco.",
             )
 
-        return self._montar_resposta(resposta.data[0])
+        casa = resposta.data[0]
+        try:
+            vinculo = (
+                self.supabase.table("pertencer")
+                .insert({
+                    "fk_usuario_id": str(id_proprietario),
+                    "fk_casa_id": casa["id"],
+                    "score": 0,
+                })
+                .execute()
+            )
+            if not vinculo.data:
+                raise RuntimeError("Vínculo do proprietário não foi criado.")
+        except Exception as erro:
+            self.supabase.table("casa").delete().eq("id", casa["id"]).execute()
+            raise HTTPException(
+                status_code=500,
+                detail="Erro ao vincular o proprietário à casa.",
+            ) from erro
+
+        return self._montar_resposta(casa)
 
     def buscar_casa(self, id_casa: UUID):
         return self._montar_resposta(
@@ -158,12 +180,20 @@ class ServicoCasa:
             id_casa,
             id_usuario_atual,
         )
-        resposta = (
-            self.supabase.table("casa")
-            .delete()
-            .eq("id", str(id_casa))
-            .execute()
-        )
+        try:
+            resposta = (
+                self.supabase.table("casa")
+                .delete()
+                .eq("id", str(id_casa))
+                .execute()
+            )
+        except APIError as erro:
+            if erro.code == "23503":
+                raise HTTPException(
+                    status_code=409,
+                    detail="A casa possui dados vinculados e não pode ser excluída.",
+                ) from erro
+            raise
 
         if not resposta.data:
             raise HTTPException(

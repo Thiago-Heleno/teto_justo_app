@@ -1,5 +1,6 @@
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
@@ -36,6 +37,29 @@ class ServicoTarefa:
             .execute()
         )
         return [registro["fk_usuario_id"] for registro in resposta.data]
+
+    def _fuso_casa(self, id_casa: UUID | str) -> ZoneInfo:
+        resposta = (
+            self.supabase.table("casa")
+            .select("timezone")
+            .eq("id", str(id_casa))
+            .execute()
+        )
+        if not resposta.data:
+            raise HTTPException(status_code=404, detail="Casa não encontrada.")
+        return ZoneInfo(resposta.data[0].get("timezone") or "America/Sao_Paulo")
+
+    def _fuso_tarefa(self, tarefa: dict) -> ZoneInfo:
+        if tarefa.get("timezone"):
+            return ZoneInfo(tarefa["timezone"])
+        return self._fuso_casa(tarefa["fk_casa_id"])
+
+    @staticmethod
+    def janela_dia_fixo(
+        data_fixa: date, prazo_dias: int, fuso: ZoneInfo
+    ) -> tuple[datetime, datetime]:
+        vencimento = datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(timezone.utc)
+        return vencimento - timedelta(days=prazo_dias), vencimento
 
     def _atribuir_usuarios(
         self,
@@ -90,6 +114,9 @@ class ServicoTarefa:
 
     def _montar_resposta(self, tarefa: dict) -> dict:
         tarefa = self._sincronizar_estado_por_atraso(tarefa)
+        modo_prazo = tarefa.get("modo_prazo") or "intervalo"
+        inicio = tarefa.get("data_inicio") or tarefa.get("criado_em")
+        concluida = tarefa.get("concluida_em")
         resposta = {
             "id": tarefa["id"],
             "nome": tarefa["nome"],
@@ -98,12 +125,23 @@ class ServicoTarefa:
             "peso": tarefa["dificuldade"],
             "pontuacao": ServicoScore.pontos_por_peso(tarefa["dificuldade"]),
             "estrategia_penalidade": "proporcional",
+            "tipo": tarefa.get("tipo") or "unitaria",
+            "modo_prazo": modo_prazo,
+            "data_fixa": (
+                self._data_fim_com_fuso(tarefa["data_fim"])
+                .astimezone(self._fuso_tarefa(tarefa))
+                .date()
+                .isoformat()
+                if modo_prazo == "dia_fixo" else None
+            ),
+            "concluida_em": self._data_fim_com_fuso(concluida).isoformat() if concluida else None,
+            "resultado_pontuacao": tarefa.get("resultado_pontuacao"),
             "referencia_inicio": tarefa.get("referencia_inicio", "criacao"),
             "prazo_dias": tarefa.get("prazo_dias"),
-            "data_inicio": tarefa.get("data_inicio") or tarefa.get("criado_em"),
+            "data_inicio": self._data_fim_com_fuso(inicio).isoformat() if inicio else None,
             "proxima_ocorrencia": tarefa.get("proxima_ocorrencia"),
             "atraso_maximo": tarefa["atraso_maximo"],
-            "data_fim": tarefa["data_fim"],
+            "data_fim": self._data_fim_com_fuso(tarefa["data_fim"]).isoformat(),
             "fk_casa_id": tarefa["fk_casa_id"],
             "fk_usuario_id": tarefa["fk_usuario_id"],
         }
@@ -142,9 +180,22 @@ class ServicoTarefa:
         dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
         dados["fk_usuario_id"] = str(id_usuario_atual)
         dados.pop("estrategia_penalidade")
-        inicio = dados_tarefa.data_inicio or datetime.now(timezone.utc)
+        dados.pop("data_fixa")
+        if dados_tarefa.modo_prazo == "dia_fixo":
+            fuso = self._fuso_casa(dados_tarefa.fk_casa_id)
+            inicio, vencimento = self.janela_dia_fixo(
+                dados_tarefa.data_fixa,
+                dados_tarefa.prazo_dias,
+                fuso,
+            )
+            if vencimento <= datetime.now(timezone.utc):
+                raise HTTPException(status_code=422, detail="A data fixa deve estar no futuro.")
+            dados["timezone"] = fuso.key
+        else:
+            inicio = datetime.now(timezone.utc)
+            vencimento = inicio + timedelta(days=dados_tarefa.prazo_dias)
         dados["data_inicio"] = inicio.isoformat()
-        dados["data_fim"] = (inicio + timedelta(days=dados_tarefa.prazo_dias)).isoformat()
+        dados["data_fim"] = vencimento.isoformat()
         resposta = self.supabase.table("tarefa").insert(dados).execute()
         if not resposta.data:
             raise HTTPException(
@@ -330,7 +381,33 @@ class ServicoTarefa:
         if "peso" in dados:
             dados["dificuldade"] = dados.pop("peso")
             dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
-        if "prazo_dias" in dados:
+        data_fixa = dados.pop("data_fixa", None)
+        modo_prazo = tarefa_atual.get("modo_prazo") or "intervalo"
+        if data_fixa is not None and modo_prazo != "dia_fixo":
+            raise HTTPException(status_code=422, detail="Esta tarefa não usa dia fixo.")
+        if modo_prazo == "dia_fixo" and ("prazo_dias" in dados or data_fixa is not None):
+            fuso = self._fuso_tarefa(tarefa_atual)
+            data_fixa_atual = (
+                self._data_fim_com_fuso(tarefa_atual["data_fim"]).astimezone(fuso).date()
+            )
+            prazo = dados.get("prazo_dias", tarefa_atual.get("prazo_dias"))
+            if prazo is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Defina prazo_dias para editar o vencimento desta tarefa legada.",
+                )
+            inicio, vencimento = self.janela_dia_fixo(
+                date.fromisoformat(data_fixa) if data_fixa else data_fixa_atual,
+                prazo,
+                fuso,
+            )
+            if vencimento <= datetime.now(timezone.utc):
+                raise HTTPException(status_code=422, detail="A data fixa deve estar no futuro.")
+            dados["data_inicio"] = inicio.isoformat()
+            dados["data_fim"] = vencimento.isoformat()
+            if not tarefa_atual.get("timezone"):
+                dados["timezone"] = fuso.key
+        elif "prazo_dias" in dados:
             inicio = tarefa_atual.get("data_inicio") or tarefa_atual.get("criado_em")
             if inicio is None:
                 raise HTTPException(
@@ -341,7 +418,7 @@ class ServicoTarefa:
             if data_fim <= datetime.now(timezone.utc):
                 raise HTTPException(status_code=422, detail="O novo prazo deve estar no futuro.")
             dados["data_fim"] = data_fim.isoformat()
-        if {"prazo_dias", "atraso_maximo"} & dados.keys():
+        if {"prazo_dias", "atraso_maximo", "data_fim"} & dados.keys():
             proxima = tarefa_atual.get("proxima_ocorrencia")
             if proxima:
                 fim = self._data_fim_com_fuso(dados.get("data_fim", tarefa_atual["data_fim"]))
@@ -389,19 +466,23 @@ class ServicoTarefa:
             tarefa_atual["fk_casa_id"],
             id_usuario_atual,
         )
-        (
-            self.supabase.table("atribuida")
-            .delete()
-            .eq("fk_tarefa_id", str(id_tarefa))
-            .execute()
-        )
-        resposta = (
-            self.supabase.table("tarefa")
-            .delete()
-            .eq("id", str(id_tarefa))
-            .execute()
-        )
-        if not resposta.data:
+        if tarefa_atual["estado_atual"] == "finalizado":
+            raise HTTPException(
+                status_code=409,
+                detail="Tarefa com crédito registrado não pode ser excluída.",
+            )
+        try:
+            resposta = self.supabase.rpc(
+                "excluir_tarefa_sem_credito", {"p_id_tarefa": str(id_tarefa)}
+            ).execute()
+        except APIError as erro:
+            if erro.code in {"23503", "PT409"}:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Tarefa com crédito registrado não pode ser excluída.",
+                ) from erro
+            raise
+        if resposta.data is False:
             raise HTTPException(
                 status_code=404,
                 detail="Tarefa não encontrada.",

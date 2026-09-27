@@ -1,8 +1,9 @@
 from uuid import UUID
 
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
-from schemas.pertencer import PertencerAtualizar, PertencerCriar
+from schemas.pertencer import PertencerCriar
 
 
 class ServicoPertencer:
@@ -61,35 +62,31 @@ class ServicoPertencer:
         )
         return resposta.data
 
-    def atualizar_pertencer(
-        self,
-        fk_usuario_id: UUID,
-        fk_casa_id: UUID,
-        dados: PertencerAtualizar,
-    ):
-        resposta = (
-            self.supabase.table("pertencer")
-            .update(dados.model_dump(mode="json"))
-            .eq("fk_usuario_id", str(fk_usuario_id))
-            .eq("fk_casa_id", str(fk_casa_id))
-            .execute()
-        )
-
-        if not resposta.data:
-            raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
-
-        return resposta.data[0]
-
     def deletar_pertencer(self, fk_usuario_id: UUID, fk_casa_id: UUID):
-        resposta = (
-            self.supabase.table("pertencer")
-            .delete()
-            .eq("fk_usuario_id", str(fk_usuario_id))
-            .eq("fk_casa_id", str(fk_casa_id))
+        casa = (
+            self.supabase.table("casa")
+            .select("fk_usuario_id")
+            .eq("id", str(fk_casa_id))
             .execute()
-        )
-
-        if not resposta.data:
+        ).data
+        if casa and str(casa[0]["fk_usuario_id"]) == str(fk_usuario_id):
+            raise HTTPException(
+                status_code=409,
+                detail="O proprietário não pode sair da própria casa.",
+            )
+        try:
+            resposta = self.supabase.rpc(
+                "excluir_vinculo_sem_credito",
+                {
+                    "p_id_usuario": str(fk_usuario_id),
+                    "p_id_casa": str(fk_casa_id),
+                },
+            ).execute()
+        except APIError as erro:
+            if erro.code == "PT409":
+                raise HTTPException(status_code=409, detail=erro.message) from erro
+            raise
+        if resposta.data is not True:
             raise HTTPException(
                 status_code=404,
                 detail="Vínculo não encontrado ou já deletado.",

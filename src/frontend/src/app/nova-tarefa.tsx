@@ -22,6 +22,7 @@ import {
   prazosTarefa,
   type PesoTarefa,
   type PrazoDias,
+  type ModoPrazo,
   type TarefaDemonstracao,
 } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
@@ -32,6 +33,7 @@ import {
 } from "@/data/tarefa-demonstracao";
 import {
   carregarContextoTarefas,
+  criarTarefa as salvarTarefa,
   temConfiguracaoTarefas,
   type Casa,
 } from "@/services/tarefas-api";
@@ -85,11 +87,15 @@ export default function NovaTarefaScreen() {
     return () => controlador.abort();
   }, [usarApi, tentativa]);
   const scrollRef = useRef<ScrollView>(null);
+  const envioEmAndamento = useRef(false);
   const descricaoRef = useRef<TextInput>(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [peso, setPeso] = useState<PesoTarefa | null>(null);
   const [dias, setDias] = useState<PrazoDias | null>(null);
+  const [atrasoMaximo, setAtrasoMaximo] = useState<PrazoDias | null>(null);
+  const [modoPrazo, setModoPrazo] = useState<ModoPrazo>("intervalo");
+  const [dataFixa, setDataFixa] = useState("");
   const [responsavel, setResponsavel] = useState<string | null>(null);
   const [rotativa, setRotativa] = useState(false);
   const [participantes, setParticipantes] = useState<string[]>([]);
@@ -97,15 +103,20 @@ export default function NovaTarefaScreen() {
   const [semanas, setSemanas] = useState<IntervaloSemanas>(1);
   const [erros, setErros] = useState<ErrosCriacao>({});
   const [tarefa, setTarefa] = useState<TarefaDemonstracao | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erroEnvio, setErroEnvio] = useState<string>();
   const cardStyle = [styles.card, width < 600 && styles.compactCard];
 
-  function criarTarefa() {
+  async function criarTarefa() {
     const resultado = prepararTarefa(
       {
         nome,
         descricao,
         peso,
         dias,
+        atrasoMaximo,
+        modoPrazo,
+        dataFixa,
         responsavel,
         rotativa,
         participantes,
@@ -116,7 +127,41 @@ export default function NovaTarefaScreen() {
     );
     setErros(resultado.erros);
     Keyboard.dismiss();
-    if (resultado.tarefa) setTarefa(resultado.tarefa);
+    if (resultado.tarefa) {
+      if (!usarApi || resultado.tarefa.rotatividade) {
+        setTarefa(resultado.tarefa);
+      } else if (casa) {
+        if (envioEmAndamento.current) return;
+        envioEmAndamento.current = true;
+        setSalvando(true);
+        setErroEnvio(undefined);
+        try {
+          const preparada = resultado.tarefa;
+          await salvarTarefa({
+            fk_casa_id: casa.id,
+            nome: preparada.nome,
+            descricao: preparada.descricao,
+            peso: preparada.peso,
+            prazo_dias: preparada.prazo_dias,
+            atraso_maximo: preparada.atraso_maximo,
+            tipo: "unitaria",
+            modo_prazo: preparada.modo_prazo,
+            ...(preparada.data_fixa ? { data_fixa: preparada.data_fixa } : {}),
+            usuarios_atribuidos: preparada.usuarios_atribuidos,
+          });
+          setTarefa(preparada);
+        } catch (erro: unknown) {
+          setErroEnvio(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível criar a tarefa.",
+          );
+        } finally {
+          envioEmAndamento.current = false;
+          setSalvando(false);
+        }
+      }
+    }
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }
 
@@ -125,6 +170,9 @@ export default function NovaTarefaScreen() {
     setDescricao("");
     setPeso(null);
     setDias(null);
+    setAtrasoMaximo(null);
+    setModoPrazo("intervalo");
+    setDataFixa("");
     setResponsavel(null);
     setRotativa(false);
     setParticipantes([]);
@@ -132,6 +180,7 @@ export default function NovaTarefaScreen() {
     setSemanas(1);
     setErros({});
     setTarefa(null);
+    setErroEnvio(undefined);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }
 
@@ -160,7 +209,13 @@ export default function NovaTarefaScreen() {
             <View style={styles.section}>
               <Text style={styles.help}>{casa?.nome ?? "Sua casa"}</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                {tarefa ? "TUDO PRONTO!" : "NOVA TAREFA"}
+                {tarefa
+                  ? tarefa.rotatividade
+                    ? "PRÉVIA DO RODÍZIO"
+                    : usarApi
+                      ? "TAREFA CRIADA!"
+                      : "TUDO PRONTO!"
+                  : "NOVA TAREFA"}
               </Text>
               <Text style={styles.body}>
                 {tarefa
@@ -170,13 +225,17 @@ export default function NovaTarefaScreen() {
               <View style={styles.badge}>
                 <Text style={styles.help}>
                   {usarApi
-                    ? "Prévia · moradores da sua casa"
+                    ? "Tarefas da sua casa"
                     : "Demonstração · dados fictícios"}
                 </Text>
               </View>
-              <Text style={styles.help}>
-                Esta prévia não salva tarefas nem inicia o rodízio.
-              </Text>
+              {(!usarApi || rotativa) && (
+                <Text style={styles.help}>
+                  {usarApi
+                    ? "Esta prévia não salva nem inicia o rodízio."
+                    : "Esta demonstração não salva tarefas nem inicia o rodízio."}
+                </Text>
+              )}
             </View>
 
             {!contexto ? (
@@ -218,7 +277,9 @@ export default function NovaTarefaScreen() {
                     accessibilityLiveRegion="polite"
                     style={styles.sectionTitle}
                   >
-                    Prévia da tarefa
+                    {usarApi && !tarefa.rotatividade
+                      ? "Detalhes salvos"
+                      : "Prévia da tarefa"}
                   </Text>
                   <View style={styles.section}>
                     <Text style={styles.help}>Nome</Text>
@@ -240,6 +301,24 @@ export default function NovaTarefaScreen() {
                       {tarefa.prazo_dias}{" "}
                       {tarefa.prazo_dias === 1 ? "dia" : "dias"}
                     </Text>
+                  </View>
+                  <View style={styles.section}>
+                    <Text style={styles.help}>Tolerância após o prazo</Text>
+                    <Text style={styles.body}>
+                      {tarefa.atraso_maximo}{" "}
+                      {tarefa.atraso_maximo === 1 ? "dia" : "dias"}
+                    </Text>
+                    <Text style={styles.help}>Modo do prazo</Text>
+                    <Text style={styles.body}>
+                      {tarefa.modo_prazo === "dia_fixo"
+                        ? "Dia fixo"
+                        : "Intervalo"}
+                    </Text>
+                    {tarefa.data_fixa && (
+                      <Text style={styles.body}>
+                        Vencimento: {tarefa.data_fixa}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.section}>
                     <Text style={styles.help}>
@@ -293,7 +372,11 @@ export default function NovaTarefaScreen() {
                   onPress={criarOutraTarefa}
                   style={styles.button}
                 >
-                  <Text style={styles.body}>Criar outra tarefa</Text>
+                  <Text style={styles.body}>
+                    {tarefa.rotatividade
+                      ? "Conferir outra tarefa"
+                      : "Criar outra tarefa"}
+                  </Text>
                 </MotionPressable>
               </>
             ) : (
@@ -414,6 +497,107 @@ export default function NovaTarefaScreen() {
                     </View>
                     <ErroCampo mensagem={erros.prazo} />
                   </View>
+                  <View style={styles.section}>
+                    <Text style={styles.body}>Tolerância após o prazo *</Text>
+                    <Text style={styles.help}>
+                      Escolha de 1 a 5 dias. A pontuação diminui a cada dia de
+                      atraso.
+                    </Text>
+                    <View style={styles.options} accessibilityRole="radiogroup">
+                      {prazosTarefa.map((opcao) => (
+                        <MotionPressable
+                          key={opcao}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`${opcao} ${opcao === 1 ? "dia" : "dias"} de tolerância`}
+                          accessibilityState={{
+                            checked: atrasoMaximo === opcao,
+                          }}
+                          onPress={() => {
+                            setAtrasoMaximo(opcao);
+                            setErros((atuais) => ({
+                              ...atuais,
+                              atrasoMaximo: undefined,
+                            }));
+                          }}
+                          style={[
+                            styles.option,
+                            atrasoMaximo === opcao && styles.selected,
+                          ]}
+                        >
+                          <IndicadorSelecao
+                            selecionado={atrasoMaximo === opcao}
+                          />
+                          <Text style={styles.body}>{opcao}</Text>
+                        </MotionPressable>
+                      ))}
+                    </View>
+                    <ErroCampo mensagem={erros.atrasoMaximo} />
+                  </View>
+                  <View style={styles.section}>
+                    <Text style={styles.body}>Como funciona o prazo? *</Text>
+                    <View style={styles.options} accessibilityRole="radiogroup">
+                      <MotionPressable
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked: modoPrazo === "intervalo",
+                        }}
+                        onPress={() => setModoPrazo("intervalo")}
+                        style={[
+                          styles.option,
+                          modoPrazo === "intervalo" && styles.selected,
+                        ]}
+                      >
+                        <IndicadorSelecao
+                          selecionado={modoPrazo === "intervalo"}
+                        />
+                        <Text style={styles.body}>Intervalo</Text>
+                      </MotionPressable>
+                      <MotionPressable
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked: modoPrazo === "dia_fixo",
+                        }}
+                        onPress={() => setModoPrazo("dia_fixo")}
+                        style={[
+                          styles.option,
+                          modoPrazo === "dia_fixo" && styles.selected,
+                        ]}
+                      >
+                        <IndicadorSelecao
+                          selecionado={modoPrazo === "dia_fixo"}
+                        />
+                        <Text style={styles.body}>Dia fixo</Text>
+                      </MotionPressable>
+                    </View>
+                    <Text style={styles.help}>
+                      {modoPrazo === "dia_fixo"
+                        ? "O dia escolhido é o vencimento. A tarefa abre antes, conforme o prazo em dias."
+                        : "A tarefa abre no dia escolhido e vence após o prazo em dias."}
+                    </Text>
+                    {!rotativa && modoPrazo === "dia_fixo" && (
+                      <>
+                        <Text style={styles.body}>Data do vencimento *</Text>
+                        <TextInput
+                          accessibilityLabel="Data do vencimento no formato ano, mês e dia"
+                          autoCapitalize="none"
+                          inputMode="numeric"
+                          placeholder="2026-10-01"
+                          placeholderTextColor={Caldera.obsidian}
+                          selectionColor={Caldera.ember}
+                          style={styles.input}
+                          value={dataFixa}
+                          onChangeText={(valor) => {
+                            setDataFixa(valor);
+                            setErros((atuais) => ({
+                              ...atuais,
+                              dataFixa: undefined,
+                            }));
+                          }}
+                        />
+                      </>
+                    )}
+                    <ErroCampo mensagem={erros.dataFixa} />
+                  </View>
                 </View>
 
                 <View style={cardStyle}>
@@ -449,6 +633,7 @@ export default function NovaTarefaScreen() {
                               participantes: undefined,
                               diasSemana: undefined,
                               semanas: undefined,
+                              dataFixa: undefined,
                             }));
                           }}
                           style={[
@@ -700,12 +885,27 @@ export default function NovaTarefaScreen() {
                     </>
                   )}
                 </View>
+                {erroEnvio && (
+                  <Text accessibilityLiveRegion="polite" style={styles.help}>
+                    {erroEnvio}
+                  </Text>
+                )}
                 <MotionPressable
                   accessibilityRole="button"
-                  onPress={criarTarefa}
+                  accessibilityState={{ busy: salvando, disabled: salvando }}
+                  disabled={salvando}
+                  onPress={() => void criarTarefa()}
                   style={styles.button}
                 >
-                  <Text style={styles.body}>Conferir tarefa</Text>
+                  <Text style={styles.body}>
+                    {salvando
+                      ? "Criando..."
+                      : rotativa
+                        ? "Conferir rodízio"
+                        : usarApi
+                          ? "Criar tarefa"
+                          : "Conferir tarefa"}
+                  </Text>
                 </MotionPressable>
               </>
             )}
