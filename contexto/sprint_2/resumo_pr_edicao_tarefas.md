@@ -1,5 +1,10 @@
 # Resumo do PR — Edição/atribuição de tarefas e pontuação por atraso — Sprint 2
 
+> Este resumo descreve o estado do PR naquela entrega. Para o contrato e a
+> pontuação posteriores, consulte
+> [alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md) e
+> [documentacao_sistema_pontuacao.md](documentacao_sistema_pontuacao.md).
+
 Consolida em um único lugar tudo que foi feito neste PR. Os detalhes de cada
 parte continuam nos documentos específicos, linkados abaixo.
 

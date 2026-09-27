@@ -284,7 +284,16 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
         "atraso_maximo": 2,
         "data_fim": (agora - timedelta(hours=horas_atraso)).isoformat(),
     }
-    finalizada = {**tarefa, "estado_atual": "finalizado", "concluida_em": agora.isoformat()}
+    finalizada = {
+        **tarefa,
+        "estado_atual": "finalizado",
+        "concluida_em": agora.isoformat(),
+        "resultado_pontuacao": {
+            "pontos_possiveis": 50,
+            "pontos_ganhos": pontos,
+            "saldo_atual": 100 + pontos,
+        },
+    }
     consulta.execute.side_effect = [
         SimpleNamespace(data=[tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
@@ -299,6 +308,9 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
     )
 
     assert resultado["estado_atual"] == "finalizado"
+    assert resultado["resultado_pontuacao"] == finalizada["resultado_pontuacao"]
+    assert resultado["concluida_em"] == agora.isoformat()
+    TarefaResposta.model_validate(resultado)
     banco.rpc.assert_called_once_with(
         "registrar_conclusao_tarefa",
         {
@@ -335,14 +347,11 @@ def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa,
 
 
 def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, registro_tarefa):
-    # 1. Busca tarefa, 2. autoriza pela casa, 3. deleta de 'atribuida'
-    # e 4. deleta de 'tarefa'.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]),
-        SimpleNamespace(data=[{"deleted": True}]),
-        SimpleNamespace(data=[registro_tarefa]),
     ]
+    servico.supabase.rpc.return_value.execute.return_value = SimpleNamespace(data=True)
 
     resultado = servico.excluir_tarefa(
         id_tarefa,
@@ -350,7 +359,10 @@ def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, reg
     )
 
     assert resultado is True
-    assert consulta.delete.call_count == 2
+    servico.supabase.rpc.assert_called_once_with(
+        "excluir_tarefa_sem_credito", {"p_id_tarefa": str(id_tarefa)}
+    )
+    consulta.delete.assert_not_called()
 
 
 def test_morador_nao_pode_criar_tarefa(servico, consulta, ids_relacionados):
@@ -822,3 +834,22 @@ def test_consulta_expirada_nao_sobrescreve_conclusao_concorrente(
     resultado = servico._sincronizar_estado_por_atraso(tarefa)
     assert resultado["estado_atual"] == "finalizado"
     consulta.in_.assert_called_once_with("estado_atual", ["pendente", "atrasada"])
+
+
+def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
+    servico, consulta, registro_tarefa
+):
+    tarefa = {
+        **registro_tarefa,
+        "estado_atual": "finalizado",
+        "data_inicio": "2026-09-01T08:00:00",
+        "data_fim": "2026-09-02T08:00:00",
+        "concluida_em": "2026-09-02T07:00:00",
+    }
+    consulta.execute.return_value = SimpleNamespace(data=[])
+
+    resposta = servico._montar_resposta(tarefa)
+
+    assert resposta["data_inicio"] == "2026-09-01T08:00:00+00:00"
+    assert resposta["data_fim"] == "2026-09-02T08:00:00+00:00"
+    assert resposta["concluida_em"] == "2026-09-02T07:00:00+00:00"

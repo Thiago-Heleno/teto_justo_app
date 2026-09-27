@@ -23,7 +23,8 @@ def dependencias_temporarias(autenticacao_temporaria):
 
     yield {"usuario_id": usuario_id, "casa_id": casa_id}
 
-    # Limpeza (Teardown)
+    # A migration 17 preserva o histórico de créditos ao impedir a exclusão da tarefa.
+    supabase.table("score_event").delete().eq("fk_casa_id", casa_id).execute()
     supabase.table("tarefa").delete().eq("fk_casa_id", casa_id).execute()
     supabase.table("pertencer").delete().eq("fk_casa_id", casa_id).execute()
     supabase.table("casa").delete().eq("id", casa_id).execute()
@@ -423,6 +424,15 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
         ).eq("id", tarefa_id).execute()
         concluida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
         assert concluida.status_code == status, concluida.text
+        if status == 200:
+            assert concluida.json()["resultado_pontuacao"] == {
+                "pontos_possiveis": 50,
+                "pontos_ganhos": pontos,
+                "saldo_atual": pontos,
+            }
+            assert concluida.json()["concluida_em"] is not None
+            preservada = cliente.delete(f"/tarefas/{tarefa_id}")
+            assert preservada.status_code == 409, preservada.text
         repetida = cliente.patch(f"/tarefas/{tarefa_id}", json={"estado_atual": "finalizado"})
         assert repetida.status_code == 409, repetida.text
     eventos = (
@@ -437,6 +447,13 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
         .execute()
     )
     assert saldo.data[0]["score"] == pontos
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        placar = cliente.get(f"/casas/{casa}/placar")
+        assert placar.status_code == 200, placar.text
+        assert placar.json()["moradores"][0]["acumulado"] == pontos
+        auditoria = cliente.get(f"/casas/{casa}/auditoria-score")
+        assert auditoria.status_code == 200, auditoria.text
+        assert auditoria.json()["divergencias"] == []
 
 
 def test_atualizar_estado_diretamente_no_banco_nao_calcula_pontos(

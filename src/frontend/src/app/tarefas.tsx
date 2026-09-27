@@ -23,12 +23,14 @@ import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
   carregarContextoTarefas,
+  carregarPlacar,
   carregarTarefas,
   carregarUsuarioAtual,
   editarTarefa,
   finalizarTarefa,
   type Casa,
   type Morador,
+  type Placar,
   type Tarefa,
   type UsuarioAtual,
   type TarefaAtualizar,
@@ -95,6 +97,8 @@ function iniciais(nome: string) {
 export default function TarefasScreen() {
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
+  const [placar, setPlacar] = useState<Placar>();
+  const [erroPlacar, setErroPlacar] = useState<string>();
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual>();
   const [tarefas, setTarefas] = useState<Tarefa[]>();
   const [tarefasEmAberto, setTarefasEmAberto] = useState(0);
@@ -178,6 +182,22 @@ export default function TarefasScreen() {
     return () => controlador.abort();
   }, [filtros, tentativa]);
 
+  useEffect(() => {
+    const controlador = new AbortController();
+    carregarPlacar(controlador.signal)
+      .then((dados) => {
+        if (!controlador.signal.aborted) {
+          setPlacar(dados);
+          setErroPlacar(undefined);
+        }
+      })
+      .catch((erro: unknown) => {
+        if (!controlador.signal.aborted)
+          setErroPlacar(erro instanceof Error ? erro.message : "Não foi possível carregar o placar.");
+      });
+    return () => controlador.abort();
+  }, [tentativa]);
+
   const tarefaSelecionada = tarefas?.find(
     (tarefa) => tarefa.id === tarefaSelecionadaId,
   );
@@ -191,16 +211,13 @@ export default function TarefasScreen() {
       throw new Error("Usuário atual não encontrado.");
     }
 
-    const responsavelId = usuarioAtual.id;
-    const saldoAnterior =
-      moradores.find((morador) => morador.id === responsavelId)?.score ?? 0;
     const tarefaFinalizada = await finalizarTarefa(tarefaSelecionada.id);
-    const [, moradoresAtualizados] = await carregarContextoTarefas();
-    const saldoAtual =
-      moradoresAtualizados.find((morador) => morador.id === responsavelId)
-        ?.score ?? saldoAnterior;
+    const pontuacao = tarefaFinalizada.resultado_pontuacao;
+    if (!pontuacao) throw new Error("O servidor não retornou a pontuação da tarefa.");
 
-    setMoradores(moradoresAtualizados);
+    setMoradores((atuais) => atuais.map((morador) =>
+      morador.id === usuarioAtual.id ? { ...morador, score: pontuacao.saldo_atual } : morador,
+    ));
     setTarefas((atuais) =>
       atuais?.map((tarefa) =>
         tarefa.id === tarefaFinalizada.id ? tarefaFinalizada : tarefa,
@@ -209,8 +226,9 @@ export default function TarefasScreen() {
     setTarefasEmAberto((quantidade) => Math.max(0, quantidade - 1));
 
     return {
-      pontosObtidos: Math.max(0, saldoAtual - saldoAnterior),
-      saldoAtual,
+      pontosPossiveis: pontuacao.pontos_possiveis,
+      pontosObtidos: pontuacao.pontos_ganhos,
+      saldoAtual: pontuacao.saldo_atual,
     };
   }
 
@@ -310,6 +328,30 @@ export default function TarefasScreen() {
                 <Text style={styles.statValue}>{tarefasEmAberto}</Text>
                 <Text style={styles.statCaption}>tarefas pedem atenção</Text>
               </View>
+            </View>
+
+            <View style={styles.filtersCard}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>PLACAR DA CASA</Text>
+              {placar ? (
+                <>
+                  <Text style={styles.filterLabel}>Períodos no fuso {placar.fuso_horario}</Text>
+                  <View style={styles.placarGrid}>
+                    {placar.moradores.map((morador) => (
+                      <View key={morador.usuario_id} style={styles.placarMorador}>
+                        <Text style={styles.placarNome}>{morador.nome}</Text>
+                        <Text style={styles.metaValue}>Semana: {morador.semanal}</Text>
+                        <Text style={styles.metaValue}>Mês: {morador.mensal}</Text>
+                        <Text style={styles.metaValue}>Ano: {morador.anual}</Text>
+                        <Text style={styles.metaValue}>Total: {morador.acumulado}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
+                  {erroPlacar ?? "Carregando placar..."}
+                </Text>
+              )}
             </View>
 
             <View style={styles.filtersCard}>
@@ -466,7 +508,7 @@ export default function TarefasScreen() {
                           <View>
                             <Text style={styles.metaLabel}>PRAZO</Text>
                             <Text style={styles.metaValue}>
-                              {formatarPrazo(tarefa.data_fim)}
+                              {formatarPrazo(tarefa.data_fim, tarefa.data_fixa)}
                             </Text>
                           </View>
                           <View style={styles.avatars}>
@@ -575,6 +617,9 @@ const styles = StyleSheet.create({
     padding: Spacing.five,
     gap: Spacing.four,
   },
+  placarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
+  placarMorador: { flexGrow: 1, minWidth: 180, gap: 6, padding: Spacing.three, backgroundColor: Caldera.pumice, borderRadius: 20 },
+  placarNome: { color: Caldera.obsidian, fontSize: 18, fontWeight: "600" },
   filterGroup: { gap: 12 },
   filterLabel: { color: Caldera.obsidian, fontSize: 12, fontWeight: "500" },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },

@@ -1,5 +1,10 @@
 # Crédito de pontos ao finalizar tarefa — Sprint 2
 
+> Registro histórico da implementação com trigger. A regra posterior está em
+> [documentacao_sistema_pontuacao.md](documentacao_sistema_pontuacao.md):
+> cálculo Python com divisor `atraso_maximo + 1` e persistência sem trigger
+> após `docs/migrations/15.sql`.
+
 ## Objetivo
 
 Creditar pontuação aos responsáveis por uma tarefa automaticamente quando ela é finalizada, aplicando desconto por atraso.

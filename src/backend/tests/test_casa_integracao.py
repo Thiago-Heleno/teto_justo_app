@@ -54,6 +54,21 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa["foto"] == foto_inicial
         assert casa["fk_usuario_id"] == usuario_temporario
         assert casa["id"] is not None
+        assert casa["timezone"] == "America/Sao_Paulo"
+
+        vinculo_proprietario = (
+            get_supabase().table("pertencer")
+            .select("score")
+            .eq("fk_casa_id", casa["id"])
+            .eq("fk_usuario_id", usuario_temporario)
+            .execute()
+        ).data
+        assert vinculo_proprietario == [{"score": 0}]
+
+        remocao_proprietario = cliente.delete(
+            f"/pertencer/{usuario_temporario}/{casa['id']}"
+        )
+        assert remocao_proprietario.status_code == 409, remocao_proprietario.text
 
         encontrada = cliente.get(
             f"/casas/{casa['id']}"
@@ -80,6 +95,7 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
             json={
                 "nome": f"Casa atualizada {marcador}",
                 "foto": foto_atualizada,
+                "timezone": "UTC",
             },
         )
 
@@ -90,6 +106,12 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa_atualizada["nome"] == f"Casa atualizada {marcador}"
         assert casa_atualizada["foto"] == foto_atualizada
         assert casa_atualizada["fk_usuario_id"] == usuario_temporario
+        assert casa_atualizada["timezone"] == "UTC"
+        versao = (
+            get_supabase().table("casa").select("rotacao_versao")
+            .eq("id", casa["id"]).execute()
+        ).data[0]["rotacao_versao"]
+        assert versao == 1
 
         excluida = cliente.delete(
             f"/casas/{casa['id']}"

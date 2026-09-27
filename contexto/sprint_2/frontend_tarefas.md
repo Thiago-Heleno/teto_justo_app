@@ -1,5 +1,9 @@
 # Frontend de criação de tarefas — Sprint 2
 
+> As seções datadas abaixo registram entregas anteriores. O fluxo atual grava
+> tarefas e rodízios quando a API está configurada; veja
+> [alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md).
+
 ## Rotatividade e consulta de moradores — 24/09/2026
 
 A aba **Criar** agora permite escolher uma tarefa comum ou rotativa. O rodízio

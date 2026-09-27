@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -26,6 +26,7 @@ type Props = {
 };
 
 export type ResultadoFinalizacao = {
+  pontosPossiveis: number;
   pontosObtidos: number;
   saldoAtual: number;
 };
@@ -52,6 +53,14 @@ export function DetalheTarefa({
   const [finalizando, setFinalizando] = useState(false);
   const [erroFinalizacao, setErroFinalizacao] = useState<string>();
   const [resultado, setResultado] = useState<ResultadoFinalizacao>();
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    if (!tarefa.data_inicio) return;
+    const espera = new Date(tarefa.data_inicio).getTime() - agora;
+    if (espera <= 0) return;
+    const temporizador = setTimeout(() => setAgora(Date.now()), Math.min(espera, 2147483647));
+    return () => clearTimeout(temporizador);
+  }, [tarefa.data_inicio, agora]);
   const responsaveis = moradores.filter((morador) =>
     tarefa.usuarios_atribuidos.includes(morador.id),
   );
@@ -59,6 +68,7 @@ export function DetalheTarefa({
   const podeFinalizar =
     !finalizada &&
     tarefa.estado_atual !== "nao_feito" &&
+    (!tarefa.data_inicio || new Date(tarefa.data_inicio).getTime() <= agora) &&
     tarefa.usuarios_atribuidos.includes(usuarioAtualId);
 
   async function concluirTarefa() {
@@ -141,7 +151,7 @@ export function DetalheTarefa({
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>PRAZO</Text>
               <Text style={styles.infoValue}>
-                {formatarPrazo(tarefa.data_fim)}
+                {formatarPrazo(tarefa.data_fim, tarefa.data_fixa)}
               </Text>
             </View>
             <View style={styles.infoCard}>
@@ -232,6 +242,8 @@ export function DetalheTarefa({
               </Text>
 
               <View style={styles.scoreCard}>
+                <Text style={styles.scoreLabel}>PONTOS POSSÍVEIS</Text>
+                <Text style={styles.scoreValue}>{resultado?.pontosPossiveis ?? 0}</Text>
                 <Text style={styles.scoreLabel}>PONTOS OBTIDOS</Text>
                 <Text style={styles.scoreValue}>
                   +{resultado?.pontosObtidos ?? 0}

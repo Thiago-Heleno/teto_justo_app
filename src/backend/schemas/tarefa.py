@@ -1,16 +1,19 @@
-from datetime import datetime, timezone
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 EstadoTarefa = Literal["pendente", "atrasada", "finalizado", "nao_feito"]
 PesoTarefa = Annotated[int, Field(strict=True, ge=1, le=3)]
 PrazoDias = Annotated[int, Field(strict=True, ge=1, le=5)]
-AtrasoMaximo = Annotated[int, Field(strict=True, gt=0)]
+AtrasoMaximo = Annotated[int, Field(strict=True, ge=1, le=5)]
+AtrasoMaximoLegado = Annotated[int, Field(strict=True, gt=0)]
 ReferenciaInicio = Literal["criacao", "ocorrencia"]
 EstrategiaPenalidade = Literal["proporcional"]
+TipoTarefa = Literal["unitaria", "rotativa"]
+ModoPrazo = Literal["dia_fixo", "intervalo"]
 
 
 class TarefaCriar(BaseModel):
@@ -21,34 +24,20 @@ class TarefaCriar(BaseModel):
     prazo_dias: PrazoDias
     atraso_maximo: AtrasoMaximo
     estrategia_penalidade: EstrategiaPenalidade = "proporcional"
-    referencia_inicio: ReferenciaInicio = "criacao"
-    data_inicio: AwareDatetime | None = None
-    proxima_ocorrencia: AwareDatetime | None = None
+    tipo: Literal["unitaria"] = "unitaria"
+    modo_prazo: ModoPrazo = "intervalo"
+    data_fixa: date | None = None
     fk_casa_id: UUID
     usuarios_atribuidos: list[UUID] = Field(min_length=1, max_length=1)
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    @field_validator("data_inicio", "proxima_ocorrencia")
-    @classmethod
-    def normalizar_data(cls, valor: datetime | None) -> datetime | None:
-        return valor.astimezone(timezone.utc) if valor is not None else None
-
     @model_validator(mode="after")
-    def validar_referencia_inicio(self):
-        if self.referencia_inicio == "criacao":
-            if self.data_inicio is not None or self.proxima_ocorrencia is not None:
-                raise ValueError("Na tarefa unitária, o servidor define o início na criação.")
-        else:
-            if self.data_inicio is None or self.proxima_ocorrencia is None:
-                raise ValueError("Informe o início desta ocorrência e o início da próxima.")
-            if self.data_inicio < datetime.now(timezone.utc):
-                raise ValueError("O início da ocorrência não pode estar no passado.")
-            janela = (self.proxima_ocorrencia - self.data_inicio).total_seconds()
-            if (self.prazo_dias + self.atraso_maximo) * 86400 >= janela:
-                raise ValueError(
-                    "O prazo e a tolerância devem terminar antes da próxima ocorrência."
-                )
+    def validar_modo_prazo(self):
+        if self.modo_prazo == "dia_fixo" and self.data_fixa is None:
+            raise ValueError("Informe data_fixa para a tarefa de dia fixo.")
+        if self.modo_prazo == "intervalo" and self.data_fixa is not None:
+            raise ValueError("data_fixa só é permitida no modo dia_fixo.")
         return self
 
 
@@ -59,6 +48,7 @@ class TarefaAtualizar(BaseModel):
     peso: PesoTarefa | None = None
     prazo_dias: PrazoDias | None = None
     atraso_maximo: AtrasoMaximo | None = None
+    data_fixa: date | None = None
     usuarios_atribuidos: list[UUID] | None = Field(default=None, min_length=1, max_length=1)
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -79,7 +69,14 @@ class TarefaResposta(BaseModel):
     peso: PesoTarefa
     pontuacao: int = Field(ge=0, description="Pontos-base calculados pela dificuldade.")
     estrategia_penalidade: EstrategiaPenalidade = "proporcional"
-    atraso_maximo: AtrasoMaximo
+    tipo: TipoTarefa = "unitaria"
+    modo_prazo: ModoPrazo = "intervalo"
+    data_fixa: date | None = None
+    rotatividade_id: UUID | None = None
+    ocorrencia_em: datetime | None = None
+    concluida_em: datetime | None = None
+    resultado_pontuacao: "ResultadoPontuacao | None" = None
+    atraso_maximo: AtrasoMaximoLegado
     referencia_inicio: ReferenciaInicio
     # Registros legados podem não ter a duração e o início cadastrados.
     prazo_dias: PrazoDias | None
@@ -89,3 +86,9 @@ class TarefaResposta(BaseModel):
     fk_casa_id: UUID
     usuarios_atribuidos: list[UUID] = Field(default_factory=list)
     fk_usuario_id: UUID
+
+
+class ResultadoPontuacao(BaseModel):
+    pontos_possiveis: int = Field(ge=0)
+    pontos_ganhos: int = Field(ge=0)
+    saldo_atual: int

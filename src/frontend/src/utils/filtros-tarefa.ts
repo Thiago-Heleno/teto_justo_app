@@ -47,7 +47,11 @@ export function filtrarTarefas<T extends TarefaFiltravel>(
   });
 }
 
-export function formatarPrazo(data: string) {
+export function formatarPrazo(data: string, dataFixa?: string | null) {
+  if (dataFixa) {
+    const [ano, mes, dia] = dataFixa.split("-");
+    return `${dia}/${mes}/${ano} 23:59`;
+  }
   return new Date(data).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "short",

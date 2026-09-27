@@ -5,6 +5,9 @@ import {
   carregarTarefas,
   carregarContextoTarefas,
   carregarUsuarioAtual,
+  carregarPlacar,
+  criarTarefa,
+  criarRotatividade,
   editarTarefa,
   finalizarTarefa,
   temConfiguracaoTarefas,
@@ -50,7 +53,8 @@ test("edita a tarefa pelo endpoint autenticado", async () => {
     nome: "Limpar a cozinha",
     descricao: "Limpar pia e fogão",
     peso: 2,
-    data_fim: "2026-10-01T23:59:59.999Z",
+    prazo_dias: 3,
+    atraso_maximo: 2,
     usuarios_atribuidos: ["morador-456"],
   };
 
@@ -168,6 +172,48 @@ test("finaliza a tarefa pelo endpoint autenticado", async () => {
       requisicao.opcoes.headers.Authorization,
       "Bearer sessao-valida",
     );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("cria tarefa unitária e rodízio com contratos distintos", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
+  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  const original = globalThis.fetch;
+  const chamadas = [];
+  globalThis.fetch = async (url, opcoes) => {
+    chamadas.push({ url, opcoes });
+    return { ok: true, json: async () => ({ id: "novo" }) };
+  };
+  try {
+    const base = { fk_casa_id: "casa-123", nome: "Limpar cozinha", descricao: "", peso: 2, prazo_dias: 3, atraso_maximo: 2, modo_prazo: "intervalo" };
+    await criarTarefa({ ...base, tipo: "unitaria", usuarios_atribuidos: ["ana"] });
+    await criarRotatividade({ ...base, participantes: ["ana", "bruno"], dias_semana: [1, 4], intervalo_semanas: 2 });
+    assert.deepEqual(chamadas.map(({ url }) => url), ["http://api.test/tarefas/", "http://api.test/rotatividades/"]);
+    assert.deepEqual(chamadas.map(({ opcoes }) => opcoes.method), ["POST", "POST"]);
+    assert.deepEqual(JSON.parse(chamadas[0].opcoes.body).usuarios_atribuidos, ["ana"]);
+    assert.deepEqual(JSON.parse(chamadas[1].opcoes.body).participantes, ["ana", "bruno"]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("consulta placar da casa", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
+  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  const original = globalThis.fetch;
+  let endereco;
+  globalThis.fetch = async (url) => {
+    endereco = url;
+    return { ok: true, json: async () => ({ casa_id: "casa-123", fuso_horario: "America/Sao_Paulo", moradores: [] }) };
+  };
+  try {
+    const placar = await carregarPlacar();
+    assert.equal(endereco, "http://api.test/casas/casa-123/placar");
+    assert.equal(placar.fuso_horario, "America/Sao_Paulo");
   } finally {
     globalThis.fetch = original;
   }

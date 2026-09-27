@@ -1,5 +1,9 @@
 # Cálculo de pontuação de tarefas
 
+Este documento descreve a fórmula vigente. O contrato de conclusão, o placar e
+as migrations posteriores estão resumidos em
+[alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md).
+
 O `ServicoScore` é um cálculo puro: recebe dificuldade, tolerância, vencimento,
 conclusão e o único responsável, sem acessar banco ou relógio do sistema.
 
@@ -78,13 +82,24 @@ A coluna `tarefa.pontuacao` representa somente a base calculada; o valor
 creditado está em `score_event.pontuacao`. O cliente não informa `pontuacao`
 na criação nem na edição, inclusive quando autenticado como administrador.
 
+A resposta da conclusão inclui `concluida_em` e `resultado_pontuacao`, com
+`pontos_possiveis`, `pontos_ganhos` e `saldo_atual`. O frontend usa esses
+valores da mesma operação transacional. `pertencer.score` permanece o saldo
+vitalício materializado, enquanto o placar semanal, mensal e anual soma
+`score_event` no fuso da casa; a semana vai de domingo a sábado.
+
+O administrador pode consultar `GET /casas/{id}/auditoria-score` antes de
+qualquer reconciliação. A migration `docs/migrations/19.sql` ajusta os saldos
+existentes à soma dos eventos somente após essa revisão. Eventos históricos
+apagados não podem ser reconstruídos a partir do repositório.
+
 ## Validação
 
 A suíte unitária aprovada inclui dificuldades, entradas inválidas, períodos
 parciais/exatos de 24 horas, N + 1, arredondamento, normalização de fuso e
 imutabilidade, valor enviado à persistência e tratamento de conflitos/falhas.
-A validação real da transação no Supabase está pendente: a migration foi preparada,
-mas não foi executada nesta sessão. Os testes de integração incluem ausência
-do trigger, reversão por falta de vínculo e duas conclusões concorrentes.
+A validação real da transação no Supabase ainda depende da aplicação das
+migrations no ambiente de testes. Os testes de integração previstos incluem
+ausência do trigger, reversão por falta de vínculo e conclusões concorrentes.
 
 Veja [o contrato e as limitações desta entrega](schemas_tarefa.md).

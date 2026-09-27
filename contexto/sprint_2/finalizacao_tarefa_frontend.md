@@ -1,5 +1,9 @@
 # Finalização de tarefa no frontend — Sprint 2
 
+> Registro da implementação anterior. O frontend atual usa os pontos possíveis,
+> os pontos ganhos e o saldo retornados no próprio `PATCH`, conforme
+> [alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md).
+
 ## Objetivo
 
 Criar um fluxo inicial para finalizar uma tarefa e mostrar ao usuário um

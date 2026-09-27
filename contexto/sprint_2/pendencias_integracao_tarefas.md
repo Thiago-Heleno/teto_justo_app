@@ -1,5 +1,11 @@
 # Pendências de integração da criação de tarefas — Sprint 2
 
+> Fotografia de 22/09/2026. O backend mudou depois desta análise: peso 1–3,
+> pontos derivados da dificuldade, `prazo_dias` e responsável único já constam
+> em [schemas_tarefa.md](schemas_tarefa.md). Para o contrato vigente, consulte
+> [alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md). As
+> pendências abaixo precisam ser lidas como histórico.
+
 Referência: regras do frontend e código local conferidos em 22/09/2026.
 
 ## Limite da entrega

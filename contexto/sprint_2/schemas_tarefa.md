@@ -1,5 +1,11 @@
 # Contrato de tarefas e tolerância de atraso — Sprint 2
 
+> Registro da entrega anterior às migrations `17.sql`–`19.sql`. As regras de
+> `tipo`, `modo_prazo`, ocorrências sobrepostas e limite de `atraso_maximo`
+> estão em [alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md).
+> As descrições de `14.sql` e `15.sql` abaixo documentam esses arquivos como
+> foram criados; eles não devem ser editados.
+
 ## Objetivo
 
 Atualizar `TarefaCriar`, `TarefaAtualizar` e `TarefaResposta` para que a API
