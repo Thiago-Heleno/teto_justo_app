@@ -1,4 +1,4 @@
-import type { DiaSemana, EstadoTarefa, IntervaloSemanas, PesoTarefa, PrazoDias } from "@/constants/tarefa";
+import type { EstadoTarefa, PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
 export type Casa = { id: string; nome: string; fk_usuario_id: string };
@@ -50,19 +50,6 @@ export type TarefaCriar = {
   modo_prazo: "intervalo" | "dia_fixo";
   data_fixa?: string;
   usuarios_atribuidos: [string];
-};
-
-export type RotatividadeCriar = {
-  fk_casa_id: string;
-  nome: string;
-  descricao: string;
-  peso: PesoTarefa;
-  prazo_dias: PrazoDias;
-  atraso_maximo: PrazoDias;
-  modo_prazo: "intervalo" | "dia_fixo";
-  participantes: string[];
-  dias_semana: DiaSemana[];
-  intervalo_semanas: IntervaloSemanas;
 };
 
 export type Placar = {
@@ -149,10 +136,6 @@ export function carregarPlacar(signal?: AbortSignal) {
 
 export function criarTarefa(dados: TarefaCriar, signal?: AbortSignal) {
   return requisitar<Tarefa>("/tarefas/", signal, { method: "POST", body: dados });
-}
-
-export function criarRotatividade(dados: RotatividadeCriar, signal?: AbortSignal) {
-  return requisitar<unknown>("/rotatividades/", signal, { method: "POST", body: dados });
 }
 
 export async function carregarTarefas(

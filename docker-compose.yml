@@ -7,10 +7,3 @@ services:
       - ./src/backend:/app
     env_file:
       - .env
-  rotatividade-worker:
-    build: ./src/backend
-    command: python -m services.rotatividade
-    volumes:
-      - ./src/backend:/app
-    env_file:
-      - .env

@@ -107,12 +107,6 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa_atualizada["foto"] == foto_atualizada
         assert casa_atualizada["fk_usuario_id"] == usuario_temporario
         assert casa_atualizada["timezone"] == "UTC"
-        versao = (
-            get_supabase().table("casa").select("rotacao_versao")
-            .eq("id", casa["id"]).execute()
-        ).data[0]["rotacao_versao"]
-        assert versao == 1
-
         excluida = cliente.delete(
             f"/casas/{casa['id']}"
         )

@@ -292,15 +292,12 @@ def test_atualizar_casa_converte_nova_foto(
     assert resultado["foto"] == nova_foto_base64
 
 
-def test_atualizar_fuso_incrementa_versao_e_repete_apos_conflito(
+def test_atualizar_fuso_da_casa(
     servico, consulta, id_casa, id_usuario, registro_casa
 ):
-    atualizado = {**registro_casa, "timezone": "UTC", "rotacao_versao": 3}
+    atualizado = {**registro_casa, "timezone": "UTC"}
     consulta.execute.side_effect = [
         SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}]),
-        SimpleNamespace(data=[{"rotacao_versao": 1}]),
-        SimpleNamespace(data=[]),
-        SimpleNamespace(data=[{"rotacao_versao": 2}]),
         SimpleNamespace(data=[atualizado]),
     ]
 
@@ -309,14 +306,7 @@ def test_atualizar_fuso_incrementa_versao_e_repete_apos_conflito(
     )
 
     assert resultado["timezone"] == "UTC"
-    assert consulta.update.call_args_list == [
-        call({"timezone": "UTC", "rotacao_versao": 2}),
-        call({"timezone": "UTC", "rotacao_versao": 3}),
-    ]
-    assert consulta.eq.call_args_list[-2:] == [
-        call("id", str(id_casa)),
-        call("rotacao_versao", 2),
-    ]
+    consulta.update.assert_called_once_with({"timezone": "UTC"})
 
 def test_atualizar_casa_sem_dados_gera_400(
     servico, consulta, id_casa, id_usuario

@@ -1,11 +1,13 @@
-# Alinhamento de tarefas, rodízio e pontuação — Sprint 2
+# Alinhamento de tarefas e pontuação — Sprint 2
 
 ## Objetivo
 
-Unificar o contrato de criação, edição e conclusão de tarefas com o placar e a
-geração de ocorrências rotativas. As migrations antigas permanecem intactas;
-suas descrições em outros documentos da sprint registram o comportamento de
-cada entrega na época.
+Unificar o contrato de criação, edição e conclusão de tarefas com o placar.
+A integração ativa do rodízio foi retirada do backend e da gravação no frontend;
+a prévia de tarefa rotativa que já existia na interface permanece. As migrations
+`17.sql` a `19.sql` permanecem intactas e não foram aplicadas nesta retirada.
+As descrições de entregas anteriores em outros documentos da sprint são
+históricas.
 
 ## Contrato atual
 
@@ -16,25 +18,9 @@ cada entrega na época.
   (data local da casa), vence no fim desse dia e abre `prazo_dias` antes.
 - `PATCH /tarefas/{id}` edita as regras permitidas para tarefa unitária; o
   cliente envia `prazo_dias` e, no modo de dia fixo, `data_fixa`. `data_fim` é
-  calculada pelo backend e não é aceita como entrada. Ocorrências rotativas não
-  são editadas individualmente. Datas de instante na resposta usam UTC
-  explícito, inclusive para registros legados armazenados sem fuso.
-- `POST /rotatividades/` registra a configuração semanal, com dois ou mais
-  participantes elegíveis em ordem, `dias_semana` (1 = segunda, 7 = domingo) e
-  `intervalo_semanas` de 1 a 4. `GET /rotatividades/{id}/ocorrencias` consulta
-  as tarefas geradas. Cada ocorrência possui ID, responsável e histórico
-  próprios; uma ocorrência aberta não impede a seguinte. A primeira semana
-  agendada é a atual se ainda há um dia programado, ou a próxima se os dias
-  escolhidos já passaram.
-- O processo `python -m services.rotatividade`, iniciado em `src/backend`,
-  verifica a agenda periodicamente, cria as ocorrências devidas e encerra as
-  expiradas. A atribuição escolhe, entre os participantes que ainda pertencem
-  à casa, quem recebeu menos **pontos possíveis** em ocorrências rotativas da
-  casa no mês local da nova ocorrência. A ordem configurada desempata;
-  repetições do mesmo responsável são permitidas. Uma versão por casa e a
-  unicidade da ocorrência protegem execuções concorrentes ou repetidas. O fuso
-  da agenda é guardado na configuração para preservar os dias programados se o
-  fuso da casa mudar; o mês do balanceamento segue o fuso atual da casa.
+  calculada pelo backend e não é aceita como entrada. Datas de instante na
+  resposta usam UTC explícito, inclusive para registros legados armazenados
+  sem fuso.
 - `PATCH /tarefas/{id}` com apenas `{"estado_atual":"finalizado"}` calcula o
   desconto em Python: `100 / (atraso_maximo + 1)` por dia de atraso, com
   arredondamento final. A operação transacional registra conclusão, um evento
@@ -51,19 +37,19 @@ cada entrega na época.
   livre do saldo. A exclusão de tarefas e vínculos com créditos é bloqueada
   para preservar o histórico do placar.
 
-O frontend grava tarefas e rodízios pela API quando ela está configurada, usa
-os campos aceitos pelo `PATCH` na edição e exibe o placar. Sem a API, a tela de
-criação continua oferecendo uma prévia local com dados fictícios.
+O frontend grava tarefas comuns pela API quando ela está configurada, usa os
+campos aceitos pelo `PATCH` na edição e exibe o placar. A opção rotativa mantém
+somente a prévia local, sem gravar configuração ou gerar ocorrências. Sem a API,
+a tela de criação oferece uma prévia local com dados fictícios.
 
 ## Arquivos principais
 
 - `src/backend/schemas/` e `src/backend/routers/`: contratos e endpoints de
-  tarefas, rodízios, casas e vínculos.
-- `src/backend/services/tarefa.py`, `rotatividade.py` e `placar.py`: janelas,
-  distribuição mensal, conclusão e agregação do placar.
+  tarefas, casas e vínculos.
+- `src/backend/services/tarefa.py` e `placar.py`: janelas, conclusão e agregação
+  do placar.
 - `src/frontend/src/app/nova-tarefa.tsx`, `tarefas.tsx` e componentes de
   detalhe/edição: criação, placar, conclusão e edição conectadas à API.
-- `docker-compose.yml`: serviço `rotatividade-worker` para a agenda periódica.
 
 ## Migrations e histórico
 
@@ -75,6 +61,11 @@ criação continua oferecendo uma prévia local com dados fictícios.
 | `docs/migrations/17.sql` | Acrescenta fuso, esquema do rodízio, unicidade de ocorrências e preservação de eventos; converte datas de eventos legadas assumindo UTC. |
 | `docs/migrations/18.sql` | Cria operações transacionais do rodízio e das exclusões protegidas; atualiza a conclusão para devolver a pontuação e o saldo. |
 | `docs/migrations/19.sql` | Reconcilia `pertencer.score` com a soma de `score_event`; aplicar somente após revisar a auditoria. |
+
+O esquema e as funções de rodízio continuam em `17.sql` e `18.sql`, mas não
+têm rota, serviço periódico nem gravação no frontend. Sua eventual aplicação
+deixará esses objetos sem consumidor ativo. Nenhuma migration foi editada ou
+executada nesta retirada.
 
 Confira o histórico efetivamente aplicado no Supabase antes de executar SQL.
 No Supabase consultado para esta implementação, a verificação somente de
@@ -88,14 +79,12 @@ não podem ser reconstruídos a partir do repositório.
 
 ## Validação e pendências
 
-Passaram 212 testes unitários do backend, 23 testes do frontend e o typecheck
-TypeScript. As migrations `17.sql` a `19.sql` passaram na análise sintática
-PostgreSQL. O Ruff dos arquivos alterados do backend e o ESLint dos arquivos
-alterados do frontend, com a regra Prettier desabilitada, passaram. O lint global
-do frontend ainda encontra erros de formatação e finais de linha existentes no
-projeto. A coleta dos
-testes de integração passou, mas a execução real de crédito, concorrência,
-saldo, eventos e geração de ocorrências depende da aplicação sequencial das
-migrations no Supabase exclusivo de testes. As verificações do banco feitas
-até aqui foram somente de leitura; nenhuma migration foi aplicada. A validação
-em Android e iOS também continua pendente.
+Após a retirada, passaram 198 testes unitários do backend, 23 testes do
+frontend, o typecheck TypeScript, Ruff dos arquivos Python alterados,
+ESLint dos arquivos de aplicação alterados (com Prettier desabilitado) e
+`git diff --check`. As migrations `17.sql` a `19.sql` não foram alteradas;
+sua análise sintática PostgreSQL havia passado na implementação anterior.
+Testes reais de crédito, concorrência, saldo e eventos no Supabase dependem
+das migrations no banco exclusivo de testes e não foram executados nesta
+retirada. Nenhuma migration foi aplicada. A validação em Android e iOS
+continua pendente.

@@ -7,7 +7,6 @@ import {
   carregarUsuarioAtual,
   carregarPlacar,
   criarTarefa,
-  criarRotatividade,
   editarTarefa,
   finalizarTarefa,
   temConfiguracaoTarefas,
@@ -177,7 +176,7 @@ test("finaliza a tarefa pelo endpoint autenticado", async () => {
   }
 });
 
-test("cria tarefa unitária e rodízio com contratos distintos", async () => {
+test("cria tarefa unitária com o contrato da API", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
   process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
@@ -190,11 +189,9 @@ test("cria tarefa unitária e rodízio com contratos distintos", async () => {
   try {
     const base = { fk_casa_id: "casa-123", nome: "Limpar cozinha", descricao: "", peso: 2, prazo_dias: 3, atraso_maximo: 2, modo_prazo: "intervalo" };
     await criarTarefa({ ...base, tipo: "unitaria", usuarios_atribuidos: ["ana"] });
-    await criarRotatividade({ ...base, participantes: ["ana", "bruno"], dias_semana: [1, 4], intervalo_semanas: 2 });
-    assert.deepEqual(chamadas.map(({ url }) => url), ["http://api.test/tarefas/", "http://api.test/rotatividades/"]);
-    assert.deepEqual(chamadas.map(({ opcoes }) => opcoes.method), ["POST", "POST"]);
+    assert.deepEqual(chamadas.map(({ url }) => url), ["http://api.test/tarefas/"]);
+    assert.deepEqual(chamadas.map(({ opcoes }) => opcoes.method), ["POST"]);
     assert.deepEqual(JSON.parse(chamadas[0].opcoes.body).usuarios_atribuidos, ["ana"]);
-    assert.deepEqual(JSON.parse(chamadas[1].opcoes.body).participantes, ["ana", "bruno"]);
   } finally {
     globalThis.fetch = original;
   }

@@ -134,8 +134,6 @@ class ServicoTarefa:
                 .isoformat()
                 if modo_prazo == "dia_fixo" else None
             ),
-            "rotatividade_id": tarefa.get("rotatividade_id"),
-            "ocorrencia_em": tarefa.get("ocorrencia_em"),
             "concluida_em": self._data_fim_com_fuso(concluida).isoformat() if concluida else None,
             "resultado_pontuacao": tarefa.get("resultado_pontuacao"),
             "referencia_inicio": tarefa.get("referencia_inicio", "criacao"),
@@ -374,11 +372,6 @@ class ServicoTarefa:
             )
         if finalizacao_pelo_responsavel:
             return self._finalizar_tarefa(tarefa_atual, responsaveis)
-        if tarefa_atual.get("rotatividade_id"):
-            raise HTTPException(
-                status_code=409,
-                detail="A ocorrência rotativa não pode ser editada separadamente.",
-            )
         usuarios_foram_informados = "usuarios_atribuidos" in dados_tarefa.model_fields_set
         dados = dados_tarefa.model_dump(
             mode="json",
@@ -473,10 +466,10 @@ class ServicoTarefa:
             tarefa_atual["fk_casa_id"],
             id_usuario_atual,
         )
-        if tarefa_atual.get("rotatividade_id") or tarefa_atual["estado_atual"] == "finalizado":
+        if tarefa_atual["estado_atual"] == "finalizado":
             raise HTTPException(
                 status_code=409,
-                detail="Tarefa com histórico de rodízio ou crédito não pode ser excluída.",
+                detail="Tarefa com crédito registrado não pode ser excluída.",
             )
         try:
             resposta = self.supabase.rpc(

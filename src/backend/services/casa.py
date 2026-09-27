@@ -158,31 +158,6 @@ class ServicoCasa:
         if "foto" in dados:
             dados["foto"] = self._foto_para_banco(dados["foto"])
 
-        if "timezone" in dados:
-            for _ in range(5):
-                casa_atual = (
-                    self.supabase.table("casa")
-                    .select("rotacao_versao")
-                    .eq("id", str(id_casa))
-                    .execute()
-                ).data
-                if not casa_atual:
-                    raise HTTPException(status_code=404, detail="Casa não encontrada.")
-                versao = casa_atual[0]["rotacao_versao"]
-                resposta = (
-                    self.supabase.table("casa")
-                    .update({**dados, "rotacao_versao": versao + 1})
-                    .eq("id", str(id_casa))
-                    .eq("rotacao_versao", versao)
-                    .execute()
-                )
-                if resposta.data:
-                    return self._montar_resposta(resposta.data[0])
-            raise HTTPException(
-                status_code=409,
-                detail="A casa mudou durante a atualização. Tente novamente.",
-            )
-
         resposta = (
             self.supabase.table("casa")
             .update(dados)

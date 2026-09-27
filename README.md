@@ -36,7 +36,8 @@ acessa o Supabase para persistir os dados.
 Para visualizar somente a tela **Nova tarefa**, siga diretamente a
 [etapa 3 — Frontend](#3-inicie-o-frontend). Sem configuração da API, a tela usa
 dados fictícios e não precisa de backend, Docker, Supabase ou `.env`. Com a API
-configurada, a criação grava tarefas e rodízios no Supabase por meio do backend.
+configurada, a criação grava tarefas comuns no Supabase por meio do backend.
+A opção rotativa permanece como prévia local e não grava rodízios.
 A tela **Tarefas** consulta a API e requer a configuração abaixo.
 
 ### Pré-requisitos
@@ -58,9 +59,10 @@ SUPABASE_KEY=sua-chave-do-supabase
 Não versione esse arquivo nem exponha as credenciais.
 
 Antes de iniciar o backend com um banco existente, confira quais migrations de
-`docs/migrations/` já foram aplicadas. Para esta entrega, a sequência é
-`14.sql`, `15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam
-do banco.
+`docs/migrations/` já foram aplicadas. A sequência dos arquivos é `14.sql`,
+`15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam do banco.
+As migrations `17.sql` e `18.sql` também contêm estruturas de rodízio que não
+têm integração ativa na aplicação. Esta retirada não executa migrations.
 O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve ser
 aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Nenhuma
 migration anterior deve ser editada ou reaplicada indiscriminadamente. Veja o
@@ -81,14 +83,6 @@ uvicorn main:app --reload
 A API ficará disponível em `http://127.0.0.1:8000`. Para confirmar que está
 ativa, acesse `http://127.0.0.1:8000/health`.
 
-Para gerar e encerrar ocorrências rotativas, mantenha também o processador
-periódico ativo em outro terminal, iniciado em `src/backend` com o mesmo
-ambiente virtual e `.env`:
-
-```powershell
-python -m services.rotatividade
-```
-
 Para o navegador em outra origem, defina `CORS_ORIGINS` no `.env` do backend
 com as origens separadas por vírgula (por exemplo,
 `http://localhost:8081,http://127.0.0.1:8081`).
@@ -97,7 +91,7 @@ Como alternativa, a partir da raiz do repositório, execute o backend com
 Docker:
 
 ```powershell
-docker compose up --build backend rotatividade-worker
+docker compose up --build backend
 ```
 
 ### 3. Inicie o frontend
@@ -144,9 +138,9 @@ na navegação do app. O formulário contém nome, descrição opcional, peso de
 **Rotativa** recebe pelo menos dois participantes, ordem ajustável e um ou
 mais dias da semana, com repetição a cada 1, 2, 3 ou 4 semanas (por exemplo,
 segunda-feira a cada 2 semanas). Quatro semanas correspondem a 28 dias,
-aproximadamente um mês. Com a API configurada, **Criar tarefa** grava a tarefa
-ou o rodízio; o processador periódico gera as ocorrências e encerra as que
-expiraram. Sem a API, **Conferir tarefa** mostra apenas uma prévia em memória.
+aproximadamente um mês. Com a API configurada, **Criar tarefa** grava apenas
+tarefas comuns. A opção rotativa mostra uma prévia local e não inicia um
+rodízio. Sem a API, **Conferir tarefa** mostra uma prévia em memória.
 
 Se a porta estiver ocupada, use a instância já aberta ou inicie com
 `npm run web -- --port 8082` e ajuste a porta no endereço do navegador.

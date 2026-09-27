@@ -72,8 +72,6 @@ class TarefaResposta(BaseModel):
     tipo: TipoTarefa = "unitaria"
     modo_prazo: ModoPrazo = "intervalo"
     data_fixa: date | None = None
-    rotatividade_id: UUID | None = None
-    ocorrencia_em: datetime | None = None
     concluida_em: datetime | None = None
     resultado_pontuacao: "ResultadoPontuacao | None" = None
     atraso_maximo: AtrasoMaximoLegado

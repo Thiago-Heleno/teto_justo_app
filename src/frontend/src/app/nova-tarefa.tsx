@@ -33,7 +33,6 @@ import {
 } from "@/data/tarefa-demonstracao";
 import {
   carregarContextoTarefas,
-  criarRotatividade,
   criarTarefa as salvarTarefa,
   temConfiguracaoTarefas,
   type Casa,
@@ -129,7 +128,7 @@ export default function NovaTarefaScreen() {
     setErros(resultado.erros);
     Keyboard.dismiss();
     if (resultado.tarefa) {
-      if (!usarApi) {
+      if (!usarApi || resultado.tarefa.rotatividade) {
         setTarefa(resultado.tarefa);
       } else if (casa) {
         if (envioEmAndamento.current) return;
@@ -138,31 +137,18 @@ export default function NovaTarefaScreen() {
         setErroEnvio(undefined);
         try {
           const preparada = resultado.tarefa;
-          if (preparada.rotatividade) {
-            await criarRotatividade({
-              fk_casa_id: casa.id,
-              nome: preparada.nome,
-              descricao: preparada.descricao,
-              peso: preparada.peso,
-              prazo_dias: preparada.prazo_dias,
-              atraso_maximo: preparada.atraso_maximo,
-              modo_prazo: preparada.modo_prazo,
-              ...preparada.rotatividade,
-            });
-          } else {
-            await salvarTarefa({
-              fk_casa_id: casa.id,
-              nome: preparada.nome,
-              descricao: preparada.descricao,
-              peso: preparada.peso,
-              prazo_dias: preparada.prazo_dias,
-              atraso_maximo: preparada.atraso_maximo,
-              tipo: "unitaria",
-              modo_prazo: preparada.modo_prazo,
-              ...(preparada.data_fixa ? { data_fixa: preparada.data_fixa } : {}),
-              usuarios_atribuidos: preparada.usuarios_atribuidos,
-            });
-          }
+          await salvarTarefa({
+            fk_casa_id: casa.id,
+            nome: preparada.nome,
+            descricao: preparada.descricao,
+            peso: preparada.peso,
+            prazo_dias: preparada.prazo_dias,
+            atraso_maximo: preparada.atraso_maximo,
+            tipo: "unitaria",
+            modo_prazo: preparada.modo_prazo,
+            ...(preparada.data_fixa ? { data_fixa: preparada.data_fixa } : {}),
+            usuarios_atribuidos: preparada.usuarios_atribuidos,
+          });
           setTarefa(preparada);
         } catch (erro: unknown) {
           setErroEnvio(erro instanceof Error ? erro.message : "Não foi possível criar a tarefa.");
@@ -220,11 +206,11 @@ export default function NovaTarefaScreen() {
               <Text style={styles.help}>{casa?.nome ?? "Sua casa"}</Text>
               <Text accessibilityRole="header" style={styles.title}>
                 {tarefa
-                  ? usarApi
-                    ? tarefa.rotatividade
-                      ? "RODÍZIO CRIADO!"
-                      : "TAREFA CRIADA!"
-                    : "TUDO PRONTO!"
+                  ? tarefa.rotatividade
+                    ? "PRÉVIA DO RODÍZIO"
+                    : usarApi
+                      ? "TAREFA CRIADA!"
+                      : "TUDO PRONTO!"
                   : "NOVA TAREFA"}
               </Text>
               <Text style={styles.body}>
@@ -239,7 +225,13 @@ export default function NovaTarefaScreen() {
                     : "Demonstração · dados fictícios"}
                 </Text>
               </View>
-              {!usarApi && <Text style={styles.help}>Esta demonstração não salva tarefas.</Text>}
+              {(!usarApi || rotativa) && (
+                <Text style={styles.help}>
+                  {usarApi
+                    ? "Esta prévia não salva nem inicia o rodízio."
+                    : "Esta demonstração não salva tarefas nem inicia o rodízio."}
+                </Text>
+              )}
             </View>
 
             {!contexto ? (
@@ -281,7 +273,9 @@ export default function NovaTarefaScreen() {
                     accessibilityLiveRegion="polite"
                     style={styles.sectionTitle}
                   >
-                    {usarApi ? "Detalhes salvos" : "Prévia da tarefa"}
+                    {usarApi && !tarefa.rotatividade
+                      ? "Detalhes salvos"
+                      : "Prévia da tarefa"}
                   </Text>
                   <View style={styles.section}>
                     <Text style={styles.help}>Nome</Text>
@@ -311,12 +305,16 @@ export default function NovaTarefaScreen() {
                     <Text style={styles.body}>{tarefa.modo_prazo === "dia_fixo" ? "Dia fixo" : "Intervalo"}</Text>
                     {tarefa.data_fixa && <Text style={styles.body}>Vencimento: {tarefa.data_fixa}</Text>}
                   </View>
-                  {!tarefa.rotatividade && (
-                    <View style={styles.section}>
-                      <Text style={styles.help}>Responsável</Text>
-                      <Text style={styles.body}>{moradores.find((morador) => morador.id === tarefa.usuarios_atribuidos[0])?.nome}</Text>
-                    </View>
-                  )}
+                  <View style={styles.section}>
+                    <Text style={styles.help}>
+                      {tarefa.rotatividade
+                        ? "Primeiro responsável"
+                        : "Responsável"}
+                    </Text>
+                    <Text style={styles.body}>
+                      {moradores.find((morador) => morador.id === tarefa.usuarios_atribuidos[0])?.nome}
+                    </Text>
+                  </View>
                   {tarefa.rotatividade && (
                     <View style={styles.section}>
                       <Text style={styles.help}>
@@ -334,14 +332,18 @@ export default function NovaTarefaScreen() {
                           .map((dia) => dia.rotulo)
                           .join(", ")}
                       </Text>
-                      <Text style={styles.help}>Ordem de desempate do rodízio</Text>
+                      <Text style={styles.help}>Ordem do rodízio</Text>
                       {tarefa.rotatividade.participantes.map((id, indice) => (
                         <Text key={id} style={styles.body}>
                           {indice + 1}.{" "}
                           {moradores.find((morador) => morador.id === id)?.nome}
                         </Text>
                       ))}
-                      <Text style={styles.help}>A próxima ocorrência será atribuída a quem tiver menos pontos possíveis no mês. Esta ordem resolve empates.</Text>
+                      <Text style={styles.help}>
+                        Em cada período, o próximo participante fica
+                        responsável. Após o último participante, a sequência
+                        recomeça.
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -350,7 +352,11 @@ export default function NovaTarefaScreen() {
                   onPress={criarOutraTarefa}
                   style={styles.button}
                 >
-                  <Text style={styles.body}>Criar outra tarefa</Text>
+                  <Text style={styles.body}>
+                    {tarefa.rotatividade
+                      ? "Conferir outra tarefa"
+                      : "Criar outra tarefa"}
+                  </Text>
                 </MotionPressable>
               </>
             ) : (
@@ -552,28 +558,46 @@ export default function NovaTarefaScreen() {
                     >
                       QUEM VAI FAZER?
                     </Text>
-                    <MotionPressable
-                      accessibilityRole="checkbox"
-                      accessibilityLabel="Rotacionar entre membros selecionados"
-                      accessibilityState={{ checked: rotativa }}
-                      onPress={() => {
-                        setRotativa((atual) => !atual);
-                        setErros((atuais) => ({
-                          ...atuais,
-                          responsavel: undefined,
-                          participantes: undefined,
-                          diasSemana: undefined,
-                          semanas: undefined,
-                          dataFixa: undefined,
-                        }));
-                      }}
-                      style={[styles.option, rotativa && styles.selected]}
+                    <View
+                      style={styles.options}
+                      accessibilityRole="radiogroup"
+                      accessibilityLabel="Tipo de tarefa"
                     >
-                      <View accessible={false} style={styles.checkbox}>
-                        <Text style={styles.help}>{rotativa ? "✓" : ""}</Text>
-                      </View>
-                      <Text style={styles.body}>Rotacionar entre membros selecionados</Text>
-                    </MotionPressable>
+                      {[
+                        { valor: false, nome: "Comum" },
+                        { valor: true, nome: "Rotativa" },
+                      ].map((opcao) => (
+                        <MotionPressable
+                          key={opcao.nome}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`Tarefa ${opcao.nome.toLowerCase()}`}
+                          accessibilityState={{
+                            checked: rotativa === opcao.valor,
+                          }}
+                          aria-checked={rotativa === opcao.valor}
+                          onPress={() => {
+                            setRotativa(opcao.valor);
+                            setErros((atuais) => ({
+                              ...atuais,
+                              responsavel: undefined,
+                              participantes: undefined,
+                              diasSemana: undefined,
+                              semanas: undefined,
+                              dataFixa: undefined,
+                            }));
+                          }}
+                          style={[
+                            styles.option,
+                            rotativa === opcao.valor && styles.selected,
+                          ]}
+                        >
+                          <IndicadorSelecao
+                            selecionado={rotativa === opcao.valor}
+                          />
+                          <Text style={styles.body}>{opcao.nome}</Text>
+                        </MotionPressable>
+                      ))}
+                    </View>
                     <Text style={styles.body}>
                       {rotativa
                         ? "Participantes do rodízio *"
@@ -581,7 +605,7 @@ export default function NovaTarefaScreen() {
                     </Text>
                     <Text style={styles.help}>
                       {rotativa
-                        ? "Escolha pelo menos dois moradores. A ordem será usada para desempates na distribuição."
+                        ? "Escolha pelo menos dois moradores, na ordem em que vão participar. O primeiro selecionado começa."
                         : "Escolha apenas um morador. Ao escolher outro, a seleção anterior é substituída."}
                     </Text>
                   </View>
@@ -674,6 +698,7 @@ export default function NovaTarefaScreen() {
                                   moradores.find((morador) => morador.id === id)
                                     ?.nome
                                 }
+                                {indice === 0 ? " · começa" : ""}
                               </Text>
                               {indice > 0 && (
                                 <MotionPressable
@@ -698,7 +723,7 @@ export default function NovaTarefaScreen() {
                             </View>
                           ))}
                           <Text style={styles.help}>
-                            A distribuição considera os pontos possíveis atribuídos no mês.
+                            Após o último, o rodízio volta ao primeiro.
                           </Text>
                         </View>
                       )}
@@ -818,7 +843,15 @@ export default function NovaTarefaScreen() {
                   onPress={() => void criarTarefa()}
                   style={styles.button}
                 >
-                  <Text style={styles.body}>{salvando ? "Criando..." : usarApi ? "Criar tarefa" : "Conferir tarefa"}</Text>
+                  <Text style={styles.body}>
+                    {salvando
+                      ? "Criando..."
+                      : rotativa
+                        ? "Conferir rodízio"
+                        : usarApi
+                          ? "Criar tarefa"
+                          : "Conferir tarefa"}
+                  </Text>
                 </MotionPressable>
               </>
             )}
