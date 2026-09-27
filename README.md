@@ -61,10 +61,8 @@ Não versione esse arquivo nem exponha as credenciais.
 Antes de iniciar o backend com um banco existente, confira quais migrations de
 `docs/migrations/` já foram aplicadas. A sequência dos arquivos é `14.sql`,
 `15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam do banco.
-Se `15.sql` já foi aplicada antes de `14.sql`, execute `20.sql` logo após
-`14.sql` para remover a função legada recriada, antes de seguir para `17.sql`.
 As migrations `17.sql` e `18.sql` também contêm estruturas de rodízio que não
-têm integração ativa na aplicação. O repositório não as executa automaticamente.
+têm integração ativa na aplicação. Esta retirada não executa migrations.
 O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve ser
 aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Nenhuma
 migration anterior deve ser editada ou reaplicada indiscriminadamente. Veja o
