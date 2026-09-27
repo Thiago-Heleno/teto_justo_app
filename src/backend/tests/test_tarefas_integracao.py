@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -97,6 +98,73 @@ def test_crud_tarefa_no_supabase(
         # TESTE: Garantir que foi excluída
         inexistente = cliente.get(f"/tarefas/{tarefa['id']}")
         assert inexistente.status_code == 404
+
+
+@pytest.mark.parametrize("modo_prazo", ["intervalo", "dia_fixo"])
+def test_tipo_e_modo_prazo_persistem_no_supabase(
+    dependencias_temporarias, autenticacao_temporaria, modo_prazo
+):
+    supabase = get_supabase()
+    casa_id = dependencias_temporarias["casa_id"]
+    usuario_id = dependencias_temporarias["usuario_id"]
+    fuso = ZoneInfo("America/Manaus")
+    supabase.table("casa").update({"timezone": fuso.key}).eq("id", casa_id).execute()
+
+    dados = {
+        "nome": f"Tarefa {modo_prazo}",
+        "peso": 2,
+        "prazo_dias": 2,
+        "atraso_maximo": 2,
+        "tipo": "unitaria",
+        "modo_prazo": modo_prazo,
+        "fk_casa_id": casa_id,
+        "usuarios_atribuidos": [usuario_id],
+    }
+    data_fixa = None
+    if modo_prazo == "dia_fixo":
+        data_fixa = datetime.now(fuso).date() + timedelta(days=10)
+        dados["data_fixa"] = data_fixa.isoformat()
+
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as cliente:
+        antes = datetime.now(timezone.utc)
+        criada = cliente.post("/tarefas/", json=dados)
+        depois = datetime.now(timezone.utc)
+        assert criada.status_code == 201, criada.text
+        tarefa_id = criada.json()["id"]
+
+        encontrada = cliente.get(f"/tarefas/{tarefa_id}")
+        assert encontrada.status_code == 200, encontrada.text
+        for resposta in (criada.json(), encontrada.json()):
+            assert resposta["tipo"] == "unitaria"
+            assert resposta["modo_prazo"] == modo_prazo
+            assert resposta["data_fixa"] == (data_fixa.isoformat() if data_fixa else None)
+
+        for campo, valor in (("tipo", "rotativa"), ("modo_prazo", "dia_fixo")):
+            rejeitada = cliente.patch(f"/tarefas/{tarefa_id}", json={campo: valor})
+            assert rejeitada.status_code == 422, rejeitada.text
+
+    registro = (
+        supabase.table("tarefa")
+        .select("tipo,modo_prazo,prazo_dias,data_inicio,data_fim,timezone")
+        .eq("id", tarefa_id)
+        .single()
+        .execute()
+        .data
+    )
+    assert registro["tipo"] == "unitaria"
+    assert registro["modo_prazo"] == modo_prazo
+    assert registro["prazo_dias"] == 2
+    # As colunas TIMESTAMP da tarefa armazenam datas em UTC sem indicador de fuso.
+    inicio = datetime.fromisoformat(registro["data_inicio"]).replace(tzinfo=timezone.utc)
+    fim = datetime.fromisoformat(registro["data_fim"]).replace(tzinfo=timezone.utc)
+    assert fim - inicio == timedelta(days=2)
+    if modo_prazo == "dia_fixo":
+        assert registro["timezone"] == fuso.key
+        assert fim == datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(
+            timezone.utc
+        )
+    else:
+        assert antes <= inicio <= depois
 
 
 def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(

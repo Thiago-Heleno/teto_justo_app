@@ -64,6 +64,7 @@ a tela de criação oferece uma prévia local com dados fictícios.
 | `docs/migrations/17.sql` | Acrescenta fuso, esquema do rodízio, unicidade de ocorrências e preservação de eventos; converte datas de eventos legadas assumindo UTC. |
 | `docs/migrations/18.sql` | Cria operações transacionais do rodízio e das exclusões protegidas; atualiza a conclusão para devolver a pontuação e o saldo. |
 | `docs/migrations/19.sql` | Reconcilia `pertencer.score` com a soma de `score_event`; aplicar somente após revisar a auditoria. |
+| `docs/migrations/20.sql` | Remove o trigger e a função legados caso `14.sql` seja aplicada depois de `15.sql`; exige as estruturas das duas migrations. |
 
 O esquema e as funções de rodízio continuam em `17.sql` e `18.sql`, mas não
 têm rota, serviço periódico nem gravação no frontend. Sua eventual aplicação
@@ -71,23 +72,23 @@ deixará esses objetos sem consumidor ativo. Nenhuma migration foi editada ou
 executada nesta retirada.
 
 Confira o histórico efetivamente aplicado no Supabase antes de executar SQL.
-No Supabase consultado para esta implementação, a verificação somente de
-leitura encontrou colunas da `16.sql`, mas não as colunas da `14.sql` nem a
-operação da `15.sql`. Antes de executar SQL, confirme o histórico de aplicação
-nesse banco. Se a verificação for confirmada, a sequência pendente começa em
-`14.sql` e `15.sql`, continua em `17.sql` e `18.sql`, e só então permite avaliar
-a `19.sql`; não reaplique `16.sql`. O arquivo `19.sql`
-ajusta somente saldos de vínculos existentes: eventos históricos já apagados
-não podem ser reconstruídos a partir do repositório.
+No Supabase de desenvolvimento consultado nesta entrega, a API expõe as colunas
+da `16.sql` e a função de conclusão com a assinatura da `15.sql`, mas o banco
+rejeita `tarefa.prazo_dias` e `casa.timezone` como colunas inexistentes. O
+catálogo SQL ainda precisa confirmar constraints, trigger e histórico antes de
+qualquer aplicação. Se confirmar esse estado, a ordem é `14.sql`, `20.sql`,
+`17.sql`, `18.sql`; não reaplicar `15.sql` ou `16.sql`. `19.sql` permanece
+pendente da auditoria: eventos históricos já apagados não podem ser
+reconstruídos a partir do repositório.
 
 ## Validação e pendências
 
-Após a retirada, passaram 198 testes unitários do backend, 23 testes do
-frontend, o typecheck TypeScript, Ruff dos arquivos Python alterados,
-ESLint dos arquivos de aplicação alterados (com Prettier desabilitado) e
-`git diff --check`. As migrations `17.sql` a `19.sql` não foram alteradas;
-sua análise sintática PostgreSQL havia passado na implementação anterior.
-Testes reais de crédito, concorrência, saldo e eventos no Supabase dependem
-das migrations no banco exclusivo de testes e não foram executados nesta
-retirada. Nenhuma migration foi aplicada. A validação em Android e iOS
-continua pendente.
+O workflow unitário passou a descobrir todos os testes fora de
+`*_integracao.py`, incluindo a conclusão. Foram acrescentados testes de tipo e
+modo de prazo para validação HTTP e persistência real de `intervalo` e
+`dia_fixo`. Passaram 206 testes unitários, Ruff e `git diff --check`; 23 testes
+de integração foram coletados, e 4 testes de usuários e sessões passaram no
+Supabase de desenvolvimento. Os testes de tarefas, casas e vínculos aguardam a
+aplicação das migrations pelo SQL Editor.
+Nenhuma migration foi aplicada nesta entrega; `17.sql` a `19.sql` não foram
+alteradas. A validação em Android e iOS permanece pendente.
