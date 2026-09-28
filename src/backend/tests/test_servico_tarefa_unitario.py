@@ -917,3 +917,61 @@ def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
     assert resposta["data_inicio"] == "2026-09-01T08:00:00+00:00"
     assert resposta["data_fim"] == "2026-09-02T08:00:00+00:00"
     assert resposta["concluida_em"] == "2026-09-02T07:00:00+00:00"
+
+def test_reabrir_tarefa_gera_reversal_e_decrementa_score(
+    servico, consulta, registro_tarefa, ids_relacionados
+):
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    tarefa_finalizada = {**registro_tarefa, "estado_atual": "finalizado"}
+    tarefa_reaberta = {**registro_tarefa, "estado_atual": "pendente", "concluida_em": None}
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa_reaberta]),  # update tarefa (CAS)
+        SimpleNamespace(  # select score_event tipo=credito
+            data=[{
+                "fk_usuario_id": str(responsavel),
+                "fk_casa_id": str(ids_relacionados["fk_casa_id"]),
+                "pontuacao": 25,
+            }]
+        ),
+        SimpleNamespace(data=[{"id": str(uuid4())}]),  # insert reversal
+        SimpleNamespace(data=[{"score": 100}]),  # select score em _ajustar_score
+        SimpleNamespace(data=[{"score": 75}]),  # update score (CAS) — 1ª tentativa dá certo
+    ]
+    servico._montar_resposta = MagicMock(return_value={"id": tarefa_reaberta["id"]})
+
+    resultado = servico._reabrir_tarefa(tarefa_finalizada)
+
+    assert resultado == {"id": tarefa_reaberta["id"]}
+    payload_reversal = consulta.insert.call_args_list[0].args[0]
+    assert payload_reversal["tipo"] == "reversal"
+    assert payload_reversal["pontuacao"] == -25
+    payload_score = consulta.update.call_args_list[-1].args[0]
+    assert payload_score == {"score": 75}
+
+
+def test_reabrir_tarefa_nao_finalizada_da_409(servico, consulta, registro_tarefa):
+    consulta.execute.side_effect = [SimpleNamespace(data=[])]  # CAS falhou
+
+    with pytest.raises(HTTPException) as erro:
+        servico._reabrir_tarefa(registro_tarefa)
+
+    assert erro.value.status_code == 409
+    consulta.insert.assert_not_called()
+
+
+def test_ajustar_score_tenta_de_novo_apos_conflito(servico, consulta, ids_relacionados):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"score": 100}]),  # 1ª leitura
+        SimpleNamespace(data=[]),  # 1ª tentativa de update falha (concorrência)
+        SimpleNamespace(data=[{"score": 90}]),  # 2ª leitura, já com valor atualizado
+        SimpleNamespace(data=[{"score": 65}]),  # 2ª tentativa dá certo
+    ]
+
+    servico._ajustar_score(
+        ids_relacionados["usuarios_atribuidos"][0],
+        ids_relacionados["fk_casa_id"],
+        -25,
+    )
+
+    assert consulta.update.call_count == 2
+    assert consulta.update.call_args_list[-1].args[0] == {"score": 65}
