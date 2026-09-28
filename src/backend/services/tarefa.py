@@ -500,7 +500,6 @@ class ServicoTarefa:
             )
         return True
 
-    
     def _ajustar_score(
         self,
         id_usuario: UUID | str,
@@ -531,7 +530,7 @@ class ServicoTarefa:
                 .execute()
             )
             if resposta.data:
-                return 
+                return
         raise HTTPException(
             status_code=409,
             detail="Não foi possível atualizar o score, tente novamente.",
