@@ -107,6 +107,27 @@ def test_dia_fixo_exige_data_e_intervalo_a_proibe(payload):
     assert TarefaCriar(**payload, modo_prazo="dia_fixo", data_fixa="2030-01-01").data_fixa
 
 
+@pytest.mark.parametrize(
+    "campo,valor",
+    [
+        ("tipo", "rotativa"),
+        ("tipo", "outra"),
+        ("modo_prazo", "semanal"),
+    ],
+)
+def test_http_rejeita_tipo_ou_modo_nao_suportado(cliente, payload, campo, valor):
+    resposta = cliente.post("/tarefas/", json={**payload, campo: valor})
+    assert resposta.status_code == 422
+    assert any(erro["loc"][-1] == campo for erro in resposta.json()["detail"])
+
+
+@pytest.mark.parametrize("campo,valor", [("tipo", "rotativa"), ("modo_prazo", "dia_fixo")])
+def test_http_nao_permite_alterar_tipo_ou_modo(cliente, campo, valor):
+    resposta = cliente.patch("/tarefas/id", json={campo: valor})
+    assert resposta.status_code == 422
+    assert any(erro["loc"][-1] == campo for erro in resposta.json()["detail"])
+
+
 def test_atualizacao_nao_pode_reiniciar_prazo_ou_apagar_regras(cliente):
     for dados in [
         {"data_inicio": "2030-01-01T00:00:00Z"},
