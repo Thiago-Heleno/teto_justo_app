@@ -504,9 +504,12 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
         repetida = cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
         assert repetida.status_code == 409, repetida.text
     eventos = (
-        supabase.table("score_event").select("pontuacao").eq("fk_tarefa_id", tarefa_id).execute()
+        supabase.table("score_event").select("tipo,pontuacao").eq("fk_tarefa_id", tarefa_id).execute()
     )
-    assert [evento["pontuacao"] for evento in eventos.data] == ([pontos] if status == 200 else [])
+    assert {(evento["tipo"], evento["pontuacao"]) for evento in eventos.data} == (
+        ({("credito", 50)} | ({("late_penalty", pontos - 50)} if pontos < 50 else set()))
+        if status == 200 else set()
+    )
     saldo = (
         supabase.table("pertencer")
         .select("score")

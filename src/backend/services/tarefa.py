@@ -500,75 +500,15 @@ class ServicoTarefa:
             )
         return True
 
-    def _ajustar_score(
-        self,
-        id_usuario: UUID | str,
-        id_casa: UUID | str,
-        delta: int,
-        tentativas: int = 5,
-    ) -> None:
-        for _ in range(tentativas):
-            vinculo = (
-                self.supabase.table("pertencer")
-                .select("score")
-                .eq("fk_usuario_id", str(id_usuario))
-                .eq("fk_casa_id", str(id_casa))
-                .execute()
-            ).data
-            if not vinculo:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Vínculo de morador não encontrado.",
-                )
-            valor_lido = vinculo[0]["score"] or 0
-            resposta = (
-                self.supabase.table("pertencer")
-                .update({"score": valor_lido + delta})
-                .eq("fk_usuario_id", str(id_usuario))
-                .eq("fk_casa_id", str(id_casa))
-                .eq("score", valor_lido)
-                .execute()
-            )
-            if resposta.data:
-                return
-        raise HTTPException(
-            status_code=409,
-            detail="Não foi possível atualizar o score, tente novamente.",
-        )
-
     def _reabrir_tarefa(self, tarefa: dict) -> dict:
-        resposta_tarefa = (
-            self.supabase.table("tarefa")
-            .update({"estado_atual": "pendente", "concluida_em": None})
-            .eq("id", str(tarefa["id"]))
-            .eq("estado_atual", "finalizado")
-            .execute()
-        )
-        if not resposta_tarefa.data:
-            raise HTTPException(
-                status_code=409,
-                detail="Tarefa não está finalizada.",
-            )
-
-        credito = (
-            self.supabase.table("score_event")
-            .select("fk_usuario_id, fk_casa_id, pontuacao")
-            .eq("fk_tarefa_id", str(tarefa["id"]))
-            .eq("tipo", "credito")
-            .execute()
-        ).data
-        if credito:
-            self.supabase.table("score_event").insert({
-                "fk_usuario_id": credito[0]["fk_usuario_id"],
-                "fk_casa_id": credito[0]["fk_casa_id"],
-                "fk_tarefa_id": str(tarefa["id"]),
-                "pontuacao": -credito[0]["pontuacao"],
-                "tipo": "reversal",
-            }).execute()
-            self._ajustar_score(
-                credito[0]["fk_usuario_id"],
-                credito[0]["fk_casa_id"],
-                -credito[0]["pontuacao"],
-            )
-
-        return self._montar_resposta(resposta_tarefa.data[0])
+        try:
+            resposta = self.supabase.rpc(
+                "reabrir_tarefa_com_reversao", {"p_id_tarefa": str(tarefa["id"])}
+            ).execute()
+        except APIError as erro:
+            if erro.code == "PT409":
+                raise HTTPException(status_code=409, detail=erro.message) from erro
+            raise
+        if not resposta.data:
+            raise HTTPException(status_code=500, detail="Não foi possível reabrir a tarefa.")
+        return self._montar_resposta(resposta.data)
