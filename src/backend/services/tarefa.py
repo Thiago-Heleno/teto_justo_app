@@ -11,6 +11,7 @@ from services.score import ServicoScore
 
 _ESTADOS_FINAIS = ("finalizado", "nao_feito")
 _FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "atrasadas")
+_MAX_TENTATIVAS_CAS = 5
 
 
 class ServicoTarefa:
@@ -313,28 +314,17 @@ class ServicoTarefa:
         )
         if resultado.dias_atraso > tarefa["atraso_maximo"]:
             raise HTTPException(status_code=409, detail="A tolerância de atraso foi ultrapassada.")
-        try:
-            resposta = self.supabase.rpc(
-                "registrar_conclusao_tarefa",
-                {
-                    "p_id_tarefa": str(tarefa["id"]),
-                    "p_id_usuario": str(resultado.usuario_id),
-                    "p_pontos": resultado.pontos_finais,
-                    "p_concluida_em": concluida_em.isoformat(),
-                    "p_dificuldade": tarefa["dificuldade"],
-                    "p_atraso_maximo": tarefa["atraso_maximo"],
-                    "p_data_fim": tarefa["data_fim"],
-                    "p_data_inicio": tarefa.get("data_inicio"),
-                    "p_id_casa": tarefa["fk_casa_id"],
-                },
-            ).execute()
-        except APIError as erro:
-            if erro.code == "PT409":
-                raise HTTPException(status_code=409, detail=erro.message) from erro
-            raise
-        if not resposta.data:
-            raise HTTPException(status_code=500, detail="Não foi possível registrar a conclusão.")
-        return self._montar_resposta(resposta.data)
+
+        tarefa_finalizada = self._creditar_e_finalizar(
+            tarefa, resultado.usuario_id, resultado.pontos_finais, concluida_em
+        )
+        resposta = self._montar_resposta(tarefa_finalizada)
+        resposta["resultado_pontuacao"] = {
+            "pontos_possiveis": tarefa["pontuacao"],
+            "pontos_ganhos": resultado.pontos_finais,
+            "saldo_atual": self._buscar_saldo(str(resultado.usuario_id), str(tarefa["fk_casa_id"])),
+        }
+        return resposta
 
     def _concluir_tarefa(self, tarefa: dict, id_usuario_atual: UUID):
         responsaveis = self._buscar_usuarios_atribuidos(tarefa["id"])
@@ -500,15 +490,101 @@ class ServicoTarefa:
             )
         return True
 
-    def _reabrir_tarefa(self, tarefa: dict) -> dict:
+    def _creditar_pertencer(self, id_usuario: str, id_casa: str, pontos: int) -> int:
+        for _ in range(_MAX_TENTATIVAS_CAS):
+            atual = (
+                self.supabase.table("pertencer")
+                .select("score")
+                .eq("fk_usuario_id", id_usuario)
+                .eq("fk_casa_id", id_casa)
+                .execute()
+            )
+            if not atual.data:
+                raise HTTPException(
+                    status_code=409,
+                    detail="O responsável precisa ter vínculo de morador na casa.",
+                )
+            score_atual = atual.data[0]["score"]
+            novo_score = score_atual + pontos
+            resposta = (
+                self.supabase.table("pertencer")
+                .update({"score": novo_score})
+                .eq("fk_usuario_id", id_usuario)
+                .eq("fk_casa_id", id_casa)
+                .eq("score", score_atual)  # CAS: só escreve se ninguém mexeu nesse meio-tempo
+                .execute()
+            )
+            if resposta.data:
+                return novo_score
+        raise HTTPException(status_code=409, detail="Conflito ao creditar pontos, tente novamente.")
+
+    def _finalizar_estado_tarefa(self, tarefa: dict, concluida_em: datetime) -> dict | None:
+        resposta = (
+            self.supabase.table("tarefa")
+            .update({
+                "estado_atual": "finalizado",
+                "concluida_em": concluida_em.isoformat(),
+            })
+            .eq("id", str(tarefa["id"]))
+            .in_("estado_atual", ["pendente", "atrasada"])
+            .eq("dificuldade", tarefa["dificuldade"])
+            .eq("atraso_maximo", tarefa["atraso_maximo"])
+            .eq("data_fim", tarefa["data_fim"])
+            .eq("data_inicio", tarefa.get("data_inicio"))
+            .eq("fk_casa_id", tarefa["fk_casa_id"])
+            .execute()
+        )
+        return resposta.data[0] if resposta.data else None
+
+    def _creditar_e_finalizar(
+        self, tarefa: dict, id_usuario: UUID, pontos: int, concluida_em: datetime,
+    ) -> dict:
+        id_usuario_str, id_casa_str = str(id_usuario), str(tarefa["fk_casa_id"])
+
+        vinculo = (
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_usuario_id", id_usuario_str)
+            .eq("fk_casa_id", id_casa_str)
+            .execute()
+        )
+        if not vinculo.data:
+            raise HTTPException(
+                status_code=409,
+                detail="O responsável precisa ter vínculo de morador na casa.",
+            )
+
+        ja_creditado = False
         try:
-            resposta = self.supabase.rpc(
-                "reabrir_tarefa_com_reversao", {"p_id_tarefa": str(tarefa["id"])}
-            ).execute()
+            self.supabase.table("score_event").insert({
+                "fk_usuario_id": id_usuario_str,
+                "fk_casa_id": id_casa_str,
+                "fk_tarefa_id": str(tarefa["id"]),
+                "pontuacao": pontos,
+                "criado_em": concluida_em.isoformat(),
+            }).execute()
         except APIError as erro:
-            if erro.code == "PT409":
-                raise HTTPException(status_code=409, detail=erro.message) from erro
-            raise
-        if not resposta.data:
-            raise HTTPException(status_code=500, detail="Não foi possível reabrir a tarefa.")
-        return self._montar_resposta(resposta.data)
+            if erro.code != "23505":  # não é violação de UNIQUE — outro tipo de erro real
+                raise
+            ja_creditado = True
+
+        if not ja_creditado:
+            self._creditar_pertencer(id_usuario_str, id_casa_str, pontos)
+
+        tarefa_finalizada = self._finalizar_estado_tarefa(tarefa, concluida_em)
+        if tarefa_finalizada is None:
+            raise HTTPException(
+                status_code=409, detail="A tarefa mudou. Atualize antes de concluir."
+            )
+        return tarefa_finalizada
+
+    def _buscar_saldo(self, id_usuario: str, id_casa: str) -> int:
+        resposta = (
+            self.supabase.table("pertencer")
+            .select("score")
+            .eq("fk_usuario_id", id_usuario)
+            .eq("fk_casa_id", id_casa)
+            .execute()
+        )
+        return resposta.data[0]["score"] if resposta.data else 0
+

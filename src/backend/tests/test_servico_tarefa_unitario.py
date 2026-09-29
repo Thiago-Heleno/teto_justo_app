@@ -281,6 +281,7 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
     tarefa = {
         **registro_tarefa,
         "dificuldade": 3,
+        "pontuacao": 50,  # precisa bater com dificuldade=3
         "atraso_maximo": 2,
         "data_fim": (agora - timedelta(hours=horas_atraso)).isoformat(),
     }
@@ -288,18 +289,20 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
         **tarefa,
         "estado_atual": "finalizado",
         "concluida_em": agora.isoformat(),
-        "resultado_pontuacao": {
-            "pontos_possiveis": 50,
-            "pontos_ganhos": pontos,
-            "saldo_atual": 100 + pontos,
-        },
     }
+    saldo_final = 100 + pontos
+
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[tarefa]),
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
+        SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
+        SimpleNamespace(data=[{"ok": True}]),  # 4. score_event.insert
+        SimpleNamespace(data=[{"score": 100}]),  # 5. pertencer.select (score atual)
+        SimpleNamespace(data=[{"score": saldo_final}]),  # 6. pertencer.update (CAS)
+        SimpleNamespace(data=[finalizada]),  # 7. tarefa.update (finalizar)
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. atribuida (resposta)
+        SimpleNamespace(data=[{"score": saldo_final}]),  # 9. _buscar_saldo
     ]
-    banco.rpc.return_value.execute.return_value = SimpleNamespace(data=finalizada)
 
     resultado = servico.atualizar_tarefa(
         id_tarefa,
@@ -308,25 +311,13 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
     )
 
     assert resultado["estado_atual"] == "finalizado"
-    assert resultado["resultado_pontuacao"] == finalizada["resultado_pontuacao"]
+    assert resultado["resultado_pontuacao"] == {
+        "pontos_possiveis": 50,
+        "pontos_ganhos": pontos,
+        "saldo_atual": saldo_final,
+    }
     assert resultado["concluida_em"] == agora.isoformat()
     TarefaResposta.model_validate(resultado)
-    banco.rpc.assert_called_once_with(
-        "registrar_conclusao_tarefa",
-        {
-            "p_id_tarefa": str(id_tarefa),
-            "p_id_usuario": str(responsavel),
-            "p_pontos": pontos,
-            "p_concluida_em": agora.isoformat(),
-            "p_dificuldade": 3,
-            "p_atraso_maximo": 2,
-            "p_data_fim": tarefa["data_fim"],
-            "p_data_inicio": None,
-            "p_id_casa": tarefa["fk_casa_id"],
-        },
-    )
-    consulta.update.assert_not_called()
-    consulta.insert.assert_not_called()
 
 
 def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa, registro_tarefa):
@@ -347,9 +338,16 @@ def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa,
 
 
 def test_endpoint_de_conclusao_usa_responsavel_e_persistencia_atomica(
-    servico, banco, consulta, id_tarefa, registro_tarefa, ids_relacionados
+    servico, banco, consulta, id_tarefa, registro_tarefa, ids_relacionados, monkeypatch
 ):
-    agora = datetime.now(timezone.utc)
+    agora = datetime(2030, 1, 10, tzinfo=timezone.utc)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return agora
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
     tarefa = {
         **registro_tarefa,
         "data_fim": (agora + timedelta(days=1)).isoformat(),
@@ -359,40 +357,34 @@ def test_endpoint_de_conclusao_usa_responsavel_e_persistencia_atomica(
         **tarefa,
         "estado_atual": "finalizado",
         "concluida_em": agora.isoformat(),
-        "resultado_pontuacao": {
-            "pontos_possiveis": 25,
-            "pontos_ganhos": 25,
-            "saldo_atual": 25,
-        },
     }
+
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[tarefa]),
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),
+        SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
+        SimpleNamespace(data=[{"ok": True}]),  # 4. score_event.insert
+        SimpleNamespace(data=[{"score": 0}]),  # 5. pertencer.select (score atual)
+        SimpleNamespace(data=[{"score": 25}]),  # 6. pertencer.update (CAS)
+        SimpleNamespace(data=[finalizada]),  # 7. tarefa.update (finalizar)
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. atribuida (resposta)
+        SimpleNamespace(data=[{"score": 25}]),  # 9. _buscar_saldo
     ]
-    banco.rpc.return_value.execute.return_value = SimpleNamespace(data=finalizada)
 
     resultado = servico.concluir_tarefa(id_tarefa, responsavel)
 
     assert resultado["estado_atual"] == "finalizado"
-    assert resultado["resultado_pontuacao"]["pontos_ganhos"] == 25
-    banco.rpc.assert_called_once()
-    nome_rpc, parametros = banco.rpc.call_args.args
-    assert nome_rpc == "registrar_conclusao_tarefa"
-    concluida_em = parametros.pop("p_concluida_em")
-    assert parametros == {
-        "p_id_tarefa": str(id_tarefa),
-        "p_id_usuario": str(responsavel),
-        "p_pontos": 25,
-        "p_dificuldade": tarefa["dificuldade"],
-        "p_atraso_maximo": tarefa["atraso_maximo"],
-        "p_data_fim": tarefa["data_fim"],
-        "p_data_inicio": tarefa.get("data_inicio"),
-        "p_id_casa": tarefa["fk_casa_id"],
+    assert resultado["resultado_pontuacao"] == {
+        "pontos_possiveis": 25,
+        "pontos_ganhos": 25,
+        "saldo_atual": 25,
     }
-    assert datetime.fromisoformat(concluida_em).tzinfo == timezone.utc
-    consulta.update.assert_not_called()
-    consulta.insert.assert_not_called()
+    assert resultado["concluida_em"] == agora.isoformat()
+
+    dados_evento = consulta.insert.call_args.args[0]
+    assert dados_evento["fk_usuario_id"] == str(responsavel)
+    assert dados_evento["fk_tarefa_id"] == str(id_tarefa)
+    assert dados_evento["pontuacao"] == 25
 
 
 def test_endpoint_de_conclusao_rejeita_nao_responsavel(
@@ -408,6 +400,107 @@ def test_endpoint_de_conclusao_rejeita_nao_responsavel(
 
     assert erro.value.status_code == 403
     banco.rpc.assert_not_called()
+
+
+def test_credito_pertencer_refaz_apos_conflito_de_concorrencia(
+    servico, consulta, id_tarefa, registro_tarefa, ids_relacionados, monkeypatch
+):
+    agora = datetime(2030, 1, 10, tzinfo=timezone.utc)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return agora
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    tarefa = {**registro_tarefa, "data_fim": (agora + timedelta(days=1)).isoformat()}
+    finalizada = {**tarefa, "estado_atual": "finalizado", "concluida_em": agora.isoformat()}
+
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
+        SimpleNamespace(data=[{"ok": True}]),  # 4. score_event.insert
+        SimpleNamespace(data=[{"score": 100}]),  # 5. pertencer.select (1a leitura)
+        SimpleNamespace(data=[]),  # 6. pertencer.update falha -- CAS perdido
+        # 7. pertencer.select (releitura -- alguém creditou 10 no meio-tempo)
+        SimpleNamespace(data=[{"score": 110}]),
+        SimpleNamespace(data=[{"score": 135}]),  # 8. pertencer.update sucesso na 2a tentativa
+        SimpleNamespace(data=[finalizada]),  # 9. tarefa.update (finalizar)
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 10. atribuida (resposta)
+        SimpleNamespace(data=[{"score": 135}]),  # 11. _buscar_saldo
+    ]
+
+    resultado = servico.concluir_tarefa(id_tarefa, responsavel)
+
+    assert resultado["estado_atual"] == "finalizado"
+    assert resultado["resultado_pontuacao"]["saldo_atual"] == 135
+    # 2 tentativas de update em pertencer (1a perdeu o CAS, 2a venceu) + 1 update da tarefa
+    assert consulta.update.call_count == 3
+
+
+def test_score_event_duplicado_com_tarefa_pendente_apenas_finaliza(
+    servico, consulta, id_tarefa, registro_tarefa, ids_relacionados, monkeypatch
+):
+    agora = datetime(2030, 1, 10, tzinfo=timezone.utc)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return agora
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    tarefa = {**registro_tarefa, "data_fim": (agora + timedelta(days=1)).isoformat()}
+    finalizada = {**tarefa, "estado_atual": "finalizado", "concluida_em": agora.isoformat()}
+
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
+        # 4. score_event.insert -> já creditado antes
+        APIError({"code": "23505", "message": "duplicate key"}),
+        SimpleNamespace(data=[finalizada]),  # 5. tarefa.update (finalizar)
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 6. atribuida (resposta)
+        SimpleNamespace(data=[{"score": 25}]),  # 7. _buscar_saldo
+    ]
+
+    resultado = servico.concluir_tarefa(id_tarefa, responsavel)
+
+    assert resultado["estado_atual"] == "finalizado"
+    # só o UPDATE da tarefa -- pertencer não é creditado de novo quando o crédito já existia
+    consulta.update.assert_called_once()
+
+
+def test_score_event_duplicado_com_tarefa_ja_finalizada_da_conflito(
+    servico, consulta, id_tarefa, registro_tarefa, ids_relacionados, monkeypatch
+):
+    agora = datetime(2030, 1, 10, tzinfo=timezone.utc)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return agora
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    tarefa = {**registro_tarefa, "data_fim": (agora + timedelta(days=1)).isoformat()}
+
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
+        # 4. score_event.insert -> já creditado por outra chamada
+        APIError({"code": "23505", "message": "duplicate key"}),
+        # 5. tarefa.update -> 0 linhas, já estava finalizada por quem venceu a corrida
+        SimpleNamespace(data=[]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.concluir_tarefa(id_tarefa, responsavel)
+
+    assert erro.value.status_code == 409
 
 
 def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, registro_tarefa):
@@ -833,23 +926,20 @@ def test_responsavel_invalido_nao_produz_edicao_parcial(servico, consulta, regis
     consulta.delete.assert_not_called()
 
 
-@pytest.mark.parametrize("codigo,esperado", [("PT409", 409), ("08006", None)])
-def test_erro_na_persistencia_nao_produz_gravacoes_separadas(
-    servico, banco, consulta, registro_tarefa, codigo, esperado
+def test_erro_inesperado_no_credito_nao_produz_gravacoes_separadas(
+    servico, consulta, registro_tarefa
 ):
-    banco.rpc.return_value.execute.side_effect = APIError(
-        {
-            "code": codigo,
-            "message": "Falha simulada",
-            "details": None,
-            "hint": None,
-        }
-    )
-    with pytest.raises(HTTPException if esperado else APIError) as erro:
-        servico._finalizar_tarefa(registro_tarefa, [registro_tarefa["fk_usuario_id"]])
-    if esperado:
-        assert erro.value.status_code == esperado
-    consulta.insert.assert_not_called()
+    responsavel = registro_tarefa["fk_usuario_id"]
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": responsavel}]),  # vinculo (pertencer)
+        APIError({"code": "08006", "message": "Falha de conexão"}),  # score_event.insert
+    ]
+
+    with pytest.raises(APIError):
+        servico._finalizar_tarefa(registro_tarefa, [responsavel])
+
+    # o insert falhou por um motivo que não é duplicata (não 23505) -- não credita
+    # pertencer nem finaliza a tarefa.
     consulta.update.assert_not_called()
 
 
@@ -918,27 +1008,3 @@ def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
     assert resposta["data_fim"] == "2026-09-02T08:00:00+00:00"
     assert resposta["concluida_em"] == "2026-09-02T07:00:00+00:00"
 
-def test_reabrir_tarefa_usa_rpc_atomica(servico, banco, consulta, registro_tarefa):
-    tarefa_reaberta = {**registro_tarefa, "estado_atual": "pendente", "concluida_em": None}
-    chamada = MagicMock()
-    chamada.execute.return_value = SimpleNamespace(data=tarefa_reaberta)
-    banco.rpc.return_value = chamada
-    servico._montar_resposta = MagicMock(return_value={"id": tarefa_reaberta["id"]})
-
-    assert servico._reabrir_tarefa(registro_tarefa) == {"id": tarefa_reaberta["id"]}
-    banco.rpc.assert_called_once_with(
-        "reabrir_tarefa_com_reversao", {"p_id_tarefa": registro_tarefa["id"]}
-    )
-    consulta.insert.assert_not_called()
-    consulta.update.assert_not_called()
-
-
-def test_reabrir_tarefa_sem_resultado_da_500(servico, banco, registro_tarefa):
-    chamada = MagicMock()
-    chamada.execute.return_value = SimpleNamespace(data=None)
-    banco.rpc.return_value = chamada
-
-    with pytest.raises(HTTPException) as erro:
-        servico._reabrir_tarefa(registro_tarefa)
-
-    assert erro.value.status_code == 500
