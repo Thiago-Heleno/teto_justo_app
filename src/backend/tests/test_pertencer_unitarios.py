@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from postgrest.exceptions import APIError
 
 from schemas.pertencer import PertencerCriar
 from services.pertencer import ServicoPertencer
@@ -20,36 +19,14 @@ class BancoMemoria:
         self.resultados_vazios = set()
         self.eventos = []
         self.proprietario = None
+        self.rotacao_versao = 0
+        self.atribuidas = []  # lista de {"fk_usuario_id":..., "fk_tarefa_id":...}
+        self.tarefas = {}  # dict: id (str) -> dict com os campos da tarefa
 
     def table(self, nome):
-        if nome not in {"pertencer", "casa", "score_event"}:
+        if nome not in {"pertencer", "casa", "score_event", "atribuida", "tarefa"}:
             raise AssertionError(f"Tabela inesperada: {nome}")
         return Consulta(self, nome)
-
-    def rpc(self, nome, parametros):
-        assert nome == "excluir_vinculo_sem_credito"
-        return ChamadaRpc(self, parametros)
-
-
-class ChamadaRpc:
-    def __init__(self, banco, parametros):
-        self.banco = banco
-        self.parametros = parametros
-
-    def execute(self):
-        usuario_id = self.parametros["p_id_usuario"]
-        casa_id = self.parametros["p_id_casa"]
-        chave = (usuario_id, casa_id)
-        if chave not in self.banco.vinculos:
-            return SimpleNamespace(data=False)
-        if any(
-            evento["fk_usuario_id"] == usuario_id
-            and evento["fk_casa_id"] == casa_id
-            for evento in self.banco.eventos
-        ):
-            raise APIError({"code": "PT409", "message": "Vínculo com histórico."})
-        del self.banco.vinculos[chave]
-        return SimpleNamespace(data=True)
 
 
 # Imita a interface fluente do client do Supabase (table().select().eq().execute()),
@@ -60,6 +37,7 @@ class Consulta:
         self.tabela = tabela
         self.operacao = "select"
         self.filtros = []
+        self.filtros_in = []
         self.intervalo = None
         self.dados = None
 
@@ -71,6 +49,10 @@ class Consulta:
         self.filtros.append((campo, valor))
         return self
 
+    def in_(self, campo, valores):
+        self.filtros_in.append((campo, set(valores)))
+        return self
+
     def range(self, inicio, fim):
         self.intervalo = (inicio, fim)
         return self
@@ -80,32 +62,59 @@ class Consulta:
         self.dados = dict(dados)
         return self
 
+    def update(self, dados):
+        self.operacao = "update"
+        self.dados = dict(dados)
+        return self
+
+    def delete(self):
+        self.operacao = "delete"
+        return self
+
+    def _bate(self, registro):
+        return all(registro.get(c) == valor for c, valor in self.filtros) and all(
+            registro.get(c) in valores for c, valores in self.filtros_in
+        )
+
     # Devolve a mesma estrutura básica de resposta das consultas ao Supabase.
     def execute(self):
         if self.tabela == "casa":
-            return SimpleNamespace(data=(
-                [{"fk_usuario_id": self.banco.proprietario}]
-                if self.banco.proprietario else []
-            ))
+            if self.operacao == "update":
+                self.banco.rotacao_versao = self.dados["rotacao_versao"]
+                return SimpleNamespace(data=[{"rotacao_versao": self.banco.rotacao_versao}])
+            return SimpleNamespace(data=[{
+                "fk_usuario_id": self.banco.proprietario,
+                "rotacao_versao": self.banco.rotacao_versao,
+            }])
         if self.tabela == "score_event":
             return SimpleNamespace(data=[
-                evento for evento in self.banco.eventos
-                if all(evento.get(c) == valor for c, valor in self.filtros)
+                evento for evento in self.banco.eventos if self._bate(evento)
+            ])
+        if self.tabela == "atribuida":
+            return SimpleNamespace(data=[
+                registro for registro in self.banco.atribuidas if self._bate(registro)
+            ])
+        if self.tabela == "tarefa":
+            return SimpleNamespace(data=[
+                dict(tarefa) for tarefa in self.banco.tarefas.values() if self._bate(tarefa)
             ])
         if self.operacao in self.banco.resultados_vazios:
             self.banco.resultados_vazios.remove(self.operacao)
             return SimpleNamespace(data=[])
 
-        encontrados = [
-            v for v in self.banco.vinculos.values()
-            if all(v.get(c) == valor for c, valor in self.filtros)
-        ]
+        encontrados = [v for v in self.banco.vinculos.values() if self._bate(v)]
 
         if self.operacao == "insert":
             chave = (self.dados["fk_usuario_id"], self.dados["fk_casa_id"])
             registro = dict(self.dados)
             self.banco.vinculos[chave] = registro
             return SimpleNamespace(data=[dict(registro)])
+
+        if self.operacao == "delete":
+            chaves = [chave for chave, v in self.banco.vinculos.items() if self._bate(v)]
+            for chave in chaves:
+                del self.banco.vinculos[chave]
+            return SimpleNamespace(data=[{"ok": True}] if chaves else [])
 
         if self.operacao == "select":
             if self.intervalo:
@@ -204,6 +213,7 @@ class TesteServicoPertencer(unittest.TestCase):
         self.assertNotIn(
             (str(self.fk_usuario_id), str(self.fk_casa_id)), self.banco.vinculos
         )
+        self.assertEqual(self.banco.rotacao_versao, 1)
 
     # Excluir um vínculo que já não existe (ou nunca existiu) deve dar 404.
     def test_deletar_pertencer_inexistente_gera_404(self):
@@ -233,6 +243,42 @@ class TesteServicoPertencer(unittest.TestCase):
             self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
 
         self.assertEqual(contexto.exception.status_code, 409)
+
+    def test_deletar_pertencer_com_tarefa_aberta_gera_409(self):
+        self._criar_vinculo()
+        id_tarefa = str(uuid4())
+        self.banco.tarefas[id_tarefa] = {
+            "id": id_tarefa,
+            "fk_casa_id": str(self.fk_casa_id),
+            "estado_atual": "pendente",
+        }
+        self.banco.atribuidas.append({
+            "fk_usuario_id": str(self.fk_usuario_id),
+            "fk_tarefa_id": id_tarefa,
+        })
+
+        with self.assertRaises(HTTPException) as contexto:
+            self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
+
+        self.assertEqual(contexto.exception.status_code, 409)
+
+    # Uma tarefa já finalizada não deve bloquear a exclusão -- só pendente/atrasada.
+    def test_deletar_pertencer_com_tarefa_finalizada_permite_exclusao(self):
+        self._criar_vinculo()
+        id_tarefa = str(uuid4())
+        self.banco.tarefas[id_tarefa] = {
+            "id": id_tarefa,
+            "fk_casa_id": str(self.fk_casa_id),
+            "estado_atual": "finalizado",
+        }
+        self.banco.atribuidas.append({
+            "fk_usuario_id": str(self.fk_usuario_id),
+            "fk_tarefa_id": id_tarefa,
+        })
+
+        resultado = self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
+
+        self.assertTrue(resultado)
 
 
 if __name__ == "__main__":
