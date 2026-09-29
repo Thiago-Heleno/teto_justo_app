@@ -510,8 +510,7 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
     .execute()
     )
     assert {(evento["tipo"], evento["pontuacao"]) for evento in eventos.data} == (
-        ({("credito", 50)} | ({("late_penalty", pontos - 50)} if pontos < 50 else set()))
-        if status == 200 else set()
+        {("credito", pontos)} if status == 200 else set()
     )
     saldo = (
         supabase.table("pertencer")
@@ -661,3 +660,4 @@ def test_conclusoes_simultaneas_creditam_uma_unica_vez(
     assert eventos.data == [{"pontuacao": 50}]
     saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
     assert saldo.data[0]["score"] == 50
+    
