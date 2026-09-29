@@ -467,27 +467,25 @@ class ServicoTarefa:
             tarefa_atual["fk_casa_id"],
             id_usuario_atual,
         )
-        if tarefa_atual["estado_atual"] == "finalizado":
+        if(
+            tarefa_atual["estado_atual"] == "finalizado"
+            or tarefa_atual.get("rotatividade_id") is not None
+        ):
             raise HTTPException(
                 status_code=409,
                 detail="Tarefa com crédito registrado não pode ser excluída.",
             )
         try:
-            resposta = self.supabase.rpc(
-                "excluir_tarefa_sem_credito", {"p_id_tarefa": str(id_tarefa)}
-            ).execute()
+            resposta = self.supabase.table("tarefa").delete().eq("id", str(id_tarefa)).execute()
         except APIError as erro:
-            if erro.code in {"23503", "PT409"}:
+            if erro.code == "23503":
                 raise HTTPException(
                     status_code=409,
                     detail="Tarefa com crédito registrado não pode ser excluída.",
                 ) from erro
             raise
-        if resposta.data is False:
-            raise HTTPException(
-                status_code=404,
-                detail="Tarefa não encontrada.",
-            )
+        if not resposta.data:
+            raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
         return True
 
     def _creditar_pertencer(self, id_usuario: str, id_casa: str, pontos: int) -> int:
