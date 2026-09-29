@@ -6,12 +6,17 @@ PL/pgSQL (`registrar_conclusao_tarefa`, `criar_rotatividade`,
 `excluir_vinculo_sem_credito`) para o backend Python, e o padrão de
 concorrência que substitui `SELECT ... FOR UPDATE` nelas.
 
-**Status em 2026-09-28:** `registrar_conclusao_tarefa` foi migrada (1 de 5) —
-ver `_creditar_e_finalizar`/`_creditar_pertencer`/`_finalizar_estado_tarefa`
-em [services/tarefa.py](../../src/backend/services/tarefa.py). A implementação
-real revelou um caso de corrida que a decisão original não previu — ver
-"Lição aprendida" abaixo. As outras quatro funções continuam no banco,
-pendentes.
+**Status em 2026-09-29:** `registrar_conclusao_tarefa`, `excluir_tarefa_sem_credito`
+e `excluir_vinculo_sem_credito` migradas (3 de 5) — ver `_creditar_e_finalizar`/
+`_creditar_pertencer`/`_finalizar_estado_tarefa` e `excluir_tarefa` em
+[services/tarefa.py](../../src/backend/services/tarefa.py), e `deletar_pertencer`
+em [services/pertencer.py](../../src/backend/services/pertencer.py). A
+implementação da primeira revelou um caso de corrida que a decisão original
+não previu — ver "Lição aprendida" abaixo. As duas últimas, mais simples,
+não precisaram de CAS nem retry — ver a seção dedicada a elas mais abaixo.
+`criar_rotatividade` e `registrar_ocorrencia_rotativa` continuam no banco,
+sem migração prevista até o rodízio de tarefas ser de fato implementado no
+backend (hoje nenhuma das duas tem chamador).
 
 ## Objetivo
 
@@ -159,16 +164,61 @@ retry antes de replicar pras outras quatro (`criar_rotatividade`,
 `registrar_ocorrencia_rotativa`, `excluir_tarefa_sem_credito`,
 `excluir_vinculo_sem_credito`), que ainda não têm uso real no backend.
 
-**Status:** `registrar_conclusao_tarefa` concluída (2026-09-28). As outras
-quatro continuam no banco (`docs/migrations/19.sql`, `21.sql`, `22.sql`),
-sem uso real no backend ainda — próximas da fila, uma de cada vez, seguindo
-o mesmo padrão validado aqui (inclusive a lição da corrida acima).
+**Status:** `registrar_conclusao_tarefa`, `excluir_tarefa_sem_credito` e
+`excluir_vinculo_sem_credito` concluídas (2026-09-28/29). Só sobram
+`criar_rotatividade` e `registrar_ocorrencia_rotativa` no banco
+(`docs/migrations/19.sql`, `21.sql`) — sem chamador no backend hoje, então
+não há mais nada pra "migrar" de verdade até o rodízio de tarefas virar
+feature de verdade (é aí que essas duas ganham uso real e sentido de
+migrar).
+
+## Migração de `excluir_tarefa_sem_credito` e `excluir_vinculo_sem_credito` (2026-09-29)
+
+Essas duas são mais simples que `registrar_conclusao_tarefa` porque nenhuma
+credita ou acumula valor — são exclusões condicionais, sem disputa de
+"quem chega primeiro". Nenhuma precisou de CAS nem de retry.
+
+**`excluir_tarefa_sem_credito` → `ServicoTarefa.excluir_tarefa`**
+
+A proteção contra apagar uma tarefa com crédito já vem do próprio schema:
+`score_event.fk_tarefa_id` é `ON DELETE RESTRICT` para `tarefa`. O Postgres
+recusa sozinho um `DELETE` que deixaria um `score_event` órfão (erro
+`23503`) — não precisa de leitura prévia + CAS pra essa parte, só tentar o
+`DELETE` e capturar o `23503`, como o backend já fazia pro `PT409` da
+função SQL.
+
+Achado bônus: a função SQL fazia um `DELETE FROM atribuida` manual antes de
+apagar a tarefa, mas `Atribuida.fk_Tarefa_id` já é `ON DELETE CASCADE`
+(`docs/migrations/05.sql:19-23`) — esse delete manual sempre foi redundante.
+A versão em Python usa só um `DELETE` na tabela `tarefa`.
+
+Achado de paridade: a checagem em Python de "não pode excluir" só olhava
+`estado_atual == 'finalizado'`; a função SQL também bloqueava tarefas de
+rodízio (`rotatividade_id IS NOT NULL`), condição que nunca tinha sido
+portada. Adicionada agora, mesmo inalcançável hoje (rodízio não está ligado
+ao backend), pra não regredir quando/se for.
+
+**`excluir_vinculo_sem_credito` → `ServicoPertencer.deletar_pertencer`**
+
+Diferente da anterior, aqui **não existe FK nenhuma** protegendo as
+checagens de negócio (histórico de pontos em `score_event`, tarefas
+abertas em `atribuida`/`tarefa`) — nenhuma das duas referencia `pertencer`
+diretamente. A checagem em Python é a única linha de defesa, sem rede de
+segurança do banco por trás; aceitável porque o risco é uma janela de
+corrida estreita (outra requisição inserindo um evento/tarefa no exato
+meio da checagem), do mesmo nível de risco já aceito em outros pontos
+deste documento.
+
+A busca de "tarefas abertas" usa duas consultas separadas (`atribuida` →
+lista de `fk_tarefa_id`, depois `tarefa` filtrada por esses IDs) em vez de
+um JOIN — o projeto não usa embed/join do PostgREST em nenhum lugar ainda,
+então manteve o padrão já estabelecido no resto do código.
 
 ## Pendências e riscos
 
-- `criar_rotatividade`, `registrar_ocorrencia_rotativa`,
-  `excluir_tarefa_sem_credito` e `excluir_vinculo_sem_credito` continuam
-  como funções no banco — migração pendente, uma por vez.
+- `criar_rotatividade` e `registrar_ocorrencia_rotativa` continuam como
+  funções no banco — sem chamador no backend, então sem migração pendente
+  de verdade até o rodízio de tarefas ser implementado.
 - `score_event.tipo` (`credito`/`reversal`) e o índice único parcial por
   tipo já foram aplicados no Supabase real via `docs/migrations/24.sql` —
   a pendência de schema que este documento citava antes já está resolvida.
