@@ -507,8 +507,8 @@ def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, reg
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]),
+        SimpleNamespace(data=[registro_tarefa]),
     ]
-    servico.supabase.rpc.return_value.execute.return_value = SimpleNamespace(data=True)
 
     resultado = servico.excluir_tarefa(
         id_tarefa,
@@ -516,11 +516,7 @@ def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, reg
     )
 
     assert resultado is True
-    servico.supabase.rpc.assert_called_once_with(
-        "excluir_tarefa_sem_credito", {"p_id_tarefa": str(id_tarefa)}
-    )
-    consulta.delete.assert_not_called()
-
+    consulta.delete.assert_called_once()
 
 def test_morador_nao_pode_criar_tarefa(servico, consulta, ids_relacionados):
     consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}])
@@ -1008,3 +1004,28 @@ def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
     assert resposta["data_fim"] == "2026-09-02T08:00:00+00:00"
     assert resposta["concluida_em"] == "2026-09-02T07:00:00+00:00"
 
+def test_excluir_tarefa_rotativa_da_409(servico, consulta, id_tarefa, registro_tarefa):
+    tarefa_rotativa = {**registro_tarefa, "rotatividade_id": str(uuid4())}
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa_rotativa]),
+        SimpleNamespace(data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.excluir_tarefa(id_tarefa, UUID(registro_tarefa["fk_usuario_id"]))
+
+    assert erro.value.status_code == 409
+    consulta.delete.assert_not_called()
+
+
+def test_excluir_tarefa_com_credito_da_409_por_fk(servico, consulta, id_tarefa, registro_tarefa):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_tarefa]),
+        SimpleNamespace(data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]),
+        APIError({"code": "23503", "message": "foreign key violation"}),
+    ]
+
+    with pytest.raises(HTTPException) as erro:
+        servico.excluir_tarefa(id_tarefa, UUID(registro_tarefa["fk_usuario_id"]))
+
+    assert erro.value.status_code == 409
