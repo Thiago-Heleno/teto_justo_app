@@ -1,0 +1,79 @@
+name: Mobile release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Android and iOS on EAS
+        run: eas build --platform all --profile release --non-interactive --wait --json > "$RUNNER_TEMP/eas-build.json"
+      - name: Download build artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - "$RUNNER_TEMP/eas-build.json" > "$RUNNER_TEMP/eas-artifact-urls.txt" <<'NODE'
+          const fs = require('node:fs');
+          const builds = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!Array.isArray(builds) || builds.length !== 2) {
+            throw new Error('EAS must return exactly two builds.');
+          }
+          for (const platform of ['ANDROID', 'IOS']) {
+            const matches = builds.filter((build) => build?.platform === platform);
+            if (matches.length !== 1 || matches[0].status !== 'FINISHED') {
+              throw new Error(`Missing finished ${platform} build.`);
+            }
+            const url = matches[0].artifacts?.applicationArchiveUrl;
+            let validUrl = false;
+            try {
+              validUrl = new URL(url).protocol === 'https:' && !/[\r\n]/.test(url);
+            } catch {}
+            if (!validUrl) {
+              throw new Error(`Missing HTTPS artifact URL for ${platform}.`);
+            }
+            process.stdout.write(`${url}\n`);
+          }
+          NODE
+          mapfile -t urls < "$RUNNER_TEMP/eas-artifact-urls.txt"
+          curl --fail --location --silent --show-error --retry 3 --output TetoJusto-Android.apk "${urls[0]}"
+          curl --fail --location --silent --show-error --retry 3 --output TetoJusto-iOS.ipa "${urls[1]}"
+          test -s TetoJusto-Android.apk
+          test -s TetoJusto-iOS.ipa
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" TetoJusto-Android.apk TetoJusto-iOS.ipa --clobber
+          else
+            gh release create "$tag" TetoJusto-Android.apk TetoJusto-iOS.ipa --title "$tag" --generate-notes --verify-tag
+          fi
