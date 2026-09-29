@@ -573,7 +573,9 @@ class ServicoTarefa:
 
         tarefa_finalizada = self._finalizar_estado_tarefa(tarefa, concluida_em)
         if tarefa_finalizada is None:
-            raise HTTPException(status_code=409, detail="A tarefa mudou. Atualize antes de concluir.")
+            raise HTTPException(
+                status_code=409, detail="A tarefa mudou. Atualize antes de concluir."
+            )
         return tarefa_finalizada
 
     def _buscar_saldo(self, id_usuario: str, id_casa: str) -> int:

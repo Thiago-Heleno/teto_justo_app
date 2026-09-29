@@ -660,4 +660,3 @@ def test_conclusoes_simultaneas_creditam_uma_unica_vez(
     assert eventos.data == [{"pontuacao": 50}]
     saldo = supabase.table("pertencer").select("score").eq("fk_casa_id", casa).execute()
     assert saldo.data[0]["score"] == 50
-    

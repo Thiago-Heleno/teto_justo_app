@@ -294,13 +294,13 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
 
     consulta.execute.side_effect = [
         SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. _buscar_usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
         SimpleNamespace(data=[{"ok": True}]),  # 4. score_event.insert
         SimpleNamespace(data=[{"score": 100}]),  # 5. pertencer.select (score atual)
         SimpleNamespace(data=[{"score": saldo_final}]),  # 6. pertencer.update (CAS)
         SimpleNamespace(data=[finalizada]),  # 7. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. _montar_resposta -> usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. atribuida (resposta)
         SimpleNamespace(data=[{"score": saldo_final}]),  # 9. _buscar_saldo
     ]
 
@@ -361,13 +361,13 @@ def test_endpoint_de_conclusao_usa_responsavel_e_persistencia_atomica(
 
     consulta.execute.side_effect = [
         SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. _buscar_usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
         SimpleNamespace(data=[{"ok": True}]),  # 4. score_event.insert
         SimpleNamespace(data=[{"score": 0}]),  # 5. pertencer.select (score atual)
         SimpleNamespace(data=[{"score": 25}]),  # 6. pertencer.update (CAS)
         SimpleNamespace(data=[finalizada]),  # 7. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. _montar_resposta -> usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. atribuida (resposta)
         SimpleNamespace(data=[{"score": 25}]),  # 9. _buscar_saldo
     ]
 
@@ -419,15 +419,16 @@ def test_credito_pertencer_refaz_apos_conflito_de_concorrencia(
 
     consulta.execute.side_effect = [
         SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. _buscar_usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
         SimpleNamespace(data=[{"ok": True}]),  # 4. score_event.insert
         SimpleNamespace(data=[{"score": 100}]),  # 5. pertencer.select (1a leitura)
         SimpleNamespace(data=[]),  # 6. pertencer.update falha -- CAS perdido
-        SimpleNamespace(data=[{"score": 110}]),  # 7. pertencer.select (releitura -- alguém creditou 10 no meio-tempo)
+        # 7. pertencer.select (releitura -- alguém creditou 10 no meio-tempo)
+        SimpleNamespace(data=[{"score": 110}]),
         SimpleNamespace(data=[{"score": 135}]),  # 8. pertencer.update sucesso na 2a tentativa
         SimpleNamespace(data=[finalizada]),  # 9. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 10. _montar_resposta -> usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 10. atribuida (resposta)
         SimpleNamespace(data=[{"score": 135}]),  # 11. _buscar_saldo
     ]
 
@@ -456,11 +457,12 @@ def test_score_event_duplicado_com_tarefa_pendente_apenas_finaliza(
 
     consulta.execute.side_effect = [
         SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. _buscar_usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
-        APIError({"code": "23505", "message": "duplicate key"}),  # 4. score_event.insert -> já creditado antes
+        # 4. score_event.insert -> já creditado antes
+        APIError({"code": "23505", "message": "duplicate key"}),
         SimpleNamespace(data=[finalizada]),  # 5. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 6. _montar_resposta -> usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 6. atribuida (resposta)
         SimpleNamespace(data=[{"score": 25}]),  # 7. _buscar_saldo
     ]
 
@@ -487,10 +489,12 @@ def test_score_event_duplicado_com_tarefa_ja_finalizada_da_conflito(
 
     consulta.execute.side_effect = [
         SimpleNamespace(data=[tarefa]),  # 1. _buscar_tarefa_bruta
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. _buscar_usuarios_atribuidos
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 2. atribuida
         SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 3. vinculo (pertencer)
-        APIError({"code": "23505", "message": "duplicate key"}),  # 4. score_event.insert -> já creditado por outra chamada
-        SimpleNamespace(data=[]),  # 5. tarefa.update -> 0 linhas, já estava finalizada por quem venceu a corrida
+        # 4. score_event.insert -> já creditado por outra chamada
+        APIError({"code": "23505", "message": "duplicate key"}),
+        # 5. tarefa.update -> 0 linhas, já estava finalizada por quem venceu a corrida
+        SimpleNamespace(data=[]),
     ]
 
     with pytest.raises(HTTPException) as erro:
