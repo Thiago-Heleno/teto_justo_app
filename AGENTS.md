@@ -13,6 +13,7 @@ Estas instruções se aplicam a todo o repositório.
 - Execute validações proporcionais ao risco da mudança. Nunca declare que algo foi executado ou aprovado se não foi.
 - Preserve o código e as alterações existentes que não fazem parte da tarefa.
 - Nunca registre secrets, tokens, senhas ou valores de `.env` em código, testes, logs ou documentação.
+- Evite de criar e utilizar funções que dependem do banco de dados, o código deve se estender apenas ao backend. Isso evita ficar dependente do banco.
 
 ## Caminhos na documentação
 
