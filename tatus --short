@@ -1,0 +1,10 @@
+ contexto/sprint_2/alinhamento_tarefas_pontuacao.md | 15 [32m+++[m[31m--[m
+ contexto/sprint_2/finalizacao_tarefa_frontend.md   | 13 [32m++[m[31m--[m
+ src/backend/routers/tarefa.py                      | 10 [32m++++[m
+ src/backend/services/tarefa.py                     | 35 [32m+++++++[m[31m----[m
+ .../tests/test_conclusao_router_unitario.py        | 69 [32m++++++++++++++++++++++[m
+ src/backend/tests/test_servico_tarefa_unitario.py  | 64 [32m++++++++++++++++++++[m
+ src/backend/tests/test_tarefas_integracao.py       | 10 [32m++[m[31m--[m
+ src/frontend/scripts/tarefas-api.test.mjs          |  6 [32m+[m[31m-[m
+ src/frontend/src/services/tarefas-api.ts           |  5 [32m+[m[31m-[m
+ 9 files changed, 192 insertions(+), 35 deletions(-)
