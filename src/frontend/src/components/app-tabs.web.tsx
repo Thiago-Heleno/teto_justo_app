@@ -29,6 +29,9 @@ export default function AppTabs() {
           <TabTrigger name="tarefas" href="/tarefas" asChild>
             <TabButton>Tarefas</TabButton>
           </TabTrigger>
+          <TabTrigger name="pontuacao" href="/pontuacao" asChild>
+            <TabButton>Pontuação</TabButton>
+          </TabTrigger>
         </CustomTabList>
       </TabList>
     </Tabs>

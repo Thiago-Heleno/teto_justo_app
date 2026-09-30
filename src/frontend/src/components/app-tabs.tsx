@@ -26,6 +26,10 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Tarefas</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="checklist" md="checklist" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="pontuacao">
+        <NativeTabs.Trigger.Label>Pontuação</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="trophy.fill" md="emoji_events" />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
