@@ -67,3 +67,51 @@ def test_endpoint_job_invoca_servico_com_token_valido(monkeypatch):
     assert resposta.status_code == 200
     assert resposta.json() == resultado
     assert chamadas == [True]
+
+
+def test_endpoint_job_rotatividades_exige_token_configurado(monkeypatch):
+    monkeypatch.delenv("ROTATIVIDADE_JOB_TOKEN", raising=False)
+    app.dependency_overrides[get_supabase] = lambda: object()
+    try:
+        with TestClient(app) as cliente:
+            resposta = cliente.post("/jobs/rotatividades")
+    finally:
+        app.dependency_overrides.pop(get_supabase, None)
+
+    assert resposta.status_code == 503
+
+
+def test_endpoint_job_rotatividades_invoca_servico_com_token_valido(monkeypatch):
+    monkeypatch.setenv("ROTATIVIDADE_JOB_TOKEN", "token-de-teste")
+    banco = object()
+    resultado = {
+        "rotatividades_analisadas": 2,
+        "ocorrencias_processadas": 3,
+    }
+    chamadas = []
+
+    class ServicoFalso:
+        def __init__(self, supabase):
+            assert supabase is banco
+
+        def processar_ocorrencias(self):
+            chamadas.append(True)
+            return resultado
+
+    monkeypatch.setattr(
+        "routers.jobs.ServicoAgendamentoRotatividade",
+        ServicoFalso,
+    )
+    app.dependency_overrides[get_supabase] = lambda: banco
+    try:
+        with TestClient(app) as cliente:
+            resposta = cliente.post(
+                "/jobs/rotatividades",
+                headers={"X-Rotatividade-Job-Token": "token-de-teste"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_supabase, None)
+
+    assert resposta.status_code == 200
+    assert resposta.json() == resultado
+    assert chamadas == [True]

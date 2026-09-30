@@ -6,17 +6,13 @@ PL/pgSQL (`registrar_conclusao_tarefa`, `criar_rotatividade`,
 `excluir_vinculo_sem_credito`) para o backend Python, e o padrão de
 concorrência que substitui `SELECT ... FOR UPDATE` nelas.
 
-**Status em 2026-09-29:** `registrar_conclusao_tarefa`, `excluir_tarefa_sem_credito`
-e `excluir_vinculo_sem_credito` migradas (3 de 5) — ver `_creditar_e_finalizar`/
-`_creditar_pertencer`/`_finalizar_estado_tarefa` e `excluir_tarefa` em
-[services/tarefa.py](../../src/backend/services/tarefa.py), e `deletar_pertencer`
-em [services/pertencer.py](../../src/backend/services/pertencer.py). A
-implementação da primeira revelou um caso de corrida que a decisão original
-não previu — ver "Lição aprendida" abaixo. As duas últimas, mais simples,
-não precisaram de CAS nem retry — ver a seção dedicada a elas mais abaixo.
-`criar_rotatividade` e `registrar_ocorrencia_rotativa` continuam no banco,
-sem migração prevista até o rodízio de tarefas ser de fato implementado no
-backend (hoje nenhuma das duas tem chamador).
+**Status em 2026-09-30:** as rotinas de conclusão e exclusão continuam no
+backend conforme descrito abaixo. O rodízio agora tem serviço em Python e
+grava diretamente nas tabelas existentes, sem chamar `criar_rotatividade` ou
+`registrar_ocorrencia_rotativa`. Essa integração usa um lock local ao processo
+e restrições de unicidade para recuperar ocorrências repetidas. O lock não
+coordena múltiplos processos e a gravação da tarefa e da atribuição não é uma
+transação única; esses limites precisam ser considerados na implantação.
 
 ## Objetivo
 
@@ -156,7 +152,7 @@ caminho:
   reconfere se ela já aconteceu, em vez de assumir que o retry é sempre
   seguro repetir do zero.
 
-## Ordem de migração recomendada
+## Ordem de migração recomendada — registro histórico de 2026-09-29
 
 Uma função por vez, começando por `registrar_conclusao_tarefa` — é o
 caminho mais crítico (já em produção, testado) e valida o padrão de CAS +
@@ -164,13 +160,11 @@ retry antes de replicar pras outras quatro (`criar_rotatividade`,
 `registrar_ocorrencia_rotativa`, `excluir_tarefa_sem_credito`,
 `excluir_vinculo_sem_credito`), que ainda não têm uso real no backend.
 
-**Status:** `registrar_conclusao_tarefa`, `excluir_tarefa_sem_credito` e
+Naquele momento, `registrar_conclusao_tarefa`, `excluir_tarefa_sem_credito` e
 `excluir_vinculo_sem_credito` concluídas (2026-09-28/29). Só sobram
 `criar_rotatividade` e `registrar_ocorrencia_rotativa` no banco
-(`docs/migrations/19.sql`, `21.sql`) — sem chamador no backend hoje, então
-não há mais nada pra "migrar" de verdade até o rodízio de tarefas virar
-feature de verdade (é aí que essas duas ganham uso real e sentido de
-migrar).
+(`docs/migrations/19.sql`, `21.sql`), que passaram a ser contornadas pela
+implementação Python documentada no status atual acima.
 
 ## Migração de `excluir_tarefa_sem_credito` e `excluir_vinculo_sem_credito` (2026-09-29)
 
@@ -216,9 +210,17 @@ então manteve o padrão já estabelecido no resto do código.
 
 ## Pendências e riscos
 
-- `criar_rotatividade` e `registrar_ocorrencia_rotativa` continuam como
-  funções no banco — sem chamador no backend, então sem migração pendente
-  de verdade até o rodízio de tarefas ser implementado.
+- O processamento de rodízios deve rodar em uma única instância ativa do
+  backend. O `Lock` em memória não coordena réplicas/processos diferentes.
+- A criação da tarefa e a inserção de sua atribuição são chamadas PostgREST
+  separadas; se a segunda falhar, a ocorrência fica sem responsável até uma
+  nova execução do job tentar repará-la.
+- A criação da configuração e dos participantes também usa duas escritas
+  separadas. O backend tenta remover os registros parciais se a gravação dos
+  participantes falhar, mas isso não oferece atomicidade equivalente a uma
+  transação do Postgres.
+- A implementação atual do rodízio ainda não aplica CAS/retry da versão da casa
+  para coordenar alterações concorrentes nos participantes e na distribuição.
 - `score_event.tipo` (`credito`/`reversal`) e o índice único parcial por
   tipo já foram aplicados no Supabase real via `docs/migrations/24.sql` —
   a pendência de schema que este documento citava antes já está resolvida.
