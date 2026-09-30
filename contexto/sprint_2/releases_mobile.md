@@ -20,8 +20,8 @@ ao GitHub Release de cada tag `v*`.
 O JSON foi analisado localmente, `git diff --check` não apontou erros e o EAS
 reconheceu o projeto vinculado. O secret `EXPO_TOKEN` foi cadastrado no GitHub;
 seu valor não pode ser lido para validação. O keystore Android foi criado no
-EAS e o primeiro build Android foi solicitado em 30/09/2026, mas ainda estava
-em fila quando esta atualização foi feita:
+EAS e o primeiro build Android terminou com sucesso em 30/09/2026, gerando um
+APK para distribuição interna:
 https://expo.dev/accounts/teto-justo-app/projects/teto-justo/builds/6c4fe9b0-d307-46a0-afa8-04b05a01eeea.
 
 O build iOS para dispositivos ainda depende de uma assinatura Apple Developer,
