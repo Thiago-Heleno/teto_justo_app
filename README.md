@@ -14,7 +14,7 @@ O fluxo e as telas do aplicativo estão disponíveis no
 
 ## Tecnologias
 
-- **Frontend:** React Native, Expo, Expo Router e TypeScript.
+- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web (ainda sem telas que os usem).
 - **Backend:** Python, FastAPI, Pydantic e Uvicorn.
 - **Dados:** Supabase.
 - **Qualidade:** ESLint, Prettier, Ruff, Bandit e Pytest.
