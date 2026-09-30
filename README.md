@@ -222,26 +222,23 @@ consulte [compilação local no Expo](https://docs.expo.dev/guides/local-app-dev
 
 O workflow em `.github/workflows/mobile-release.yml` roda quando uma tag `v*`
 é enviada ao GitHub. Ele solicita ao EAS Build um APK Android e um IPA iOS
-para distribuição interna e anexa ambos ao Release da mesma tag. Antes da
-primeira execução, faça a configuração abaixo em `src/frontend`:
+para distribuição interna e anexa ambos ao Release da mesma tag. O
+`src/frontend/app.json` já vincula o projeto à organização `teto-justo-app` e
+define `com.tetojusto.app` como identificador Android e iOS. Preserve esses
+identificadores para que as próximas versões atualizem o mesmo aplicativo.
+Antes da primeira execução automatizada, em `src/frontend`:
 
-1. Defina identificadores definitivos em `app.json`: substitua
-   `android.package` (`com.anonymous.frontendnative`) e adicione
-   `ios.bundleIdentifier`. Depois de distribuir o app, preserve esses valores
-   para que as versões seguintes sejam atualizações do mesmo aplicativo.
-2. Entre na sua conta Expo e vincule o projeto com `npx eas-cli@latest init`.
-   O comando registra `extra.eas.projectId` em `app.json`; versione essa
-   alteração. Use uma conta Apple Developer ativa para o IPA de dispositivo.
-3. Cadastre os iPhones de teste com `npx eas-cli@latest device:create`. Execute
+1. Use uma conta Apple Developer ativa para o IPA de dispositivo e cadastre os
+   iPhones de teste com `npx eas-cli@latest device:create`. Execute
    `npx eas-cli@latest build --platform android --profile release` e depois
    `npx eas-cli@latest build --platform ios --profile release` uma vez no
    computador. Esses comandos interativos configuram as credenciais de
    assinatura no EAS. Confirme que ambos terminam com sucesso antes de usar o
    workflow, que roda sem interação.
-4. Crie um token de acesso na [conta Expo](https://expo.dev/settings/access-tokens)
+2. Crie um token de acesso na [conta Expo](https://expo.dev/settings/access-tokens)
    com permissão para esse projeto. Salve-o no repositório GitHub em
    **Settings → Secrets and variables → Actions** como `EXPO_TOKEN`.
-5. Antes de cada versão, atualize `expo.version` em `app.json`. Depois de
+3. Antes de cada versão, atualize `expo.version` em `app.json`. Depois de
    integrar essa configuração à branch principal, na raiz da sua cópia do
    repositório crie uma tag no commit desejado e envie-a, por exemplo,
    `git tag v1.0.0` e
@@ -250,6 +247,9 @@ primeira execução, faça a configuração abaixo em `src/frontend`:
 
 O IPA interno só pode ser instalado em aparelhos incluídos no perfil de
 provisionamento Apple. Para distribuição ampla, use TestFlight/App Store.
+Sem as credenciais iOS, o workflow não publica o Release, pois exige que os
+builds Android e iOS terminem. O APK pode ser testado separadamente com o
+comando de build Android acima.
 O app ainda não tem login em tempo de execução: não coloque
 `EXPO_PUBLIC_TETO_JUSTO_TOKEN` no EAS ou no GitHub, pois variáveis
 `EXPO_PUBLIC_*` ficam legíveis no aplicativo distribuído. Até implementar o
