@@ -13,7 +13,8 @@ do token de sessão) no frontend, deixando o armazenamento do token pronto.
 - `src/frontend/app.json`: plugin `expo-secure-store`, adicionado pelo
   `expo install`.
 - `src/frontend/src/services/token-storage.ts`: `salvarToken`, `lerToken` e
-  `removerToken`, sobre o SecureStore, com a chave `teto_justo_token`.
+  `removerToken`, com a chave `teto_justo_token`. Em Android e iOS usa o
+  SecureStore; na web usa `localStorage`, escolhido por `Platform.OS`.
 
 ## Decisões e limitações
 
@@ -23,7 +24,10 @@ do token de sessão) no frontend, deixando o armazenamento do token pronto.
   O `token-storage.ts` ainda não é chamado por nenhuma tela: a integração
   depende do fluxo de login. Ele não foi importado em `tarefas-api.ts` porque
   os testes `test:tarefas` rodam em Node puro, onde o módulo nativo não existe.
-- O SecureStore funciona em Android e iOS; não está disponível na web.
+- O SecureStore não existe na web. Lá o token fica em `localStorage`, legível
+  por qualquer script da página (exposto a XSS). Serve para desenvolvimento e
+  demonstração; para produção na web, o caminho recomendado é um cookie
+  `HttpOnly` emitido pelo backend, que hoje usa `Authorization: Bearer`.
 - Mudar `app.json` (plugin) exige gerar o app nativo novamente; o Expo Go
   já inclui o módulo.
 
