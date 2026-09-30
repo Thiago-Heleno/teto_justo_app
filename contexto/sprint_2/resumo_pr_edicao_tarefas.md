@@ -53,7 +53,7 @@ Documento completo: [edicao_atribuicao_tarefa.md](edicao_atribuicao_tarefa.md)
     na lista é **deduplicado silenciosamente** (não gera erro); responsável
     que não pertence à casa retorna **`422`**.
   - **`PATCH /tarefas/{id}`** (desta branch): `ServicoAutorizacaoCasa
-    .garantir_responsaveis_da_casa` **rejeita** (`400`) UUID duplicado na
+    .garantir_responsaveis_da_casa` **rejeita** (`422`, antes `400`) UUID duplicado na
     lista e responsável que não pertence à casa — considerando tanto os
     vínculos em `pertencer` quanto o dono da casa (`casa.fk_usuario_id`,
     que não fica em `pertencer`).
@@ -83,7 +83,7 @@ adicionar só o que era exclusivo desta branch por cima.
 - **Mantido desta branch (exclusivo, PR #47 não tinha)**: `pontuacao`,
   `atraso_maximo`, a transição automática para `nao_feito`, a remoção de
   `tipo_de_penalidade`, o bug fix de `_montar_resposta`, e a validação de
-  responsáveis do `PATCH` (`garantir_responsaveis_da_casa`, `400`).
+  responsáveis do `PATCH` (`garantir_responsaveis_da_casa`, `422`).
 - Testes ajustados para o comportamento final: removido um teste desta
   branch que duplicava o que a PR #47 já testava; os testes que esperavam
   `400`/duplicado-rejeitado no `POST` foram corrigidos para `422`/dedupe

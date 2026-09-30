@@ -669,7 +669,7 @@ def test_atualizar_tarefa_rejeita_responsavel_de_outra_casa(
             UUID(registro_tarefa["fk_usuario_id"]),
         )
 
-    assert erro.value.status_code == 400
+    assert erro.value.status_code == 422
     consulta.delete.assert_not_called()
 
 
@@ -917,7 +917,7 @@ def test_responsavel_invalido_nao_produz_edicao_parcial(servico, consulta, regis
             TarefaAtualizar(peso=3, usuarios_atribuidos=[uuid4()]),
             UUID(dono),
         )
-    assert erro.value.status_code == 400
+    assert erro.value.status_code == 422
     consulta.update.assert_not_called()
     consulta.delete.assert_not_called()
 

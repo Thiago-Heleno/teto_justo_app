@@ -80,28 +80,24 @@ de `Atribuida` e configurou a remoção em cascata dos vínculos quando uma tare
 
 ## Testes
 
-- `src/backend/tests/test_tarefas_crud.py`: testes de contrato HTTP com uma
-  aplicação FastAPI isolada e banco em memória. Cobrem criação, consulta,
-  paginação, filtro por casa, atualização das atribuições, exclusão e uso dos
-  campos em português.
+Os testes de contrato HTTP com banco em memória (`test_tarefas_crud.py`)
+foram removidos do repositório. A cobertura atual de Tarefa está em:
+
 - `src/backend/tests/test_servico_tarefa_unitario.py`: testes unitários de
   `ServicoTarefa` com mocks do cliente Supabase.
-- `src/backend/tests/test_tarefas_integracao.py`: teste de integração que
-  executa o CRUD pelas rotas reais contra um projeto Supabase de teste e limpa
-  os registros temporários ao final.
+- `src/backend/tests/test_tarefas_integracao.py`: CRUD executado pelas rotas
+  reais contra um projeto Supabase de teste, com limpeza dos registros
+  temporários ao final.
 
-Os dois primeiros arquivos não acessam serviços externos. O teste de
-integração depende das variáveis de ambiente do Supabase e não foi executado
-localmente nesta validação.
+O teste de integração depende das variáveis de ambiente do Supabase.
 
-## Validação realizada
+## Validação
 
-Os testes locais de Tarefa foram executados junto aos testes de Casa com:
+Na entrega original, os testes locais de Tarefa passaram junto aos de Casa
+(`18 passed`). Esse número se refere a arquivos que não existem mais; para
+validar hoje, rode a partir de `src/backend`:
 
 ```text
-python -m pytest -q tests/test_casas_crud.py tests/test_tarefas_crud.py tests/test_servico_tarefa_unitario.py
+python -m pytest -q tests/test_servico_tarefa_unitario.py
+python -m pytest -q tests/test_tarefas_integracao.py  # exige Supabase de teste
 ```
-
-Resultado conjunto: `18 passed`. Onze desses testes pertencem ao CRUD e ao
-serviço de Tarefa. Foi emitido um aviso de depreciação do `TestClient` sobre
-`httpx`, sem falha na suíte.

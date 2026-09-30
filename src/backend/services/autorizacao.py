@@ -40,7 +40,7 @@ class ServicoAutorizacaoCasa:
         ids = [str(id_usuario) for id_usuario in ids_usuarios]
         if len(set(ids)) != len(ids):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Responsáveis duplicados não são permitidos.",
             )
 
@@ -70,6 +70,6 @@ class ServicoAutorizacaoCasa:
 
         if any(id_usuario not in ids_validos for id_usuario in ids):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Um ou mais responsáveis não pertencem a esta casa.",
             )
