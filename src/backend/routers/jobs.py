@@ -24,7 +24,9 @@ def processar_penalidades(
             status_code=503,
             detail="O processamento agendado de penalidades não está configurado.",
         )
-    if token is None or not hmac.compare_digest(token_configurado, token):
+    if token is None or not hmac.compare_digest(
+        token_configurado.encode(), token.encode()
+    ):
         raise HTTPException(status_code=401, detail="Token de job inválido.")
 
     return ServicoPenalidade(supabase).processar_tarefas()
