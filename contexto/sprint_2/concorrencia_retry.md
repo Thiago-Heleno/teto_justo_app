@@ -1,13 +1,5 @@
 # Concorrência sem funções no banco: compare-and-swap com retry
 
-> **Atualização de 30/09/2026:** a conclusão de tarefas voltou a usar a RPC
-> transacional `registrar_conclusao_tarefa` em `docs/migrations/26.sql`.
-> A sequência de escritas em Python descrita abaixo fica como histórico da
-> decisão anterior: ela permitia gravações parciais se a conexão caísse entre
-> o evento, o saldo e a finalização. As demais operações descritas aqui não
-> foram alteradas. A migration 26 ainda precisa ser aplicada aos bancos de
-> teste e produção antes de usar o backend atualizado.
-
 Este documento registra a decisão de arquitetura para a migração das funções
 PL/pgSQL (`registrar_conclusao_tarefa`, `criar_rotatividade`,
 `registrar_ocorrencia_rotativa`, `excluir_tarefa_sem_credito`,

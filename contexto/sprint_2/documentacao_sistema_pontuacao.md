@@ -57,32 +57,35 @@ O `ServicoTarefa` chama `ServicoScore.calcular_score` na conclusão e define
 calculados exclusivamente em Python.
 
 A migration `docs/migrations/15.sql` remove o trigger e sua função de cálculo.
-Após a remoção da RPC em `docs/migrations/25.sql`, as gravações separadas pelo
-backend podiam deixar um evento sem saldo ou uma tarefa sem finalização se a
-conexão caísse entre as chamadas. `docs/migrations/26.sql` restaura
-`registrar_conclusao_tarefa` somente para persistir o resultado calculado em
-Python. A função bloqueia a linha da tarefa, valida seu estado e responsável,
-incrementa `pertencer.score`, insere um evento de crédito e finaliza a tarefa
-na mesma transação. A resposta já inclui o saldo resultante; não há consulta
-separada depois da gravação. A segunda conclusão recebe `409`.
+A gravação em si também é feita pelo backend, sem função no banco
+(`ServicoTarefa._creditar_e_finalizar`/`_creditar_pertencer`/
+`_finalizar_estado_tarefa`; ver [concorrencia_retry.md](concorrencia_retry.md)
+para o desenho de concorrência). Como o cliente do Supabase não sustenta uma
+transação entre múltiplas chamadas, não existe um único `COMMIT` que grava
+tudo junto: o `INSERT` em `score_event` decide a corrida entre conclusões
+concorrentes (a `UNIQUE`/índice parcial garante crédito único), o crédito em
+`pertencer.score` usa um `UPDATE` condicional com novas tentativas em caso de
+conflito, e o `UPDATE` que marca a tarefa como `finalizado` é a última
+escrita — se ela não achar a linha esperada porque outra requisição
+concorrente já mudou o estado, a conclusão retorna `409` em vez de reverter
+as escritas já feitas.
 
 A gravação confere se as regras e o responsável ainda são os usados no
 cálculo e rejeita uma conclusão já registrada. O incremento do saldo é
 protegido contra perder créditos de tarefas concluídas simultaneamente.
 
-Escrever em `pertencer`/`score_event` e executar a RPC de conclusão continua
-restrito à chave `service_role` usada pelo backend (`docs/migrations/18.sql` e
-`26.sql`). O responsável precisa ter vínculo em `pertencer`;
+Escrever em `pertencer`/`score_event` continua restrito a quem tem a chave
+`service_role` (usada pelo backend); os papéis públicos `anon` e
+`authenticated` não podem fornecer pontos — antes isso vinha do `GRANT` da
+função no banco, agora vem de um `REVOKE` direto nessas tabelas
+(`docs/migrations/18.sql`). O responsável precisa ter vínculo em `pertencer`;
 se ele for apenas proprietário da casa sem esse vínculo, a conclusão retorna
 409 antes de qualquer escrita. Tarefas legadas com múltiplos responsáveis
 também exigem regularização antes de serem concluídas.
 
-`docs/migrations/26.sql` precisa ser aplicada no Supabase de teste antes da
-integração e em produção antes de publicar este backend.
-Antes da implantação, verificar tarefas ainda `pendente`/`atrasada` com
-`score_event.tipo = 'credito'`: o fluxo anterior podia ter deixado esses
-registros parciais. A nova RPC rejeita outra conclusão para elas; cada caso
-precisa de reconciliação conforme o saldo efetivamente gravado.
+A função SQL `registrar_conclusao_tarefa` (que fazia essa persistência antes)
+continua existindo no banco, sem uso — mantida como rede de segurança até a
+migração ser validada em produção por mais tempo.
 
 A penalidade reduz os pontos recebidos ao concluir a tarefa; não desconta
 periodicamente do saldo. Consultas após a tolerância marcam `nao_feito` sem
@@ -106,10 +109,15 @@ apagados não podem ser reconstruídos a partir do repositório.
 
 ## Validação
 
-A suíte unitária inclui as regras de cálculo, o valor enviado à RPC e o
-tratamento de conflitos/falhas. Em 30/09/2026, 263 testes unitários passaram
-localmente. A suíte de integração (`test_tarefas_integracao.py`) cobre ausência
-do trigger, reversão por falta de vínculo e conclusões concorrentes, mas ainda
-precisa ser repetida no Supabase de teste após aplicar a migration 26.
+A suíte unitária aprovada inclui dificuldades, entradas inválidas, períodos
+parciais/exatos de 24 horas, N + 1, arredondamento, normalização de fuso e
+imutabilidade, o valor enviado à persistência e o tratamento de
+conflitos/falhas (incluindo o CAS de `pertencer.score` e a recuperação de
+violação de unicidade em `score_event`). A suíte de integração contra o
+Supabase real (`test_tarefas_integracao.py`) cobre ausência do trigger,
+reversão por falta de vínculo e conclusões concorrentes — foi essa última
+que revelou um caso de corrida que os testes unitários com mock não
+conseguiam pegar (ver "Lição aprendida" em
+[concorrencia_retry.md](concorrencia_retry.md)).
 
 Veja [o contrato e as limitações desta entrega](schemas_tarefa.md).
