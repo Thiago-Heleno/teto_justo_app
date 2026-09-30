@@ -33,6 +33,7 @@ import {
 } from "@/data/tarefa-demonstracao";
 import {
   carregarContextoTarefas,
+  criarRotatividade as salvarRotatividade,
   criarTarefa as salvarTarefa,
   temConfiguracaoTarefas,
   type Casa,
@@ -128,7 +129,7 @@ export default function NovaTarefaScreen() {
     setErros(resultado.erros);
     Keyboard.dismiss();
     if (resultado.tarefa) {
-      if (!usarApi || resultado.tarefa.rotatividade) {
+      if (!usarApi) {
         setTarefa(resultado.tarefa);
       } else if (casa) {
         if (envioEmAndamento.current) return;
@@ -137,18 +138,36 @@ export default function NovaTarefaScreen() {
         setErroEnvio(undefined);
         try {
           const preparada = resultado.tarefa;
-          await salvarTarefa({
-            fk_casa_id: casa.id,
-            nome: preparada.nome,
-            descricao: preparada.descricao,
-            peso: preparada.peso,
-            prazo_dias: preparada.prazo_dias,
-            atraso_maximo: preparada.atraso_maximo,
-            tipo: "unitaria",
-            modo_prazo: preparada.modo_prazo,
-            ...(preparada.data_fixa ? { data_fixa: preparada.data_fixa } : {}),
-            usuarios_atribuidos: preparada.usuarios_atribuidos,
-          });
+          if (preparada.rotatividade) {
+            await salvarRotatividade({
+              fk_casa_id: casa.id,
+              nome: preparada.nome,
+              descricao: preparada.descricao,
+              peso: preparada.peso,
+              prazo_dias: preparada.prazo_dias,
+              atraso_maximo: preparada.atraso_maximo,
+              modo_prazo: preparada.modo_prazo,
+              participantes: preparada.rotatividade.participantes,
+              dias_semana: preparada.rotatividade.dias_semana,
+              intervalo_semanas:
+                preparada.rotatividade.intervalo_semanas,
+            });
+          } else {
+            await salvarTarefa({
+              fk_casa_id: casa.id,
+              nome: preparada.nome,
+              descricao: preparada.descricao,
+              peso: preparada.peso,
+              prazo_dias: preparada.prazo_dias,
+              atraso_maximo: preparada.atraso_maximo,
+              tipo: "unitaria",
+              modo_prazo: preparada.modo_prazo,
+              ...(preparada.data_fixa
+                ? { data_fixa: preparada.data_fixa }
+                : {}),
+              usuarios_atribuidos: preparada.usuarios_atribuidos,
+            });
+          }
           setTarefa(preparada);
         } catch (erro: unknown) {
           setErroEnvio(
@@ -211,7 +230,9 @@ export default function NovaTarefaScreen() {
               <Text accessibilityRole="header" style={styles.title}>
                 {tarefa
                   ? tarefa.rotatividade
-                    ? "PRÉVIA DO RODÍZIO"
+                    ? usarApi
+                      ? "RODÍZIO CADASTRADO!"
+                      : "PRÉVIA DO RODÍZIO"
                     : usarApi
                       ? "TAREFA CRIADA!"
                       : "TUDO PRONTO!"
@@ -229,11 +250,17 @@ export default function NovaTarefaScreen() {
                     : "Demonstração · dados fictícios"}
                 </Text>
               </View>
-              {(!usarApi || rotativa) && (
+              {(!usarApi || (rotativa && tarefa === null)) && (
                 <Text style={styles.help}>
                   {usarApi
-                    ? "Esta prévia não salva nem inicia o rodízio."
+                    ? "Configure o rodízio e distribua ocorrências automaticamente."
                     : "Esta demonstração não salva tarefas nem inicia o rodízio."}
+                </Text>
+              )}
+              {usarApi && tarefa?.rotatividade && (
+                <Text style={styles.help}>
+                  Rodízio salvo. As ocorrências serão criadas nos dias
+                  programados e atribuídas automaticamente pelo balanceamento.
                 </Text>
               )}
             </View>
@@ -277,8 +304,10 @@ export default function NovaTarefaScreen() {
                     accessibilityLiveRegion="polite"
                     style={styles.sectionTitle}
                   >
-                    {usarApi && !tarefa.rotatividade
-                      ? "Detalhes salvos"
+                    {usarApi
+                      ? tarefa.rotatividade
+                        ? "Rodízio salvo"
+                        : "Detalhes salvos"
                       : "Prévia da tarefa"}
                   </Text>
                   <View style={styles.section}>
@@ -320,23 +349,27 @@ export default function NovaTarefaScreen() {
                       </Text>
                     )}
                   </View>
-                  <View style={styles.section}>
-                    <Text style={styles.help}>
-                      {tarefa.rotatividade
-                        ? "Primeiro responsável"
-                        : "Responsável"}
-                    </Text>
-                    <Text style={styles.body}>
-                      {
-                        moradores.find(
-                          (morador) =>
-                            morador.id === tarefa.usuarios_atribuidos[0],
-                        )?.nome
-                      }
-                    </Text>
-                  </View>
+                  {!tarefa.rotatividade && (
+                    <View style={styles.section}>
+                      <Text style={styles.help}>Responsável</Text>
+                      <Text style={styles.body}>
+                        {
+                          moradores.find(
+                            (morador) =>
+                              morador.id === tarefa.usuarios_atribuidos[0],
+                          )?.nome
+                        }
+                      </Text>
+                    </View>
+                  )}
                   {tarefa.rotatividade && (
                     <View style={styles.section}>
+                      <Text style={styles.help}>Participantes elegíveis</Text>
+                      {tarefa.rotatividade.participantes.map((id) => (
+                        <Text key={id} style={styles.body}>
+                          {moradores.find((morador) => morador.id === id)?.nome}
+                        </Text>
+                      ))}
                       <Text style={styles.help}>
                         {tarefa.rotatividade.intervalo_semanas === 1
                           ? "Repetir toda semana"
@@ -352,17 +385,10 @@ export default function NovaTarefaScreen() {
                           .map((dia) => dia.rotulo)
                           .join(", ")}
                       </Text>
-                      <Text style={styles.help}>Ordem do rodízio</Text>
-                      {tarefa.rotatividade.participantes.map((id, indice) => (
-                        <Text key={id} style={styles.body}>
-                          {indice + 1}.{" "}
-                          {moradores.find((morador) => morador.id === id)?.nome}
-                        </Text>
-                      ))}
                       <Text style={styles.help}>
-                        Em cada período, o próximo participante fica
-                        responsável. Após o último participante, a sequência
-                        recomeça.
+                        A cada ocorrência, o sistema escolhe o participante
+                        elegível com menor pontuação potencial acumulada. A
+                        ordem selecionada desempata pontuações iguais.
                       </Text>
                     </View>
                   )}
@@ -374,7 +400,7 @@ export default function NovaTarefaScreen() {
                 >
                   <Text style={styles.body}>
                     {tarefa.rotatividade
-                      ? "Conferir outra tarefa"
+                      ? "Criar outro rodízio"
                       : "Criar outra tarefa"}
                   </Text>
                 </MotionPressable>

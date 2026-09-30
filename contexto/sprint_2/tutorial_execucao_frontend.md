@@ -28,9 +28,11 @@ Os exemplos usam `npm.cmd` e `npx.cmd` para evitar o bloqueio de scripts
 
 Sem configuração da API, a tela **Nova tarefa** usa dados fictícios e não
 precisa de backend, Docker ou Supabase. Com as variáveis da API já configuradas,
-consulta casa e moradores reais; inicie o backend nesse caso. A criação ainda
-é uma prévia sem gravação. Se a consulta falhar, é possível tentar novamente
-ou escolher explicitamente os dados de demonstração.
+consulta casa e moradores reais; inicie o backend nesse caso. Tarefas comuns e
+configurações de rodízio são gravadas pela API. Para que as ocorrências rotativas
+sejam geradas depois, o endpoint de job também precisa estar agendado no
+ambiente do backend. Se a consulta falhar, é possível tentar novamente ou
+escolher explicitamente os dados de demonstração.
 
 ## 2. Abrir no navegador do computador
 
@@ -190,9 +192,9 @@ Preencha nome, peso de 1 a 3 e prazo de 1 a 5 dias. A descrição é opcional.
 Para tarefa **Comum**, selecione um responsável. Para **Rotativa**, selecione
 pelo menos dois moradores, ajuste a ordem e selecione um ou mais dias da
 semana e o intervalo de 1 a 4 semanas. A opção inicial é 1 semana; 4 semanas
-são 28 dias, aproximadamente um mês. Use **Conferir tarefa** para abrir o resumo. Não há campos de
-data ou horário e esta prévia não inicia o rodízio automaticamente.
-Os dados continuam locais e são perdidos ao recarregar completamente o app.
+são 28 dias, aproximadamente um mês. Use **Conferir tarefa** para abrir o resumo.
+Com API configurada, essa ação grava a configuração; sem API, mostra uma
+prévia local. A geração posterior depende do job agendado no backend.
 
 Para encerrar o servidor, pressione `Ctrl+C`.
 

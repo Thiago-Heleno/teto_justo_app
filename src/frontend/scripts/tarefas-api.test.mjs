@@ -6,6 +6,7 @@ import {
   carregarContextoTarefas,
   carregarUsuarioAtual,
   carregarPlacar,
+  criarRotatividade,
   criarTarefa,
   editarTarefa,
   finalizarTarefa,
@@ -192,6 +193,39 @@ test("cria tarefa unitária com o contrato da API", async () => {
     assert.deepEqual(chamadas.map(({ url }) => url), ["http://api.test/tarefas/"]);
     assert.deepEqual(chamadas.map(({ opcoes }) => opcoes.method), ["POST"]);
     assert.deepEqual(JSON.parse(chamadas[0].opcoes.body).usuarios_atribuidos, ["ana"]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("cria configuração de rodízio pelo backend", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
+  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  const original = globalThis.fetch;
+  let chamada;
+  const dados = {
+    fk_casa_id: "casa-123",
+    nome: "Limpar cozinha",
+    descricao: "",
+    peso: 2,
+    prazo_dias: 3,
+    atraso_maximo: 2,
+    modo_prazo: "intervalo",
+    participantes: ["ana", "bruno"],
+    dias_semana: [1, 4],
+    intervalo_semanas: 2,
+  };
+  globalThis.fetch = async (url, opcoes) => {
+    chamada = { url, opcoes };
+    return { ok: true, json: async () => ({ id: "rodizio-123" }) };
+  };
+  try {
+    assert.deepEqual(await criarRotatividade(dados), { id: "rodizio-123" });
+    assert.equal(chamada.url, "http://api.test/rotatividades/");
+    assert.equal(chamada.opcoes.method, "POST");
+    assert.equal(chamada.opcoes.body, JSON.stringify(dados));
+    assert.equal(chamada.opcoes.headers.Authorization.split(" ")[0], "Bearer");
   } finally {
     globalThis.fetch = original;
   }

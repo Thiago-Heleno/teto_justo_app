@@ -3,11 +3,10 @@
 ## Objetivo
 
 Unificar o contrato de criação, edição e conclusão de tarefas com o placar.
-A integração ativa do rodízio foi retirada do backend e da gravação no frontend;
-a prévia de tarefa rotativa que já existia na interface permanece. As migrations
-`17.sql` a `19.sql` permanecem intactas e não foram aplicadas nesta retirada.
-As descrições de entregas anteriores em outros documentos da sprint são
-históricas.
+A integração do rodízio foi reativada no backend e no frontend. O balanceador
+atribui cada ocorrência pela pontuação potencial histórica e pelas regras de
+elegibilidade. A gravação usa diretamente as tabelas existentes, sem RPC ou
+funções SQL. Nenhuma migration foi editada ou executada para essa integração.
 
 ## Contrato atual
 
@@ -41,9 +40,12 @@ históricas.
   para preservar o histórico do placar.
 
 O frontend grava tarefas comuns pela API quando ela está configurada, usa os
-campos aceitos pelo `PATCH` na edição e exibe o placar. A opção rotativa mantém
-somente a prévia local, sem gravar configuração ou gerar ocorrências. Sem a API,
-a tela de criação oferece uma prévia local com dados fictícios.
+campos aceitos pelo `PATCH` na edição e exibe o placar. Com a API, a opção
+rotativa grava a configuração em `POST /rotatividades/`; sem a API, continua
+oferecendo somente uma prévia local com dados fictícios. O endpoint
+`POST /jobs/rotatividades`, protegido por `ROTATIVIDADE_JOB_TOKEN`, cria as
+ocorrências previstas e atribui seus responsáveis automaticamente. Ele precisa
+ser chamado por um agendador externo diariamente.
 
 ## Arquivos principais
 
@@ -60,34 +62,32 @@ a tela de criação oferece uma prévia local com dados fictícios.
 | --- | --- |
 | `docs/migrations/14.sql` | Contrato anterior de duração e pontos-base; ainda exigido por bancos que não o aplicaram. |
 | `docs/migrations/15.sql` | Remove o trigger de crédito e cria a primeira versão da operação de conclusão. |
-| `docs/migrations/16.sql` | Introduz `tipo` e `modo_prazo`; permanece inalterado. |
-| `docs/migrations/17.sql` | Acrescenta fuso, esquema do rodízio, unicidade de ocorrências e preservação de eventos; converte datas de eventos legadas assumindo UTC. |
-| `docs/migrations/18.sql` | Cria operações transacionais do rodízio e das exclusões protegidas; atualiza a conclusão para devolver a pontuação e o saldo. |
-| `docs/migrations/19.sql` | Reconcilia `pertencer.score` com a soma de `score_event`; aplicar somente após revisar a auditoria. |
+| `docs/migrations/16.sql` | Cria a primeira função SQL de conclusão da tarefa. |
+| `docs/migrations/17.sql` | Acrescenta `tipo` e `modo_prazo` à tarefa. |
+| `docs/migrations/18.sql` | Cria as tabelas do rodízio e as colunas de vínculo/unicidade das ocorrências. |
+| `docs/migrations/19.sql` | Cria a função SQL de criação de rodízio; não é usada pela implementação atual. |
+| `docs/migrations/21.sql` | Cria a função SQL de registro de ocorrência; não é usada pela implementação atual. |
 
-O esquema e as funções de rodízio continuam em `17.sql` e `18.sql`, mas não
-têm rota, serviço periódico nem gravação no frontend. Sua eventual aplicação
-deixará esses objetos sem consumidor ativo. Nenhuma migration foi editada ou
-executada nesta retirada.
+O esquema de rodízio em `18.sql` é usado pela integração. As funções SQL de
+`19.sql` e `21.sql` não são chamadas: criação, seleção do responsável e gravação
+da ocorrência são feitas no backend. Nenhuma migration foi alterada ou
+executada. O banco verificado anteriormente não tinha o esquema necessário para
+o rodízio; portanto, a funcionalidade só poderá operar em um ambiente onde as
+tabelas e colunas descritas nas migrations requeridas já estejam aplicadas.
 
-Confira o histórico efetivamente aplicado no Supabase antes de executar SQL.
-No Supabase consultado para esta implementação, a verificação somente de
-leitura encontrou colunas da `16.sql`, mas não as colunas da `14.sql` nem a
-operação da `15.sql`. Antes de executar SQL, confirme o histórico de aplicação
-nesse banco. Se a verificação for confirmada, a sequência pendente começa em
-`14.sql` e `15.sql`, continua em `17.sql` e `18.sql`, e só então permite avaliar
-a `19.sql`; não reaplique `16.sql`. O arquivo `19.sql`
-ajusta somente saldos de vínculos existentes: eventos históricos já apagados
-não podem ser reconstruídos a partir do repositório.
+Confira o histórico efetivamente aplicado no Supabase antes de habilitar o
+rodízio. A verificação somente de leitura registrada anteriormente encontrou
+colunas da `16.sql`, mas não as colunas da `14.sql` nem a operação da `15.sql`.
+Não aplique SQL como parte desta mudança. A implementação precisa que as tabelas
+e colunas de `18.sql` já existam; ela não precisa das funções SQL de `19.sql` ou
+`21.sql`.
 
 ## Validação e pendências
 
-Após a retirada, passaram 198 testes unitários do backend, 23 testes do
-frontend, o typecheck TypeScript, Ruff dos arquivos Python alterados,
-ESLint dos arquivos de aplicação alterados (com Prettier desabilitado) e
-`git diff --check`. As migrations `17.sql` a `19.sql` não foram alteradas;
-sua análise sintática PostgreSQL havia passado na implementação anterior.
-Testes reais de crédito, concorrência, saldo e eventos no Supabase dependem
-das migrations no banco exclusivo de testes e não foram executados nesta
-retirada. Nenhuma migration foi aplicada. A validação em Android e iOS
-continua pendente.
+Na implementação atual, passaram 267 testes unitários do backend, 24 testes
+do frontend, Ruff dos arquivos Python alterados e `git diff --check`. O
+typecheck do frontend, lint completo e validação com Supabase real não foram
+executados. Nenhuma migration foi aplicada. A gravação de configuração e a
+gravação da ocorrência/atribuição são escritas separadas; o job precisa rodar
+em uma única instância ativa até haver uma estratégia de concorrência
+distribuída. A validação em Android e iOS também continua pendente.

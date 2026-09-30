@@ -52,6 +52,19 @@ export type TarefaCriar = {
   usuarios_atribuidos: [string];
 };
 
+export type RotatividadeCriar = {
+  fk_casa_id: string;
+  nome: string;
+  descricao: string;
+  peso: PesoTarefa;
+  prazo_dias: PrazoDias;
+  atraso_maximo: PrazoDias;
+  modo_prazo: "intervalo" | "dia_fixo";
+  participantes: string[];
+  dias_semana: number[];
+  intervalo_semanas: number;
+};
+
 export type Placar = {
   casa_id: string;
   fuso_horario: string;
@@ -140,6 +153,16 @@ export function carregarPlacar(signal?: AbortSignal) {
 
 export function criarTarefa(dados: TarefaCriar, signal?: AbortSignal) {
   return requisitar<Tarefa>("/tarefas/", signal, {
+    method: "POST",
+    body: dados,
+  });
+}
+
+export function criarRotatividade(
+  dados: RotatividadeCriar,
+  signal?: AbortSignal,
+) {
+  return requisitar<{ id: string }>("/rotatividades/", signal, {
     method: "POST",
     body: dados,
   });
