@@ -18,12 +18,15 @@ do token de sessão) no frontend, deixando o armazenamento do token pronto.
 
 ## Decisões e limitações
 
-- O Zustand foi apenas instalado; nenhuma store foi criada, pois ainda não há
-  estado global a compartilhar.
-- `tarefas-api.ts` continua lendo o token de `EXPO_PUBLIC_TETO_JUSTO_TOKEN`.
-  O `token-storage.ts` ainda não é chamado por nenhuma tela: a integração
-  depende do fluxo de login. Ele não foi importado em `tarefas-api.ts` porque
-  os testes `test:tarefas` rodam em Node puro, onde o módulo nativo não existe.
+- A integração foi concluída no fluxo de login/logout:
+  `sessao-store.ts` compartilha a sessão com Zustand e chama o armazenamento.
+  `api.ts` usa o token obtido em execução, removendo a dependência da variável
+  `EXPO_PUBLIC_TETO_JUSTO_TOKEN`.
+- Os testes em Node substituem somente o módulo de armazenamento nativo por
+  funções em memória, sem carregar React Native. O comando usa
+  `--experimental-test-module-mocks` no Node 24.
+- Veja [autenticacao.md](./autenticacao.md) para os comportamentos e validações
+  da integração.
 - O SecureStore não existe na web. Lá o token fica em `localStorage`, legível
   por qualquer script da página (exposto a XSS). Serve para desenvolvimento e
   demonstração; para produção na web, o caminho recomendado é um cookie
@@ -33,6 +36,8 @@ do token de sessão) no frontend, deixando o armazenamento do token pronto.
 
 ## Validação
 
-Em `src/frontend`: `npx tsc --noEmit` e `npm run lint` sem erros;
-`npm run test:tarefas` com 23 testes aprovados. O armazenamento em si não foi
-executado em dispositivo ou emulador.
+Em `src/frontend`: TypeScript e lint dos arquivos alterados aprovados;
+`npm run test:tarefas` com 36 testes aprovados. O fluxo de armazenamento web
+foi exercitado em navegador com API simulada. O armazenamento nativo ainda não
+foi executado em dispositivo ou emulador. Os detalhes do lint geral e as demais
+validações estão em [autenticacao.md](./autenticacao.md).

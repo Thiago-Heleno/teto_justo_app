@@ -1,3 +1,5 @@
+import { requisitar } from "./api.ts";
+
 import type { EstadoTarefa, PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
@@ -80,58 +82,19 @@ export type Placar = {
 
 export function temConfiguracaoTarefas() {
   return Boolean(
-    process.env.EXPO_PUBLIC_API_URL ||
-    process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN ||
-    process.env.EXPO_PUBLIC_CASA_ID,
+    process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_CASA_ID,
   );
 }
 
 function configuracao() {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
-  const token = process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN;
   const casaId = process.env.EXPO_PUBLIC_CASA_ID;
 
-  if (!apiUrl || !token || !casaId) {
-    throw new Error(
-      "Configure EXPO_PUBLIC_API_URL, EXPO_PUBLIC_TETO_JUSTO_TOKEN e EXPO_PUBLIC_CASA_ID.",
-    );
+  if (!apiUrl || !casaId) {
+    throw new Error("Configure EXPO_PUBLIC_API_URL e EXPO_PUBLIC_CASA_ID.");
   }
 
-  return { apiUrl, token, casaId };
-}
-
-async function requisitar<T>(
-  caminho: string,
-  signal?: AbortSignal,
-  opcoes?: { method?: "GET" | "PATCH" | "POST"; body?: unknown },
-): Promise<T> {
-  const { apiUrl, token } = configuracao();
-  const resposta = await fetch(`${apiUrl}${caminho}`, {
-    method: opcoes?.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(opcoes?.body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: opcoes?.body ? JSON.stringify(opcoes.body) : undefined,
-    signal,
-  });
-
-  if (!resposta.ok) {
-    const corpo = await resposta.json().catch(() => null);
-    const detalhe = corpo?.detail;
-    const mensagem =
-      typeof detalhe === "string"
-        ? detalhe
-        : Array.isArray(detalhe)
-          ? detalhe
-              .map((erro: { msg?: string }) => erro.msg)
-              .filter(Boolean)
-              .join(" ")
-          : "";
-    throw new Error(mensagem || "Não foi possível concluir a operação.");
-  }
-
-  return resposta.json() as Promise<T>;
+  return { apiUrl, casaId };
 }
 
 export async function carregarContextoTarefas(signal?: AbortSignal) {

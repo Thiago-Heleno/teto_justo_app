@@ -1,39 +1,77 @@
-from datetime import datetime, timezone
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+import bcrypt
 from fastapi import HTTPException
 
-from schemas.sessao import SessaoAtualizar, SessaoCriar
+from schemas.sessao import LoginEntrada, LoginResposta
 from schemas.usuario import UsuarioResposta
+
+
+# Mantém a verificação de bcrypt também quando o e-mail não existe.
+_HASH_SENHA_AUSENTE = bcrypt.hashpw(secrets.token_bytes(32), bcrypt.gensalt(rounds=12))
+
+
+def hash_token_sessao(token: str) -> str:
+    return "sha256:" + hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class ServicoSessao:
     def __init__(self, supabase_client):
         self.supabase = supabase_client
 
-    def criar_sessao(self, dados_sessao: SessaoCriar):
+    def login(self, dados: LoginEntrada) -> LoginResposta:
         resposta = (
-            self.supabase.table("sessao")
-            .insert(dados_sessao.model_dump(mode="json"))
+            self.supabase.table("usuario")
+            .select("id,senha_hash")
+            .eq("email", str(dados.email))
+            .limit(2)
             .execute()
         )
-        if not resposta.data:
-            raise HTTPException(
-                status_code=500,
-                detail="Erro ao criar sessão no banco.",
+        usuarios = resposta.data or []
+        usuario = usuarios[0] if len(usuarios) == 1 else None
+        senha = dados.senha.get_secret_value().encode("utf-8")
+        senha_hash = usuario.get("senha_hash") if usuario else None
+        try:
+            confere = bcrypt.checkpw(
+                senha,
+                senha_hash.encode("utf-8") if isinstance(senha_hash, str) else _HASH_SENHA_AUSENTE,
             )
-        return resposta.data[0]
+        except ValueError:
+            confere = False
 
-    def buscar_sessao(self, id_sessao: UUID):
-        resposta = (
+        if not usuario or not senha_hash or not confere:
+            raise HTTPException(
+                status_code=401,
+                detail="E-mail ou senha inválidos.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        token = secrets.token_urlsafe(32)
+        expira_em = datetime.now(timezone.utc) + timedelta(hours=24)
+        criada = (
             self.supabase.table("sessao")
-            .select("*")
-            .eq("id", str(id_sessao))
+            .insert({
+                "token": hash_token_sessao(token),
+                "expira_em": expira_em.isoformat(),
+                "fk_usuario_id": str(usuario["id"]),
+            })
             .execute()
         )
-        if not resposta.data:
-            raise HTTPException(status_code=404, detail="Sessão não encontrada.")
-        return resposta.data[0]
+        if not criada.data:
+            raise HTTPException(status_code=500, detail="Não foi possível iniciar a sessão.")
+        return LoginResposta(token=token, expira_em=expira_em)
+
+    def logout(self, token: str, id_usuario: UUID) -> None:
+        (
+            self.supabase.table("sessao")
+            .delete()
+            .eq("token", hash_token_sessao(token))
+            .eq("fk_usuario_id", str(id_usuario))
+            .execute()
+        )
 
     @staticmethod
     def _expiracao_em_utc(valor) -> datetime | None:
@@ -56,7 +94,7 @@ class ServicoSessao:
         resposta_sessao = (
             self.supabase.table("sessao")
             .select("fk_usuario_id,expira_em")
-            .eq("token", token)
+            .eq("token", hash_token_sessao(token))
             .limit(2)
             .execute()
         )
@@ -85,45 +123,3 @@ class ServicoSessao:
             return None
 
         return UsuarioResposta.model_validate(usuarios[0])
-
-    def listar_sessoes(self, inicio: int = 0, limite: int = 100):
-        resposta = (
-            self.supabase.table("sessao")
-            .select("*")
-            .range(inicio, inicio + limite - 1)
-            .execute()
-        )
-        return resposta.data
-
-    def atualizar_sessao(self, id_sessao: UUID, dados_sessao: SessaoAtualizar):
-        dados = dados_sessao.model_dump(
-            mode="json",
-            exclude_unset=True,
-            exclude_none=True,
-        )
-        if not dados:
-            raise HTTPException(
-                status_code=400,
-                detail="Nenhum dado para atualização.",
-            )
-
-        resposta = (
-            self.supabase.table("sessao")
-            .update(dados)
-            .eq("id", str(id_sessao))
-            .execute()
-        )
-        if not resposta.data:
-            raise HTTPException(status_code=404, detail="Sessão não encontrada.")
-        return resposta.data[0]
-
-    def excluir_sessao(self, id_sessao: UUID):
-        resposta = (
-            self.supabase.table("sessao")
-            .delete()
-            .eq("id", str(id_sessao))
-            .execute()
-        )
-        if not resposta.data:
-            raise HTTPException(status_code=404, detail="Sessão não encontrada.")
-        return True
