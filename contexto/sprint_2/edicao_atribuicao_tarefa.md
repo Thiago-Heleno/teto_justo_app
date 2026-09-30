@@ -19,8 +19,9 @@ impedindo responsáveis duplicados ou de outra casa.
   (`tarefa("dificuldade")`) em vez de indexá-lo (`tarefa["dificuldade"]`).
 - `services/autorizacao.py`: novo método
   `ServicoAutorizacaoCasa.garantir_responsaveis_da_casa` — rejeita
-  (`400`) UUIDs duplicados na lista de responsáveis e responsáveis que
-  não pertencem à casa da tarefa. A checagem de pertencimento considera
+  (`422`) UUIDs duplicados na lista de responsáveis e responsáveis que
+  não pertencem à casa da tarefa (era `400` até a padronização com o
+  `POST`). A checagem de pertencimento considera
   tanto os vínculos em `pertencer` quanto o dono da casa
   (`casa.fk_usuario_id`), que não é gravado em `pertencer` na criação da
   casa (`services/casa.py`).
