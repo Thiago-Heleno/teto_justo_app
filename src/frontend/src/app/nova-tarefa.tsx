@@ -149,8 +149,7 @@ export default function NovaTarefaScreen() {
               modo_prazo: preparada.modo_prazo,
               participantes: preparada.rotatividade.participantes,
               dias_semana: preparada.rotatividade.dias_semana,
-              intervalo_semanas:
-                preparada.rotatividade.intervalo_semanas,
+              intervalo_semanas: preparada.rotatividade.intervalo_semanas,
             });
           } else {
             await salvarTarefa({
