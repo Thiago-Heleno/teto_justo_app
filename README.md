@@ -14,7 +14,7 @@ O fluxo e as telas do aplicativo estão disponíveis no
 
 ## Tecnologias
 
-- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web (ainda sem telas que os usem).
+- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web. Login e logout integrados à API.
 - **Backend:** Python, FastAPI, Pydantic e Uvicorn.
 - **Dados:** Supabase.
 - **Qualidade:** ESLint, Prettier, Ruff, Bandit e Pytest.
@@ -33,12 +33,11 @@ acessa o Supabase para persistir os dados.
 
 ## Como rodar localmente
 
-Para visualizar somente a tela **Nova tarefa**, siga diretamente a
-[etapa 3 — Frontend](#3-inicie-o-frontend). Sem configuração da API, a tela usa
-dados fictícios e não precisa de backend, Docker, Supabase ou `.env`. Com a API
-configurada, a criação grava tarefas comuns no Supabase por meio do backend.
-A opção rotativa permanece como prévia local e não grava rodízios.
-A tela **Tarefas** consulta a API e requer a configuração abaixo.
+O aplicativo abre a tela de login antes de liberar as abas. Inicie o backend
+e configure a URL da API no frontend. Uma conta pode ser criada pelo endpoint
+público `POST /usuarios/` na documentação interativa `/docs` do backend.
+As telas de tarefas e pontuação também precisam do ID da casa configurado
+abaixo e de um usuário com as permissões correspondentes.
 
 ### Pré-requisitos
 
@@ -151,13 +150,18 @@ Para carregar a tela **Tarefas** com dados reais, crie
 ```env
 EXPO_PUBLIC_API_URL=http://127.0.0.1:8000
 EXPO_PUBLIC_CASA_ID=uuid-da-casa
-EXPO_PUBLIC_TETO_JUSTO_TOKEN=token-de-sessao-valido
 ```
 
-Use essa configuração somente no desenvolvimento local. O token não deve ser
-versionado nem incorporado em builds distribuídos; o futuro fluxo de login
-deve fornecer a sessão em tempo de execução. No celular, substitua
-`127.0.0.1` pelo IP da máquina na rede local.
+Entre com o e-mail e a senha da sua conta. O token é recebido de
+`POST /sessoes/login` e salvo no SecureStore (celular) ou no `localStorage`
+(web). O aplicativo não lê mais `EXPO_PUBLIC_TETO_JUSTO_TOKEN`; remova essa
+variável de configurações antigas. No celular, substitua `127.0.0.1` pelo IP
+da máquina na rede local.
+
+A sessão expira em 24 horas. **Sair da conta** revoga a sessão atual por
+`POST /sessoes/logout`. Tokens antigos armazenados em texto puro no banco
+deixaram de autenticar: faça login para obter uma sessão nova. O CRUD
+`/sessoes/` e `/sessoes/{id}` foi removido.
 
 No PowerShell, se `npm` ou `npx` forem bloqueados pela política de scripts,
 use `npm.cmd` e `npx.cmd`, respectivamente. No macOS e Linux, use os comandos
@@ -250,11 +254,15 @@ primeira execução, faça a configuração abaixo em `src/frontend`:
 
 O IPA interno só pode ser instalado em aparelhos incluídos no perfil de
 provisionamento Apple. Para distribuição ampla, use TestFlight/App Store.
-O app ainda não tem login em tempo de execução: não coloque
-`EXPO_PUBLIC_TETO_JUSTO_TOKEN` no EAS ou no GitHub, pois variáveis
-`EXPO_PUBLIC_*` ficam legíveis no aplicativo distribuído. Até implementar o
-login, as telas que exigem a API não funcionarão em um build público sem a
-configuração local de desenvolvimento.
+O login agora obtém a credencial em tempo de execução. Não configure tokens
+de sessão no EAS, no GitHub ou em variáveis `EXPO_PUBLIC_*`, pois elas ficam
+legíveis no aplicativo distribuído. Configure somente a URL pública da API
+(HTTPS em ambientes distribuídos) e o ID da casa.
+
+Esta mudança não libera o projeto para distribuição pública: ainda há
+pendências de autorização por recurso, limitação de tentativas de login e
+validação em dispositivos. Veja
+[autenticação da sprint 2](./contexto/sprint_2/autenticacao.md).
 
 #### Ver as alterações
 
