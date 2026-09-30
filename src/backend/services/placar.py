@@ -4,6 +4,9 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
+from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
+from services.pertencer import ServicoPertencer
+
 
 class ServicoPlacar:
     TAMANHO_PAGINA = 1000
@@ -43,13 +46,21 @@ class ServicoPlacar:
     def _meia_noite_utc(dia: date, fuso: ZoneInfo) -> datetime:
         return datetime.combine(dia, time.min, tzinfo=fuso).astimezone(timezone.utc)
 
-    def _eventos_da_casa(self, id_casa: UUID):
+    def _eventos_da_casa(
+        self,
+        id_casa: UUID,
+        inicio_utc: datetime | None = None,
+        fim_utc: datetime | None = None,
+    ):
         inicio = 0
         while True:
-            pagina = (
+            consulta = (
                 self.supabase.table("score_event")
                 .select("id,fk_usuario_id,pontuacao,criado_em")
                 .eq("fk_casa_id", str(id_casa))
+            )
+            pagina = (
+                self._filtrar_periodo(consulta, inicio_utc, fim_utc)
                 .order("id")
                 .range(inicio, inicio + self.TAMANHO_PAGINA - 1)
                 .execute()
@@ -59,7 +70,15 @@ class ServicoPlacar:
                 break
             inicio += self.TAMANHO_PAGINA
 
-    def _dados(self, id_casa: UUID, agora: datetime):
+    @staticmethod
+    def _filtrar_periodo(consulta, inicio_utc: datetime | None, fim_utc: datetime | None):
+        if inicio_utc is not None:
+            consulta = consulta.gte("criado_em", inicio_utc.isoformat())
+        if fim_utc is not None:
+            consulta = consulta.lt("criado_em", fim_utc.isoformat())
+        return consulta
+
+    def _fuso_da_casa(self, id_casa: UUID) -> tuple[str, ZoneInfo]:
         resposta_casa = (
             self.supabase.table("casa")
             .select("timezone")
@@ -74,23 +93,38 @@ class ServicoPlacar:
             fuso = ZoneInfo(nome_fuso)
         except (ValueError, KeyError) as erro:
             raise HTTPException(status_code=500, detail="Fuso horário da casa inválido.") from erro
+        return nome_fuso, fuso
 
-        vinculos = (
-            self.supabase.table("pertencer")
-            .select("fk_usuario_id,score")
-            .eq("fk_casa_id", str(id_casa))
-            .execute()
-        ).data
-        ids = [str(vinculo["fk_usuario_id"]) for vinculo in vinculos]
-        usuarios = []
-        if ids:
-            usuarios = (
-                self.supabase.table("usuario")
-                .select("id,nome")
-                .in_("id", ids)
+    def _vinculos_e_nomes(self, id_casa: UUID) -> tuple[list[dict], dict[str, str]]:
+        vinculos, nomes = [], {}
+        inicio = 0
+        while True:
+            pagina = (
+                self.supabase.table("pertencer")
+                .select("fk_usuario_id,score")
+                .eq("fk_casa_id", str(id_casa))
+                .order("fk_usuario_id")
+                .range(inicio, inicio + self.TAMANHO_PAGINA - 1)
                 .execute()
             ).data
-        nomes = {str(usuario["id"]): usuario["nome"] for usuario in usuarios}
+            vinculos.extend(pagina)
+            if pagina:
+                usuarios = (
+                    self.supabase.table("usuario")
+                    .select("id,nome")
+                    .in_("id", [str(vinculo["fk_usuario_id"]) for vinculo in pagina])
+                    .execute()
+                ).data
+                nomes.update({str(usuario["id"]): usuario["nome"] for usuario in usuarios})
+            if len(pagina) < self.TAMANHO_PAGINA:
+                break
+            inicio += self.TAMANHO_PAGINA
+        return vinculos, nomes
+
+    def _dados(self, id_casa: UUID, agora: datetime):
+        nome_fuso, fuso = self._fuso_da_casa(id_casa)
+        vinculos, nomes = self._vinculos_e_nomes(id_casa)
+        ids = [str(vinculo["fk_usuario_id"]) for vinculo in vinculos]
 
         agora_utc = self._instante_utc(agora)
         hoje = agora_utc.astimezone(fuso).date()
@@ -140,6 +174,80 @@ class ServicoPlacar:
         return {
             "casa_id": str(id_casa),
             "fuso_horario": nome_fuso,
+            "moradores": moradores,
+        }
+
+    def obter_saldo(self, id_casa: UUID, id_usuario: UUID) -> dict:
+        vinculo = ServicoPertencer(self.supabase).buscar_pertencer(id_usuario, id_casa)
+        return {
+            "fk_casa_id": str(id_casa),
+            "fk_usuario_id": str(id_usuario),
+            "saldo_atual": vinculo["score"] or 0,
+        }
+
+    def _limites_periodo(
+        self, filtros: FiltroPeriodoScore, fuso: ZoneInfo
+    ) -> tuple[datetime | None, datetime | None]:
+        return (
+            self._meia_noite_utc(filtros.data_inicio, fuso) if filtros.data_inicio else None,
+            self._meia_noite_utc(filtros.data_fim, fuso) if filtros.data_fim else None,
+        )
+
+    def obter_extrato(self, id_casa: UUID, filtros: FiltroExtratoScore) -> dict:
+        nome_fuso, fuso = self._fuso_da_casa(id_casa)
+        consulta = (
+            self.supabase.table("score_event")
+            .select(
+                "id,fk_casa_id,fk_usuario_id,fk_tarefa_id,pontuacao,tipo,criado_em",
+                count="exact",
+            )
+            .eq("fk_casa_id", str(id_casa))
+        )
+        if filtros.fk_usuario_id is not None:
+            ServicoPertencer(self.supabase).buscar_pertencer(filtros.fk_usuario_id, id_casa)
+            consulta = consulta.eq("fk_usuario_id", str(filtros.fk_usuario_id))
+        resposta = (
+            self._filtrar_periodo(consulta, *self._limites_periodo(filtros, fuso))
+            .order("criado_em", desc=True)
+            .order("id", desc=True)
+            .range(filtros.inicio, filtros.inicio + filtros.limite - 1)
+            .execute()
+        )
+        return {
+            "casa_id": str(id_casa),
+            "fuso_horario": nome_fuso,
+            **filtros.model_dump(),
+            "total": resposta.count,
+            "eventos": resposta.data,
+        }
+
+    def obter_ranking(self, id_casa: UUID, filtros: FiltroPeriodoScore) -> dict:
+        nome_fuso, fuso = self._fuso_da_casa(id_casa)
+        vinculos, nomes = self._vinculos_e_nomes(id_casa)
+        totais = {str(vinculo["fk_usuario_id"]): 0 for vinculo in vinculos}
+        for evento in self._eventos_da_casa(id_casa, *self._limites_periodo(filtros, fuso)):
+            id_usuario = str(evento["fk_usuario_id"])
+            if id_usuario in totais:
+                totais[id_usuario] += int(evento["pontuacao"])
+        moradores = [
+            {"usuario_id": id_usuario, "nome": nomes[id_usuario], "pontos": pontos}
+            for id_usuario, pontos in totais.items()
+        ]
+        moradores.sort(
+            key=lambda morador: (
+                -morador["pontos"], morador["nome"].casefold(), morador["usuario_id"]
+            )
+        )
+        posicao, pontos_anteriores = 0, None
+        for indice, morador in enumerate(moradores, start=1):
+            if morador["pontos"] != pontos_anteriores:
+                posicao = indice
+            morador["posicao"] = posicao
+            pontos_anteriores = morador["pontos"]
+        return {
+            "casa_id": str(id_casa),
+            "fuso_horario": nome_fuso,
+            **filtros.model_dump(),
             "moradores": moradores,
         }
 

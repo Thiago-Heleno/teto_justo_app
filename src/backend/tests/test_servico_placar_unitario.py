@@ -1,10 +1,12 @@
+from copy import deepcopy
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
 
+from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
 from services.placar import ServicoPlacar
 
 
@@ -15,8 +17,12 @@ class Consulta:
         self.filtros = []
         self.ids = None
         self.intervalo = None
+        self.ordens = []
+        self.periodo = []
+        self.campos = "*"
 
-    def select(self, _campos):
+    def select(self, campos, count=None):
+        self.campos = campos
         return self
 
     def eq(self, campo, valor):
@@ -27,7 +33,16 @@ class Consulta:
         self.ids = (campo, set(valores))
         return self
 
-    def order(self, _campo):
+    def order(self, campo, desc=False):
+        self.ordens.append((campo, desc))
+        return self
+
+    def gte(self, campo, valor):
+        self.periodo.append((campo, valor, "gte"))
+        return self
+
+    def lt(self, campo, valor):
+        self.periodo.append((campo, valor, "lt"))
         return self
 
     def range(self, inicio, fim):
@@ -40,10 +55,38 @@ class Consulta:
             if all(str(registro.get(campo)) == str(valor) for campo, valor in self.filtros)
             and (self.ids is None or registro.get(self.ids[0]) in self.ids[1])
         ]
+        for campo, valor, operador in self.periodo:
+            limite = datetime.fromisoformat(valor)
+            registros = [
+                registro for registro in registros
+                if (
+                    self.valor_ordenavel(campo, registro[campo]) >= limite
+                    if operador == "gte"
+                    else self.valor_ordenavel(campo, registro[campo]) < limite
+                )
+            ]
+        total = len(registros)
+        for campo, desc in reversed(self.ordens):
+            registros.sort(
+                key=lambda registro: self.valor_ordenavel(campo, registro[campo]),
+                reverse=desc,
+            )
         if self.intervalo:
             inicio, fim = self.intervalo
             registros = registros[inicio: fim + 1]
-        return SimpleNamespace(data=registros)
+        if self.campos != "*":
+            registros = [
+                {campo: registro[campo] for campo in self.campos.split(",")}
+                for registro in registros
+            ]
+        return SimpleNamespace(data=registros, count=total)
+
+    @staticmethod
+    def valor_ordenavel(campo, valor):
+        if campo == "criado_em":
+            instante = datetime.fromisoformat(valor)
+            return instante if instante.tzinfo else instante.replace(tzinfo=timezone.utc)
+        return valor
 
 
 class Banco:
@@ -64,6 +107,8 @@ def evento(casa_id, usuario_id, instante, pontos):
         "id": str(uuid4()),
         "fk_casa_id": str(casa_id),
         "fk_usuario_id": str(usuario_id),
+        "fk_tarefa_id": str(uuid4()),
+        "tipo": "credito" if pontos >= 0 else "reversal",
         "criado_em": instante,
         "pontuacao": pontos,
     }
@@ -188,3 +233,126 @@ def test_placar_restrito_a_moradores():
         servico.garantir_acesso(casa_id, uuid4())
 
     assert erro.value.status_code == 403
+
+
+def test_saldo_consulta_o_vinculo_exato_sem_recalcular_ou_alterar_pontos():
+    servico, banco, casa_id, usuario_id = montar_servico(score=75)
+    banco.registros["pertencer"].append({
+        "fk_casa_id": str(uuid4()), "fk_usuario_id": str(usuario_id), "score": 999,
+    })
+    banco.registros["score_event"] = [
+        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
+    ]
+    antes = deepcopy(banco.registros)
+
+    assert servico.obter_saldo(casa_id, usuario_id) == {
+        "fk_casa_id": str(casa_id), "fk_usuario_id": str(usuario_id), "saldo_atual": 75,
+    }
+    assert banco.registros == antes
+
+
+def test_ranking_ordena_pontos_empates_e_moradores_sem_eventos_em_varias_paginas():
+    servico, banco, casa_id, usuario_id = montar_servico(score=999)
+    servico.TAMANHO_PAGINA = 2
+    bia, outra_ana, sem_eventos = UUID(int=2), UUID(int=1), UUID(int=3)
+    for id_usuario, nome in [(bia, "Bia"), (outra_ana, "Ana"), (sem_eventos, "Caio")]:
+        banco.registros["usuario"].append({"id": str(id_usuario), "nome": nome})
+        banco.registros["pertencer"].append({
+            "fk_casa_id": str(casa_id), "fk_usuario_id": str(id_usuario), "score": 0,
+        })
+    banco.registros["score_event"] = [
+        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
+        evento(casa_id, bia, "2026-09-02T12:00:00Z", 50),
+        evento(casa_id, outra_ana, "2026-09-03T12:00:00Z", 50),
+        evento(casa_id, outra_ana, "2026-09-04T12:00:00Z", -25),
+        evento(uuid4(), usuario_id, "2026-09-05T12:00:00Z", 999),
+        evento(casa_id, uuid4(), "2026-09-05T12:00:00Z", 999),
+    ]
+    antes = deepcopy(banco.registros)
+
+    ranking = servico.obter_ranking(casa_id, FiltroPeriodoScore())
+
+    assert [
+        (item["usuario_id"], item["pontos"], item["posicao"])
+        for item in ranking["moradores"]
+    ] == [(str(bia), 50, 1), (str(outra_ana), 25, 2),
+          (str(usuario_id), 25, 2), (str(sem_eventos), 0, 4)]
+    assert banco.registros == antes
+
+
+@pytest.mark.parametrize("filtros,pontos", [
+    ({"data_inicio": "2026-09-01", "data_fim": "2026-10-01"}, 8),
+    ({"data_inicio": "2026-09-01"}, 15),
+    ({"data_fim": "2026-10-01"}, 10),
+    ({}, 17),
+])
+def test_ranking_e_extrato_respeitam_limites_do_mes_no_fuso_da_casa(filtros, pontos):
+    servico, banco, casa_id, usuario_id = montar_servico()
+    banco.registros["score_event"] = [
+        evento(casa_id, usuario_id, "2026-09-01T02:59:59Z", 2),
+        evento(casa_id, usuario_id, "2026-09-01T03:00:00Z", 3),
+        evento(casa_id, usuario_id, "2026-10-01T02:59:59.999999Z", 5),
+        evento(casa_id, usuario_id, "2026-10-01T03:00:00Z", 7),
+    ]
+
+    ranking = servico.obter_ranking(casa_id, FiltroPeriodoScore(**filtros))
+    extrato = servico.obter_extrato(casa_id, FiltroExtratoScore(**filtros))
+
+    assert ranking["moradores"][0]["pontos"] == pontos
+    assert sum(item["pontuacao"] for item in extrato["eventos"]) == pontos
+
+
+def test_periodo_respeita_a_mudanca_de_fuso_entre_inicio_e_fim():
+    servico, banco, casa_id, usuario_id = montar_servico(fuso="America/New_York")
+    banco.registros["score_event"] = [
+        evento(casa_id, usuario_id, "2026-03-08T04:59:59Z", 2),
+        evento(casa_id, usuario_id, "2026-03-08T05:00:00Z", 3),
+        evento(casa_id, usuario_id, "2026-03-09T03:59:59Z", 5),
+        evento(casa_id, usuario_id, "2026-03-09T04:00:00Z", 7),
+    ]
+
+    ranking = servico.obter_ranking(
+        casa_id, FiltroPeriodoScore(data_inicio="2026-03-08", data_fim="2026-03-09")
+    )
+
+    assert ranking["moradores"][0]["pontos"] == 8
+
+
+def test_extrato_filtra_usuario_e_casa_e_pagina_em_ordem_estavel():
+    servico, banco, casa_id, usuario_id = montar_servico()
+    eventos = [
+        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
+        evento(casa_id, usuario_id, "2026-09-02T12:00:00Z", 50),
+        evento(casa_id, usuario_id, "2026-09-02T12:00:00Z", -50),
+    ]
+    for indice, item in enumerate(eventos, start=1):
+        item["id"] = str(UUID(int=indice))
+    banco.registros["score_event"] = eventos + [
+        evento(uuid4(), usuario_id, "2026-09-03T12:00:00Z", 999),
+        evento(casa_id, uuid4(), "2026-09-03T12:00:00Z", 999),
+    ]
+
+    primeira = servico.obter_extrato(
+        casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id, limite=2)
+    )
+    segunda = servico.obter_extrato(
+        casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id, inicio=2, limite=2)
+    )
+    esgotada = servico.obter_extrato(
+        casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id, inicio=4, limite=2)
+    )
+
+    assert primeira["eventos"] == [eventos[2], eventos[1]]
+    assert segunda["eventos"] == [eventos[0]]
+    assert esgotada["eventos"] == []
+    assert primeira["total"] == segunda["total"] == esgotada["total"] == 3
+
+
+def test_ranking_sem_vinculos_e_extrato_sem_eventos_retornam_listas_vazias():
+    servico, banco, casa_id, _ = montar_servico()
+    banco.registros["pertencer"] = []
+
+    assert servico.obter_ranking(casa_id, FiltroPeriodoScore())["moradores"] == []
+    extrato = servico.obter_extrato(casa_id, FiltroExtratoScore())
+    assert extrato["eventos"] == []
+    assert extrato["total"] == 0
