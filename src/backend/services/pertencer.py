@@ -1,8 +1,5 @@
 from uuid import UUID
-
 from fastapi import HTTPException
-from postgrest.exceptions import APIError
-
 from schemas.pertencer import PertencerCriar
 
 
@@ -63,33 +60,76 @@ class ServicoPertencer:
         return resposta.data
 
     def deletar_pertencer(self, fk_usuario_id: UUID, fk_casa_id: UUID):
+
         casa = (
             self.supabase.table("casa")
-            .select("fk_usuario_id")
+            .select("fk_usuario_id, rotacao_versao")
             .eq("id", str(fk_casa_id))
             .execute()
         ).data
-        if casa and str(casa[0]["fk_usuario_id"]) == str(fk_usuario_id):
-            raise HTTPException(
-                status_code=409,
-                detail="O proprietário não pode sair da própria casa.",
-            )
-        try:
-            resposta = self.supabase.rpc(
-                "excluir_vinculo_sem_credito",
-                {
-                    "p_id_usuario": str(fk_usuario_id),
-                    "p_id_casa": str(fk_casa_id),
-                },
-            ).execute()
-        except APIError as erro:
-            if erro.code == "PT409":
-                raise HTTPException(status_code=409, detail=erro.message) from erro
-            raise
-        if resposta.data is not True:
+        if not casa:
             raise HTTPException(
                 status_code=404,
                 detail="Vínculo não encontrado ou já deletado.",
             )
+        if str(casa[0]["fk_usuario_id"]) == str(fk_usuario_id):
+            raise HTTPException(
+                status_code=409,
+                detail="O proprietário não pode sair da própria casa.",
+            )
+        vinculo = (
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_usuario_id", str(fk_usuario_id))
+            .eq("fk_casa_id", str(fk_casa_id))
+            .execute()
+        )
+        if not vinculo.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Vínculo não encontrado ou já deletado.",
+            )
+        historico = (
+            self.supabase.table("score_event")
+            .select("fk_usuario_id")
+            .eq("fk_usuario_id", str(fk_usuario_id))
+            .eq("fk_casa_id", str(fk_casa_id))
+            .execute()
+        )
+        if historico.data:
+            raise HTTPException(
+                status_code=409,
+                detail="O histórico de pontos deste morador deve ser preservado.",
+            )
+
+        ids_tarefas = [
+            registro["fk_tarefa_id"]
+            for registro in (
+                self.supabase.table("atribuida")
+                .select("fk_tarefa_id")
+                .eq("fk_usuario_id", str(fk_usuario_id))
+                .execute()
+            ).data
+        ]
+        if ids_tarefas:
+            tarefas_abertas = (
+                self.supabase.table("tarefa")
+                .select("id")
+                .in_("id", ids_tarefas)
+                .eq("fk_casa_id", str(fk_casa_id))
+                .in_("estado_atual", ["pendente", "atrasada"])
+                .execute()
+            )
+            if tarefas_abertas.data:
+                raise HTTPException(
+                    status_code=409,
+                    detail="O morador possui tarefas abertas nesta casa.",
+                )
+        self.supabase.table("pertencer").delete().eq(
+            "fk_usuario_id", str(fk_usuario_id)
+        ).eq("fk_casa_id", str(fk_casa_id)).execute()
+        self.supabase.table("casa").update(
+            {"rotacao_versao": casa[0]["rotacao_versao"] + 1}
+        ).eq("id", str(fk_casa_id)).execute()
 
         return True

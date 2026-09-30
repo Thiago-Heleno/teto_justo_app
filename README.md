@@ -87,6 +87,44 @@ Para o navegador em outra origem, defina `CORS_ORIGINS` no `.env` do backend
 com as origens separadas por vírgula (por exemplo,
 `http://localhost:8081,http://127.0.0.1:8081`).
 
+#### Rotina agendada de penalidades
+
+Um agendador externo pode chamar `POST /jobs/penalidades`. Configure
+`PENALIDADE_JOB_TOKEN` no ambiente do backend e envie o mesmo valor no
+cabeçalho `X-Penalidade-Job-Token`. Sem o segredo, o endpoint fica desativado;
+não use o token em logs nem o exponha ao frontend.
+
+Para desenvolvimento local, cada pessoa cria seu próprio token no `.env` local
+da raiz do repositório; não é necessário compartilhar tokens entre
+desenvolvedores. Gere um valor aleatório com Python:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Copie o resultado para `PENALIDADE_JOB_TOKEN` no `.env` local e reinicie o
+backend. `.env.example` documenta a variável, mas seu valor real não deve ser
+preenchido nem commitado. Para um ambiente compartilhado, o responsável pela
+implantação deve cadastrar o mesmo segredo no armazenamento seguro de variáveis
+do backend e do agendador; compartilhe o acesso pelo gerenciador de segredos da
+equipe, nunca por commits, mensagens ou logs.
+
+Um teste manual em PowerShell pode usar uma variável de ambiente já configurada
+na sessão, sem gravar o valor no comando:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/jobs/penalidades" `
+  -Headers @{ "X-Penalidade-Job-Token" = $env:PENALIDADE_JOB_TOKEN }
+```
+
+A rotina marca tarefas vencidas como `atrasada` e, após ultrapassar o atraso
+máximo, como `nao_feito`. Chamadas repetidas são seguras: a atualização compara
+o estado e as regras atuais da tarefa, e não gera `score_event` nem altera o
+saldo. O desconto de `100 / (atraso_maximo + 1)` por dia é calculado no momento
+da conclusão, onde o crédito é registrado uma única vez. O agendamento em si
+deve ser configurado no serviço externo que fará a chamada HTTP.
+
 Como alternativa, a partir da raiz do repositório, execute o backend com
 Docker:
 
