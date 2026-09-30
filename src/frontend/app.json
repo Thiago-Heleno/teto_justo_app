@@ -1,14 +1,15 @@
 {
   "expo": {
     "name": "frontend-native",
-    "slug": "frontend-native",
+    "slug": "teto-justo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontendnative",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.tetojusto.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": true,
-      "package": "com.anonymous.frontendnative"
+      "package": "com.tetojusto.app"
     },
     "web": {
       "output": "static",
@@ -38,6 +39,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cd351611-8c57-490c-a328-34e1e2bb58d2"
+      }
+    },
+    "owner": "teto-justo-app"
   }
 }
