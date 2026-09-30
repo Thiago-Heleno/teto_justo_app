@@ -61,11 +61,10 @@ Não versione esse arquivo nem exponha as credenciais.
 Antes de iniciar o backend com um banco existente, confira quais migrations de
 `docs/migrations/` já foram aplicadas. A sequência dos arquivos é `14.sql`,
 `15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam do banco.
-As migrations `17.sql` e `18.sql` também contêm estruturas de rodízio que não
-têm integração ativa na aplicação. Esta retirada não executa migrations.
-O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve ser
-aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Nenhuma
-migration anterior deve ser editada ou reaplicada indiscriminadamente. Veja o
+`18.sql` cria as tabelas e colunas usadas pela rotatividade automática. Não
+execute migrations já aplicadas nem aplique alterações sem revisar o estado do
+banco. O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve
+ser aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Veja o
 [resumo da sprint 2](./contexto/sprint_2/alinhamento_tarefas_pontuacao.md).
 
 ### 2. Inicie o backend
@@ -124,6 +123,28 @@ o estado e as regras atuais da tarefa, e não gera `score_event` nem altera o
 saldo. O desconto de `100 / (atraso_maximo + 1)` por dia é calculado no momento
 da conclusão, onde o crédito é registrado uma única vez. O agendamento em si
 deve ser configurado no serviço externo que fará a chamada HTTP.
+
+#### Rotatividade automática
+
+O endpoint `POST /jobs/rotatividades` processa as ocorrências vencidas das
+configurações ativas e é destinado a um agendador externo. Configure
+`ROTATIVIDADE_JOB_TOKEN` no backend; o agendador deve enviar o mesmo segredo no
+cabeçalho `X-Rotatividade-Job-Token`. Não exponha nem registre esse token.
+
+Para testar a integração com o banco, configure `SUPABASE_URL` e
+`SUPABASE_KEY` no `.env` da raiz, aplique as migrations necessárias (incluindo
+`18.sql`) e execute o teste a partir de `src/backend`:
+
+```powershell
+python -m pytest -q tests/test_rotatividade_integracao.py
+```
+
+Use somente um projeto Supabase descartável/de teste com acesso de escrita
+`service_role`. O teste cria e remove usuários, casa, configuração, tarefa e
+atribuição; também chama o job, confere os registros persistidos e valida que
+uma segunda execução não duplica a ocorrência. Como o job processa todos os
+rodízios ativos, o teste exige que o banco não tenha outros rodízios ativos.
+Não o execute em produção nem num banco compartilhado com dados reais.
 
 Como alternativa, a partir da raiz do repositório, execute o backend com
 Docker:
