@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "frontend-native",
-    "slug": "frontend-native",
+    "slug": "teto-justo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -39,6 +39,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cd351611-8c57-490c-a328-34e1e2bb58d2"
+      }
+    },
+    "owner": "teto-justo-app"
   }
 }
