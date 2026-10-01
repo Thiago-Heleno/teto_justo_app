@@ -1,0 +1,3 @@
+# Horário em UTC (03:05 UTC = 00:05 em Brasília). O backend deve estar acessível em http://backend:8000.
+5 3 * * * curl -fsS -X POST -H "X-Rotatividade-Job-Token: $ROTATIVIDADE_JOB_TOKEN" http://backend:8000/jobs/rotatividades >/proc/1/fd/1 2>&1
+5 3 * * * curl -fsS -X POST -H "X-Penalidade-Job-Token: $PENALIDADE_JOB_TOKEN" http://backend:8000/jobs/penalidades >/proc/1/fd/1 2>&1
