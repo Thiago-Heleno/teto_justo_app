@@ -29,7 +29,7 @@ O prazo normal (`prazo_dias`) determina quando a tarefa vence. A tolerância
 (`atraso_maximo`) determina o desconto após o vencimento. São valores separados.
 
 Para tolerância N, cada dia de atraso desconta `100 / (N + 1)` por cento dos
-pontos-base. O primeiro desconto ocorre após o vencimento; cada período de
+pontos-base (regra definitiva, alinhada à ata de reunião de 25/09). O primeiro desconto ocorre após o vencimento; cada período de
 até 24 horas de atraso conta como um dia. No limite exato de 24 horas, conta
 um dia; no limite de 48 horas, dois.
 
@@ -84,8 +84,10 @@ se ele for apenas proprietário da casa sem esse vínculo, a conclusão retorna
 também exigem regularização antes de serem concluídas.
 
 A função SQL `registrar_conclusao_tarefa` (que fazia essa persistência antes)
-continua existindo no banco, sem uso — mantida como rede de segurança até a
-migração ser validada em produção por mais tempo.
+foi removida do banco pela migration `docs/migrations/25.sql`, junto com
+`excluir_tarefa_sem_credito` e `excluir_vinculo_sem_credito`. Qualquer correção
+futura nessa regra acontece no Python. A conclusão grava **um único evento** em
+`score_event`, com o valor já descontado; não há evento separado de penalidade.
 
 A penalidade reduz os pontos recebidos ao concluir a tarefa; não desconta
 periodicamente do saldo. Consultas após a tolerância marcam `nao_feito` sem

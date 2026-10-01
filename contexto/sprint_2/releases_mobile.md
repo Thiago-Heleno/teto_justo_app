@@ -27,6 +27,10 @@ https://expo.dev/accounts/teto-justo-app/projects/teto-justo/builds/6c4fe9b0-d30
 O build iOS para dispositivos ainda depende de uma assinatura Apple Developer,
 do cadastro dos iPhones e da configuração interativa das credenciais Apple.
 Até isso ocorrer, o workflow que exige ambas as plataformas não pode publicar
-um Release completo. A autenticação do app também não está pronta para um
-build público: o token de sessão usado no desenvolvimento não deve ser
-incluído como variável `EXPO_PUBLIC_*` no aplicativo distribuído.
+um Release completo.
+
+O login/logout agora obtém o token em tempo de execução; o app não lê
+`EXPO_PUBLIC_TETO_JUSTO_TOKEN`. Isso não libera distribuição pública:
+as pendências de autorização, limitação de login e validação nativa estão em
+[autenticacao.md](./autenticacao.md). Não inclua credenciais como variáveis
+`EXPO_PUBLIC_*` no aplicativo distribuído.

@@ -1,6 +1,6 @@
-"""Integração real do CRUD de sessão com o Supabase de teste."""
+"""Integração real do login/logout com o Supabase de teste."""
 
-from datetime import datetime, timedelta, timezone
+import secrets
 from uuid import uuid4
 
 import pytest
@@ -8,67 +8,49 @@ from fastapi.testclient import TestClient
 
 from core.database import get_supabase
 from main import app
+from services.sessao import hash_token_sessao
 
 
 @pytest.fixture
 def usuario_temporario():
     supabase = get_supabase()
-    marcador = uuid4().hex
-    resposta = (
-        supabase.table("usuario")
-        .insert(
-            {
-                "nome": "Usuário teste de sessão",
-                "email": f"teste-sessao-{marcador}@example.com",
-                "senha_hash": "nao-utilizada-neste-teste",
-                "usuario_tipo": 0,
-            }
-        )
-        .execute()
-    )
-    assert resposta.data, "Não foi possível preparar o usuário de teste."
-    usuario_id = resposta.data[0]["id"]
-
-    yield usuario_id
-
-    supabase.table("sessao").delete().eq("fk_usuario_id", usuario_id).execute()
-    supabase.table("usuario").delete().eq("id", usuario_id).execute()
+    senha = secrets.token_urlsafe(24)
+    email = f"teste-sessao-{uuid4().hex}@example.com"
+    with TestClient(app) as cliente:
+        resposta = cliente.post("/usuarios/", json={
+            "nome": "Usuário teste de sessão", "email": email, "senha": senha,
+        })
+    assert resposta.status_code == 201
+    usuario_id = resposta.json()["id"]
+    try:
+        yield {"id": usuario_id, "email": email, "senha": senha}
+    finally:
+        supabase.table("sessao").delete().eq("fk_usuario_id", usuario_id).execute()
+        supabase.table("usuario").delete().eq("id", usuario_id).execute()
 
 
-def test_crud_sessao_no_supabase(usuario_temporario):
-    token_inicial = f"teste-{uuid4().hex}"
-    token_atualizado = f"teste-{uuid4().hex}"
-    expira_em = datetime.now(timezone.utc) + timedelta(days=1)
-
+def test_login_logout_no_supabase(usuario_temporario):
     with TestClient(app, raise_server_exceptions=False) as cliente:
-        criada = cliente.post(
-            "/sessoes/",
-            json={
-                "token": token_inicial,
-                "expira_em": expira_em.isoformat(),
-                "fk_usuario_id": usuario_temporario,
-            },
+        login = cliente.post("/sessoes/login", json={
+            "email": usuario_temporario["email"], "senha": usuario_temporario["senha"],
+        })
+        assert login.status_code == 200
+        token = login.json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        persistida = (
+            get_supabase().table("sessao")
+            .select("token")
+            .eq("fk_usuario_id", usuario_temporario["id"])
+            .execute()
         )
-        assert criada.status_code == 201, criada.text
-        sessao = criada.json()
-        assert sessao["token"] == token_inicial
-        assert sessao["fk_usuario_id"] == usuario_temporario
-        assert sessao["criado_em"] is not None
-
-        encontrada = cliente.get(f"/sessoes/{sessao['id']}")
-        assert encontrada.status_code == 200, encontrada.text
-        assert encontrada.json()["id"] == sessao["id"]
-
-        atualizada = cliente.patch(
-            f"/sessoes/{sessao['id']}",
-            json={"token": token_atualizado},
-        )
-        assert atualizada.status_code == 200, atualizada.text
-        assert atualizada.json()["token"] == token_atualizado
-
-        excluida = cliente.delete(f"/sessoes/{sessao['id']}")
-        assert excluida.status_code == 200, excluida.text
-        assert excluida.json() is True
-
-        inexistente = cliente.get(f"/sessoes/{sessao['id']}")
-        assert inexistente.status_code == 404
+        assert len(persistida.data) == 1
+        assert persistida.data[0]["token"] == hash_token_sessao(token)
+        eu = cliente.get("/usuarios/eu", headers=headers)
+        assert eu.status_code == 200
+        assert eu.json()["id"] == usuario_temporario["id"]
+        assert "senha_hash" not in eu.json()
+        assert cliente.get("/sessoes/", headers=headers).status_code == 404
+        logout = cliente.post("/sessoes/logout", headers=headers)
+        assert logout.status_code == 204
+        assert not logout.content
+        assert cliente.get("/usuarios/eu", headers=headers).status_code == 401

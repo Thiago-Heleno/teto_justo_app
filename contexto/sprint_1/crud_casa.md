@@ -72,22 +72,22 @@ UUID. A foto é armazenada em uma coluna `BYTEA`, e a exclusão do proprietário
 
 ## Testes
 
-O arquivo `src/backend/tests/test_casas_crud.py` registra uma aplicação
-FastAPI isolada e substitui o Supabase por um banco em memória. Portanto, ele
-valida as rotas, schemas, serviço e contrato esperado com o banco, mas não é
-um teste de integração com um projeto Supabase real.
+Os testes de contrato HTTP com banco em memória (`test_casas_crud.py`) foram
+removidos do repositório. A cobertura atual de Casa está em:
 
-Os sete casos cobrem criação, conversão da foto, paginação, busca, atualização
-parcial, exclusão, respostas de erro e contrato OpenAPI.
+- `src/backend/tests/test_servico_casa_unitario.py`: testes unitários de
+  `ServicoCasa` com mock do cliente Supabase (criação, foto em Base64,
+  busca, listagem, atualização, exclusão e moradores).
+- `src/backend/tests/test_casa_integracao.py`: CRUD executado pelas rotas
+  reais contra um projeto Supabase de teste.
 
-## Validação realizada
+## Validação
 
-Os testes de Casa foram executados junto aos testes locais de Tarefa com:
+Na entrega original, os sete testes de `test_casas_crud.py` passaram junto
+aos de Tarefa (`18 passed`). Esses números se referem a arquivos que não
+existem mais; para validar hoje, rode a partir de `src/backend`:
 
 ```text
-python -m pytest -q tests/test_casas_crud.py tests/test_tarefas_crud.py tests/test_servico_tarefa_unitario.py
+python -m pytest -q tests/test_servico_casa_unitario.py
+python -m pytest -q tests/test_casa_integracao.py  # exige Supabase de teste
 ```
-
-Resultado conjunto: `18 passed`. Sete desses testes pertencem ao CRUD de
-Casa. Foi emitido um aviso de depreciação do `TestClient` sobre `httpx`, sem
-falha na suíte.

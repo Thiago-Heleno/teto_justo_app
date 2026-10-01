@@ -7,6 +7,7 @@ import pytest
 @pytest.fixture
 def criar_autenticacao_temporaria():
     from core.database import get_supabase
+    from services.sessao import hash_token_sessao
 
     supabase = get_supabase()
     autenticacoes_criadas = []
@@ -36,7 +37,7 @@ def criar_autenticacao_temporaria():
                 supabase.table("sessao")
                 .insert(
                     {
-                        "token": token,
+                        "token": hash_token_sessao(token),
                         "expira_em": (
                             datetime.now(timezone.utc) + timedelta(hours=1)
                         ).isoformat(),
@@ -66,7 +67,7 @@ def criar_autenticacao_temporaria():
     for autenticacao in reversed(autenticacoes_criadas):
         try:
             supabase.table("sessao").delete().eq(
-                "token", autenticacao["token"]
+                "token", hash_token_sessao(autenticacao["token"])
             ).execute()
         finally:
             supabase.table("pertencer").delete().eq(

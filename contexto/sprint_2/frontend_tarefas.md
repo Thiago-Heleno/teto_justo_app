@@ -1,8 +1,9 @@
 # Frontend de criação de tarefas — Sprint 2
 
 > As seções datadas abaixo registram entregas anteriores. O fluxo atual grava
-> tarefas comuns quando a API está configurada; a opção rotativa mantém apenas
-> a prévia local e não grava rodízios. Veja
+> tarefas comuns e, quando a API está configurada, envia configurações rotativas
+> ao backend. O job do backend cria ocorrências e atribui os responsáveis pelo
+> balanceador. Sem a API, a tela mantém a prévia local. Veja
 > [alinhamento_tarefas_pontuacao.md](alinhamento_tarefas_pontuacao.md).
 
 ## Rotatividade e consulta de moradores — 24/09/2026
@@ -31,17 +32,20 @@ o prazo de execução de 1 a 5 dias permanece separado da recorrência semanal.
   sem moradores. Sem configuração, mantém a demonstração. Em caso de falha,
   dados fictícios só são usados após escolha explícita na tela.
 
-### Regra provisória e limite da entrega
+### Regra provisória e limite da entrega — histórico
 
-A proposta discutida é manter uma atividade fixa com uma nova ocorrência por
-repetição nos dias escolhidos, passando ao próximo participante e preservando as anteriores para
-pontuação e histórico. O grupo ainda pode rever essa regra. A configuração
-não depende de um mecanismo de geração, facilitando essa alteração futura.
+A proposta discutida em 24/09 era manter uma atividade fixa com uma nova
+ocorrência por repetição nos dias escolhidos, passando ao próximo participante
+e preservando as anteriores para pontuação e histórico. A integração atual
+segue o balanceador já existente: escolhe quem tem menor pontuação potencial
+acumulada e usa a ordem dos participantes para desempatar. Portanto, não há
+mais uma sequência estrita de participantes; essa mudança segue o pedido de
+usar o balanceador e deve ser confirmada pelo grupo como regra vigente.
 
-O formulário produz apenas uma **prévia em memória** e informa isso na tela.
-Não grava tarefas ou rodízios, não gera ocorrências automaticamente e não
-altera a pontuação. A integração desta entrega é de leitura. Nenhuma migration
-ou alteração de banco foi aplicada.
+Na entrega de 24/09, o formulário produzia apenas uma **prévia em memória**.
+Esse limite foi superado pela integração descrita no alinhamento atual da
+sprint: com a API configurada, o formulário agora persiste a configuração pelo
+backend e o job gera as ocorrências.
 
 Antes da gravação, definir com o grupo a relação entre prazo de execução e
 recorrência semanal, a tolerância de atraso, o fechamento de ocorrências não concluídas

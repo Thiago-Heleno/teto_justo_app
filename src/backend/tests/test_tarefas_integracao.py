@@ -384,7 +384,7 @@ def test_atualizar_tarefa_rejeita_responsaveis_invalidos(
             f"/tarefas/{tarefa['id']}",
             json={"usuarios_atribuidos": [morador_de_outra_casa["usuario_id"]]},
         )
-        assert de_outra_casa.status_code == 400, de_outra_casa.text
+        assert de_outra_casa.status_code == 422, de_outra_casa.text
 
         # Troca para um morador vinculado à casa
         validos = cliente_admin.patch(

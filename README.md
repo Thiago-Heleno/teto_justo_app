@@ -14,7 +14,7 @@ O fluxo e as telas do aplicativo estão disponíveis no
 
 ## Tecnologias
 
-- **Frontend:** React Native, Expo, Expo Router e TypeScript.
+- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web. Login e logout integrados à API.
 - **Backend:** Python, FastAPI, Pydantic e Uvicorn.
 - **Dados:** Supabase.
 - **Qualidade:** ESLint, Prettier, Ruff, Bandit e Pytest.
@@ -33,12 +33,11 @@ acessa o Supabase para persistir os dados.
 
 ## Como rodar localmente
 
-Para visualizar somente a tela **Nova tarefa**, siga diretamente a
-[etapa 3 — Frontend](#3-inicie-o-frontend). Sem configuração da API, a tela usa
-dados fictícios e não precisa de backend, Docker, Supabase ou `.env`. Com a API
-configurada, a criação grava tarefas comuns no Supabase por meio do backend.
-A opção rotativa permanece como prévia local e não grava rodízios.
-A tela **Tarefas** consulta a API e requer a configuração abaixo.
+O aplicativo abre a tela de login antes de liberar as abas. Inicie o backend
+e configure a URL da API no frontend. Uma conta pode ser criada pelo endpoint
+público `POST /usuarios/` na documentação interativa `/docs` do backend.
+As telas de tarefas e pontuação também precisam do ID da casa configurado
+abaixo e de um usuário com as permissões correspondentes.
 
 ### Pré-requisitos
 
@@ -61,11 +60,10 @@ Não versione esse arquivo nem exponha as credenciais.
 Antes de iniciar o backend com um banco existente, confira quais migrations de
 `docs/migrations/` já foram aplicadas. A sequência dos arquivos é `14.sql`,
 `15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam do banco.
-As migrations `17.sql` e `18.sql` também contêm estruturas de rodízio que não
-têm integração ativa na aplicação. Esta retirada não executa migrations.
-O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve ser
-aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Nenhuma
-migration anterior deve ser editada ou reaplicada indiscriminadamente. Veja o
+`18.sql` cria as tabelas e colunas usadas pela rotatividade automática. Não
+execute migrations já aplicadas nem aplique alterações sem revisar o estado do
+banco. O arquivo `19.sql` reconcilia o saldo com o histórico de eventos e deve
+ser aplicado somente depois de revisar `GET /casas/{id}/auditoria-score`. Veja o
 [resumo da sprint 2](./contexto/sprint_2/alinhamento_tarefas_pontuacao.md).
 
 ### 2. Inicie o backend
@@ -125,12 +123,53 @@ saldo. O desconto de `100 / (atraso_maximo + 1)` por dia é calculado no momento
 da conclusão, onde o crédito é registrado uma única vez. O agendamento em si
 deve ser configurado no serviço externo que fará a chamada HTTP.
 
+#### Rotatividade automática
+
+O endpoint `POST /jobs/rotatividades` processa as ocorrências vencidas das
+configurações ativas e é destinado a um agendador externo. Configure
+`ROTATIVIDADE_JOB_TOKEN` no backend; o agendador deve enviar o mesmo segredo no
+cabeçalho `X-Rotatividade-Job-Token`. Não exponha nem registre esse token.
+
+Para testar a integração com o banco, configure `SUPABASE_URL` e
+`SUPABASE_KEY` no `.env` da raiz, aplique as migrations necessárias (incluindo
+`18.sql`) e execute o teste a partir de `src/backend`:
+
+```powershell
+python -m pytest -q tests/test_rotatividade_integracao.py
+```
+
+Use somente um projeto Supabase descartável/de teste com acesso de escrita
+`service_role`. O teste cria e remove usuários, casa, configuração, tarefa e
+atribuição; também chama o job, confere os registros persistidos e valida que
+uma segunda execução não duplica a ocorrência. Como o job processa todos os
+rodízios ativos, o teste exige que o banco não tenha outros rodízios ativos.
+Não o execute em produção nem num banco compartilhado com dados reais.
+
 Como alternativa, a partir da raiz do repositório, execute o backend com
 Docker:
 
 ```powershell
 docker compose up --build backend
 ```
+
+#### Agendador dos jobs (Docker)
+
+O serviço `agendador` do `docker-compose.yml` chama os dois jobs uma vez por dia,
+às 03:05 UTC (00:05 em Brasília): `POST /jobs/rotatividades` e
+`POST /jobs/penalidades`. Os horários ficam em `src/agendador/crontab`. Ele lê
+`ROTATIVIDADE_JOB_TOKEN` e `PENALIDADE_JOB_TOKEN` do mesmo `.env` do backend, e
+os dois precisam ter valor, senão o backend responde `503` e o erro aparece no
+log do agendador.
+
+```powershell
+docker compose up --build
+```
+
+Como o banco é compartilhado e o bloqueio contra execução simultânea existe só
+dentro de um backend, deixe o agendador ligado em **uma única máquina**. Quem
+não deve rodar o agendador sobe somente o backend, com
+`docker compose up --build backend`. Para acompanhar as chamadas, use
+`docker compose logs agendador`.
 
 ### 3. Inicie o frontend
 
@@ -151,13 +190,18 @@ Para carregar a tela **Tarefas** com dados reais, crie
 ```env
 EXPO_PUBLIC_API_URL=http://127.0.0.1:8000
 EXPO_PUBLIC_CASA_ID=uuid-da-casa
-EXPO_PUBLIC_TETO_JUSTO_TOKEN=token-de-sessao-valido
 ```
 
-Use essa configuração somente no desenvolvimento local. O token não deve ser
-versionado nem incorporado em builds distribuídos; o futuro fluxo de login
-deve fornecer a sessão em tempo de execução. No celular, substitua
-`127.0.0.1` pelo IP da máquina na rede local.
+Entre com o e-mail e a senha da sua conta. O token é recebido de
+`POST /sessoes/login` e salvo no SecureStore (celular) ou no `localStorage`
+(web). O aplicativo não lê mais `EXPO_PUBLIC_TETO_JUSTO_TOKEN`; remova essa
+variável de configurações antigas. No celular, substitua `127.0.0.1` pelo IP
+da máquina na rede local.
+
+A sessão expira em 24 horas. **Sair da conta** revoga a sessão atual por
+`POST /sessoes/logout`. Tokens antigos armazenados em texto puro no banco
+deixaram de autenticar: faça login para obter uma sessão nova. O CRUD
+`/sessoes/` e `/sessoes/{id}` foi removido.
 
 No PowerShell, se `npm` ou `npx` forem bloqueados pela política de scripts,
 use `npm.cmd` e `npx.cmd`, respectivamente. No macOS e Linux, use os comandos
@@ -250,11 +294,15 @@ provisionamento Apple. Para distribuição ampla, use TestFlight/App Store.
 Sem as credenciais iOS, o workflow não publica o Release, pois exige que os
 builds Android e iOS terminem. O APK pode ser testado separadamente com o
 comando de build Android acima.
-O app ainda não tem login em tempo de execução: não coloque
-`EXPO_PUBLIC_TETO_JUSTO_TOKEN` no EAS ou no GitHub, pois variáveis
-`EXPO_PUBLIC_*` ficam legíveis no aplicativo distribuído. Até implementar o
-login, as telas que exigem a API não funcionarão em um build público sem a
-configuração local de desenvolvimento.
+O login agora obtém a credencial em tempo de execução. Não configure tokens
+de sessão no EAS, no GitHub ou em variáveis `EXPO_PUBLIC_*`, pois elas ficam
+legíveis no aplicativo distribuído. Configure somente a URL pública da API
+(HTTPS em ambientes distribuídos) e o ID da casa.
+
+Esta mudança não libera o projeto para distribuição pública: ainda há
+pendências de autorização por recurso, limitação de tentativas de login e
+validação em dispositivos. Veja
+[autenticação da sprint 2](./contexto/sprint_2/autenticacao.md).
 
 #### Ver as alterações
 

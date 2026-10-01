@@ -1,21 +1,31 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 
-import {
+mock.module("../src/services/token-storage.ts", {
+  namedExports: {
+    lerToken: async () => null,
+    salvarToken: async () => {},
+    removerToken: async () => {},
+  },
+});
+const { sessao } = await import("../src/services/sessao-store.ts");
+
+const {
   carregarTarefas,
   carregarContextoTarefas,
   carregarUsuarioAtual,
   carregarPlacar,
+  criarRotatividade,
   criarTarefa,
   editarTarefa,
   finalizarTarefa,
   temConfiguracaoTarefas,
-} from "../src/services/tarefas-api.ts";
+} = await import("../src/services/tarefas-api.ts");
 
 test("envia filtros e credencial para a lista da casa", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test/";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  sessao.setState({ token: "sessao-valida", pronta: true });
   const fetchOriginal = globalThis.fetch;
   let requisicao;
 
@@ -44,7 +54,7 @@ test("envia filtros e credencial para a lista da casa", async () => {
 test("edita a tarefa pelo endpoint autenticado", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  sessao.setState({ token: "sessao-valida", pronta: true });
   const original = globalThis.fetch;
   let requisicao;
 
@@ -88,7 +98,7 @@ test("edita a tarefa pelo endpoint autenticado", async () => {
 test("consulta casa e moradores reais para a criação sem enviar gravações", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test/";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  sessao.setState({ token: "sessao-valida", pronta: true });
   const original = globalThis.fetch;
   const chamadas = [];
 
@@ -146,7 +156,7 @@ test("consulta casa e moradores reais para a criação sem enviar gravações", 
 test("finaliza a tarefa pelo endpoint autenticado", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  sessao.setState({ token: "sessao-valida", pronta: true });
   const original = globalThis.fetch;
   let requisicao;
 
@@ -164,7 +174,10 @@ test("finaliza a tarefa pelo endpoint autenticado", async () => {
   try {
     await finalizarTarefa("tarefa-123");
 
-    assert.equal(requisicao.url, "http://api.test/tarefas/tarefa-123/conclusoes");
+    assert.equal(
+      requisicao.url,
+      "http://api.test/tarefas/tarefa-123/conclusoes",
+    );
     assert.equal(requisicao.opcoes.method, "POST");
     assert.equal(requisicao.opcoes.body, undefined);
     assert.equal(
@@ -179,7 +192,7 @@ test("finaliza a tarefa pelo endpoint autenticado", async () => {
 test("cria tarefa unitária com o contrato da API", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  sessao.setState({ token: "sessao-valida", pronta: true });
   const original = globalThis.fetch;
   const chamadas = [];
   globalThis.fetch = async (url, opcoes) => {
@@ -187,11 +200,64 @@ test("cria tarefa unitária com o contrato da API", async () => {
     return { ok: true, json: async () => ({ id: "novo" }) };
   };
   try {
-    const base = { fk_casa_id: "casa-123", nome: "Limpar cozinha", descricao: "", peso: 2, prazo_dias: 3, atraso_maximo: 2, modo_prazo: "intervalo" };
-    await criarTarefa({ ...base, tipo: "unitaria", usuarios_atribuidos: ["ana"] });
-    assert.deepEqual(chamadas.map(({ url }) => url), ["http://api.test/tarefas/"]);
-    assert.deepEqual(chamadas.map(({ opcoes }) => opcoes.method), ["POST"]);
-    assert.deepEqual(JSON.parse(chamadas[0].opcoes.body).usuarios_atribuidos, ["ana"]);
+    const base = {
+      fk_casa_id: "casa-123",
+      nome: "Limpar cozinha",
+      descricao: "",
+      peso: 2,
+      prazo_dias: 3,
+      atraso_maximo: 2,
+      modo_prazo: "intervalo",
+    };
+    await criarTarefa({
+      ...base,
+      tipo: "unitaria",
+      usuarios_atribuidos: ["ana"],
+    });
+    assert.deepEqual(
+      chamadas.map(({ url }) => url),
+      ["http://api.test/tarefas/"],
+    );
+    assert.deepEqual(
+      chamadas.map(({ opcoes }) => opcoes.method),
+      ["POST"],
+    );
+    assert.deepEqual(JSON.parse(chamadas[0].opcoes.body).usuarios_atribuidos, [
+      "ana",
+    ]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("cria configuração de rodízio pelo backend", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
+  sessao.setState({ token: "sessao-valida", pronta: true });
+  const original = globalThis.fetch;
+  let chamada;
+  const dados = {
+    fk_casa_id: "casa-123",
+    nome: "Limpar cozinha",
+    descricao: "",
+    peso: 2,
+    prazo_dias: 3,
+    atraso_maximo: 2,
+    modo_prazo: "intervalo",
+    participantes: ["ana", "bruno"],
+    dias_semana: [1, 4],
+    intervalo_semanas: 2,
+  };
+  globalThis.fetch = async (url, opcoes) => {
+    chamada = { url, opcoes };
+    return { ok: true, json: async () => ({ id: "rodizio-123" }) };
+  };
+  try {
+    assert.deepEqual(await criarRotatividade(dados), { id: "rodizio-123" });
+    assert.equal(chamada.url, "http://api.test/rotatividades/");
+    assert.equal(chamada.opcoes.method, "POST");
+    assert.equal(chamada.opcoes.body, JSON.stringify(dados));
+    assert.equal(chamada.opcoes.headers.Authorization.split(" ")[0], "Bearer");
   } finally {
     globalThis.fetch = original;
   }
@@ -200,12 +266,19 @@ test("cria tarefa unitária com o contrato da API", async () => {
 test("consulta placar da casa", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  process.env.EXPO_PUBLIC_TETO_JUSTO_TOKEN = "sessao-valida";
+  sessao.setState({ token: "sessao-valida", pronta: true });
   const original = globalThis.fetch;
   let endereco;
   globalThis.fetch = async (url) => {
     endereco = url;
-    return { ok: true, json: async () => ({ casa_id: "casa-123", fuso_horario: "America/Sao_Paulo", moradores: [] }) };
+    return {
+      ok: true,
+      json: async () => ({
+        casa_id: "casa-123",
+        fuso_horario: "America/Sao_Paulo",
+        moradores: [],
+      }),
+    };
   };
   try {
     const placar = await carregarPlacar();
@@ -217,11 +290,7 @@ test("consulta placar da casa", async () => {
 });
 
 test("configuração parcial informa o erro em vez de trocar por dados fictícios", async () => {
-  const nomes = [
-    "EXPO_PUBLIC_API_URL",
-    "EXPO_PUBLIC_CASA_ID",
-    "EXPO_PUBLIC_TETO_JUSTO_TOKEN",
-  ];
+  const nomes = ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_CASA_ID"];
 
   const anteriores = nomes.map((nome) => process.env[nome]);
 
@@ -254,11 +323,7 @@ test("configuração parcial informa o erro em vez de trocar por dados fictício
 });
 
 test("configuração ausente é capturada pelos handlers da tela, sem erro síncrono ou fetch", async () => {
-  const nomes = [
-    "EXPO_PUBLIC_API_URL",
-    "EXPO_PUBLIC_CASA_ID",
-    "EXPO_PUBLIC_TETO_JUSTO_TOKEN",
-  ];
+  const nomes = ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_CASA_ID"];
 
   const anteriores = nomes.map((nome) => process.env[nome]);
   const originalFetch = globalThis.fetch;
@@ -289,10 +354,7 @@ test("configuração ausente é capturada pelos handlers da tela, sem erro sínc
       let finalizacoes = 0;
 
       await Promise.all([
-        Promise.all([
-          carregarContextoTarefas(),
-          carregarTarefas(filtros),
-        ])
+        Promise.all([carregarContextoTarefas(), carregarTarefas(filtros)])
           .catch((erro) => erros.push(erro.message))
           .finally(() => finalizacoes++),
 
@@ -304,9 +366,7 @@ test("configuração ausente é capturada pelos handlers da tela, sem erro sínc
       assert.equal(erros.length, 2);
 
       assert.ok(
-        erros.every((erro) =>
-          erro.includes("Configure EXPO_PUBLIC_API_URL"),
-        ),
+        erros.every((erro) => erro.includes("Configure EXPO_PUBLIC_API_URL")),
       );
 
       assert.equal(finalizacoes, 2);
