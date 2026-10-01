@@ -152,6 +152,25 @@ Docker:
 docker compose up --build backend
 ```
 
+#### Agendador dos jobs (Docker)
+
+O serviço `agendador` do `docker-compose.yml` chama os dois jobs uma vez por dia,
+às 03:05 UTC (00:05 em Brasília): `POST /jobs/rotatividades` e
+`POST /jobs/penalidades`. Os horários ficam em `src/agendador/crontab`. Ele lê
+`ROTATIVIDADE_JOB_TOKEN` e `PENALIDADE_JOB_TOKEN` do mesmo `.env` do backend, e
+os dois precisam ter valor, senão o backend responde `503` e o erro aparece no
+log do agendador.
+
+```powershell
+docker compose up --build
+```
+
+Como o banco é compartilhado e o bloqueio contra execução simultânea existe só
+dentro de um backend, deixe o agendador ligado em **uma única máquina**. Quem
+não deve rodar o agendador sobe somente o backend, com
+`docker compose up --build backend`. Para acompanhar as chamadas, use
+`docker compose logs agendador`.
+
 ### 3. Inicie o frontend
 
 Abra um terminal na raiz da sua cópia do repositório e instale as dependências

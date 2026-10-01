@@ -67,6 +67,16 @@ def concluir_tarefa(
     return servico.concluir_tarefa(id_tarefa, usuario_atual.id)
 
 
+@router.post("/{id_tarefa}/reaberturas", response_model=TarefaResposta)
+def reabrir_tarefa(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
+    servico = ServicoTarefa(supabase)
+    return servico.reabrir_tarefa(id_tarefa, usuario_atual.id)
+
+
 @router.patch("/{id_tarefa}", response_model=TarefaResposta)
 def atualizar_tarefa(
     id_tarefa: UUID,

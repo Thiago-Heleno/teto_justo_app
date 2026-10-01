@@ -7,3 +7,12 @@ services:
       - ./src/backend:/app
     env_file:
       - .env
+  agendador:
+    image: alpine:3.20
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    volumes:
+      - ./src/agendador/crontab:/etc/crontabs/root:ro
+    command: sh -c "apk add --no-cache curl && crond -f -l 8"

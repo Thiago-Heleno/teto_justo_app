@@ -60,34 +60,55 @@ ser chamado por um agendador externo diariamente.
 
 | Arquivo | Papel |
 | --- | --- |
-| `docs/migrations/14.sql` | Contrato anterior de duração e pontos-base; ainda exigido por bancos que não o aplicaram. |
-| `docs/migrations/15.sql` | Remove o trigger de crédito e cria a primeira versão da operação de conclusão. |
-| `docs/migrations/16.sql` | Cria a primeira função SQL de conclusão da tarefa. |
+| `docs/migrations/14.sql` | Contrato de duração e pontos-base (`pontuacao` derivada da dificuldade, colunas de prazo). |
+| `docs/migrations/15.sql` | Remove o trigger de crédito de pontos e sua função de cálculo. |
+| `docs/migrations/16.sql` | Cria a função SQL `registrar_conclusao_tarefa`. |
 | `docs/migrations/17.sql` | Acrescenta `tipo` e `modo_prazo` à tarefa. |
-| `docs/migrations/18.sql` | Cria as tabelas do rodízio e as colunas de vínculo/unicidade das ocorrências. |
-| `docs/migrations/19.sql` | Cria a função SQL de criação de rodízio; não é usada pela implementação atual. |
-| `docs/migrations/21.sql` | Cria a função SQL de registro de ocorrência; não é usada pela implementação atual. |
+| `docs/migrations/18.sql` | Converte `score_event.criado_em` para `TIMESTAMPTZ`, cria as tabelas do rodízio, acrescenta `casa.timezone`/`rotacao_versao` e revoga escrita pública em `score_event` e `pertencer`. |
+| `docs/migrations/19.sql` | Cria a função SQL `criar_rotatividade`; não é usada pela implementação atual. |
+| `docs/migrations/20.sql` | Redeclara `registrar_conclusao_tarefa` (redundante). |
+| `docs/migrations/21.sql` | Cria a função SQL `registrar_ocorrencia_rotativa`; não é usada pela implementação atual. |
+| `docs/migrations/22.sql` | Cria `excluir_tarefa_sem_credito` e `excluir_vinculo_sem_credito` e os respectivos grants. |
+| `docs/migrations/23.sql` | Reconcilia `pertencer.score` com a soma de `score_event`. |
+| `docs/migrations/24.sql` | Acrescenta `score_event.tipo` (`credito`/`reversal`) e o índice único parcial do crédito. |
+| `docs/migrations/25.sql` | Remove `registrar_conclusao_tarefa`, `excluir_tarefa_sem_credito` e `excluir_vinculo_sem_credito`, já migradas para o backend. |
 
 O esquema de rodízio em `18.sql` é usado pela integração. As funções SQL de
-`19.sql` e `21.sql` não são chamadas: criação, seleção do responsável e gravação
-da ocorrência são feitas no backend. Nenhuma migration foi alterada ou
-executada. O banco verificado anteriormente não tinha o esquema necessário para
-o rodízio; portanto, a funcionalidade só poderá operar em um ambiente onde as
-tabelas e colunas descritas nas migrations requeridas já estejam aplicadas.
+`19.sql` e `21.sql` continuam no banco, mas não são chamadas: criação, seleção
+do responsável e gravação da ocorrência são feitas no backend. A integração do
+rodízio não editou nem executou nenhuma migration.
 
-Confira o histórico efetivamente aplicado no Supabase antes de habilitar o
-rodízio. A verificação somente de leitura registrada anteriormente encontrou
-colunas da `16.sql`, mas não as colunas da `14.sql` nem a operação da `15.sql`.
-Não aplique SQL como parte desta mudança. A implementação precisa que as tabelas
-e colunas de `18.sql` já existam; ela não precisa das funções SQL de `19.sql` ou
-`21.sql`.
+Estado do banco: as migrations `14` a `24` foram aplicadas no Supabase em
+27–28/09 e a `25` aparece como aplicada no banco de testes na validação de
+29/09 (`score.md`). Antes de habilitar o rodízio ou o placar em outro ambiente,
+confira o histórico aplicado nele; o rodízio exige as tabelas e colunas de
+`18.sql`, e não exige as funções de `19.sql` ou `21.sql`.
+
+## Jobs agendados
+
+O backend não agenda nada sozinho. O serviço `agendador` do
+`docker-compose.yml` (Alpine com `crond` e `curl`, horários em
+`src/agendador/crontab`) chama os dois endpoints uma vez por dia, às 03:05 UTC
+(00:05 em Brasília), usando os tokens do `.env`:
+
+| Endpoint | Cabeçalho / variável | Frequência |
+| --- | --- | --- |
+| `POST /jobs/penalidades` | `X-Penalidade-Job-Token` / `PENALIDADE_JOB_TOKEN` | Diária, 03:05 UTC. |
+| `POST /jobs/rotatividades` | `X-Rotatividade-Job-Token` / `ROTATIVIDADE_JOB_TOKEN` | Diária, 03:05 UTC. |
+
+O agendador deve ficar ligado em uma única máquina, porque o bloqueio do job de
+rodízio existe só no processo do backend e o banco é compartilhado. O
+`docker-compose.yml` foi validado com `docker compose config`; a execução do
+container não foi testada, porque o Docker Desktop estava desligado.
 
 ## Validação e pendências
 
-Na implementação atual, passaram 267 testes unitários do backend, 24 testes
+Na integração do rodízio, passaram 267 testes unitários do backend, 24 testes
 do frontend, Ruff dos arquivos Python alterados e `git diff --check`. O
-typecheck do frontend, lint completo e validação com Supabase real não foram
-executados. Nenhuma migration foi aplicada. A gravação de configuração e a
+typecheck do frontend, o lint completo e um teste do rodízio de ponta a ponta
+com o Supabase real não foram executados. Os testes de integração de conclusão,
+crédito e concorrência foram executados contra o Supabase de testes
+(`concorrencia_retry.md`). A gravação de configuração e a
 gravação da ocorrência/atribuição são escritas separadas; o job precisa rodar
 em uma única instância ativa até haver uma estratégia de concorrência
 distribuída. A validação em Android e iOS também continua pendente.

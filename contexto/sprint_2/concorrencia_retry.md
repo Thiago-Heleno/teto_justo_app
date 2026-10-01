@@ -224,14 +224,13 @@ então manteve o padrão já estabelecido no resto do código.
 - `score_event.tipo` (`credito`/`reversal`) e o índice único parcial por
   tipo já foram aplicados no Supabase real via `docs/migrations/24.sql` —
   a pendência de schema que este documento citava antes já está resolvida.
-- Decisão tomada em 2026-09-28: `registrar_conclusao_tarefa` grava um único
-  evento em `score_event` com o valor já descontado (mesmo comportamento da
-  função SQL que substituiu), não dois eventos separados (`credito` +
-  `late_penalty`). Um teste órfão que esperava o split (herdado de uma
-  `25.sql` nunca aplicada) foi atualizado para refletir isso. Se o time
-  quiser essa granularidade de volta — por exemplo pro ECH-158 (histórico
-  de eventos) — é uma decisão de produto a ser tomada separadamente, não um
-  efeito colateral desta migração.
+- Decisão tomada em 2026-09-28 e confirmada em 2026-09-30: a conclusão grava
+  um único evento em `score_event` com o valor já descontado (mesmo
+  comportamento da função SQL que substituiu), não dois eventos separados
+  (`credito` + `late_penalty`). O ECH-158 é atendido pelos campos
+  `pontos_possiveis` e `pontos_ganhos` da resposta da conclusão. Um teste que
+  esperava o split (herdado de uma tentativa de reabertura em SQL revertida)
+  foi atualizado para refletir isso.
 - `_creditar_pertencer` continua vulnerável, em teoria, a esgotar as 5
   tentativas de CAS sob concorrência muito alta — não observado nos testes
   reais até agora, aceitável dado o volume baixo esperado do projeto.

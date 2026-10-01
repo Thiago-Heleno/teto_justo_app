@@ -560,6 +560,7 @@ class ServicoTarefa:
                 "fk_tarefa_id": str(tarefa["id"]),
                 "pontuacao": pontos,
                 "criado_em": concluida_em.isoformat(),
+                "ciclo": tarefa.get("reaberturas") or 0,
             }).execute()
         except APIError as erro:
             if erro.code != "23505":  # não é violação de UNIQUE — outro tipo de erro real
@@ -575,6 +576,96 @@ class ServicoTarefa:
                 status_code=409, detail="A tarefa mudou. Atualize antes de concluir."
             )
         return tarefa_finalizada
+
+    def reabrir_tarefa(self, id_tarefa: UUID, id_usuario_atual: UUID):
+        tarefa = self._buscar_tarefa_bruta(id_tarefa)
+        responsaveis = self._buscar_usuarios_atribuidos(tarefa["id"])
+        if str(id_usuario_atual) not in responsaveis:
+            ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+                tarefa["fk_casa_id"], id_usuario_atual
+            )
+        if tarefa["estado_atual"] != "finalizado":
+            raise HTTPException(
+                status_code=409, detail="Só é possível reabrir uma tarefa finalizada."
+            )
+        if len(responsaveis) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail="A tarefa precisa ter exatamente um responsável para ser reaberta.",
+            )
+        return self._estornar_e_reabrir(tarefa, responsaveis[0])
+
+    def _estornar_e_reabrir(self, tarefa: dict, id_usuario: str) -> dict:
+        id_casa = str(tarefa["fk_casa_id"])
+        ciclo = tarefa.get("reaberturas") or 0
+        credito = (
+            self.supabase.table("score_event")
+            .select("pontuacao")
+            .eq("fk_usuario_id", id_usuario)
+            .eq("fk_tarefa_id", str(tarefa["id"]))
+            .eq("tipo", "credito")
+            .eq("ciclo", ciclo)
+            .execute()
+        )
+        if not credito.data:
+            raise HTTPException(
+                status_code=409, detail="A tarefa não tem crédito a estornar."
+            )
+        pontos = credito.data[0]["pontuacao"]
+
+        ja_estornado = False
+        try:
+            self.supabase.table("score_event").insert({
+                "fk_usuario_id": id_usuario,
+                "fk_casa_id": id_casa,
+                "fk_tarefa_id": str(tarefa["id"]),
+                "pontuacao": -pontos,
+                "tipo": "reversal",
+                "ciclo": ciclo,
+                "criado_em": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+        except APIError as erro:
+            if erro.code != "23505":
+                raise
+            ja_estornado = True
+
+        if not ja_estornado:
+            self._creditar_pertencer(id_usuario, id_casa, -pontos)
+
+        reaberta = self._reabrir_estado_tarefa(tarefa, ciclo)
+        if reaberta is None:
+            # Outra requisição reabriu a tarefa no meio-tempo: o resultado é o mesmo.
+            atual = self._buscar_tarefa_bruta(UUID(tarefa["id"]))
+            if (atual.get("reaberturas") or 0) <= ciclo:
+                raise HTTPException(
+                    status_code=409, detail="A tarefa mudou. Atualize antes de reabrir."
+                )
+            reaberta = atual
+        return self._montar_resposta(reaberta)
+
+    def _reabrir_estado_tarefa(self, tarefa: dict, ciclo: int) -> dict | None:
+        agora = datetime.now(timezone.utc)
+        data_fim = self._data_fim_com_fuso(tarefa["data_fim"])
+        dias_atraso = ServicoScore.calcular_dias_atraso(data_fim, agora)
+        if dias_atraso > tarefa["atraso_maximo"]:
+            estado = "nao_feito"
+        elif dias_atraso > 0:
+            estado = "atrasada"
+        else:
+            estado = "pendente"
+        resposta = (
+            self.supabase.table("tarefa")
+            .update({
+                "estado_atual": estado,
+                "concluida_em": None,
+                "reaberturas": ciclo + 1,
+            })
+            .eq("id", str(tarefa["id"]))
+            .eq("estado_atual", "finalizado")
+            .eq("reaberturas", ciclo)
+            .execute()
+        )
+        return resposta.data[0] if resposta.data else None
 
     def _buscar_saldo(self, id_usuario: str, id_casa: str) -> int:
         resposta = (
