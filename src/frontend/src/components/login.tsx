@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
+import { ErroApi } from "@/services/api";
 import { entrar } from "@/services/autenticacao-api";
 
 export function LoginScreen({ aviso }: { aviso?: string }) {
@@ -35,11 +36,16 @@ export function LoginScreen({ aviso }: { aviso?: string }) {
       await entrar(email, senha);
       setSenha("");
     } catch (falha) {
-      setErro(
-        falha instanceof Error
-          ? falha.message
-          : "Não foi possível entrar. Tente novamente.",
-      );
+      let mensagem = "Não foi possível entrar. Tente novamente em instantes.";
+      if (falha instanceof ErroApi) {
+        if (falha.status === 401) mensagem = "E-mail ou senha inválidos.";
+        else if (falha.status === 422)
+          mensagem = "Confira o e-mail e a senha informados.";
+      } else if (falha instanceof TypeError) {
+        mensagem =
+          "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
+      }
+      setErro(mensagem);
     } finally {
       envioEmAndamento.current = false;
       setEnviando(false);
@@ -101,8 +107,10 @@ export function LoginScreen({ aviso }: { aviso?: string }) {
               </Text>
             )}
             <Pressable
+              accessibilityLabel="Entrar"
               accessibilityRole="button"
               accessibilityState={{ disabled: enviando, busy: enviando }}
+              aria-busy={enviando}
               disabled={enviando}
               onPress={() => void fazerLogin()}
               style={[styles.button, enviando && styles.disabled]}
