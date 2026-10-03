@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
-from services.pertencer import ServicoPertencer
 
 
 class ServicoPlacar:
@@ -30,6 +29,7 @@ class ServicoPlacar:
             .select("fk_usuario_id")
             .eq("fk_casa_id", str(id_casa))
             .eq("fk_usuario_id", str(id_usuario))
+            .eq("ativo", True)
             .execute()
         ).data
         if not vinculo:
@@ -95,15 +95,21 @@ class ServicoPlacar:
             raise HTTPException(status_code=500, detail="Fuso horário da casa inválido.") from erro
         return nome_fuso, fuso
 
-    def _vinculos_e_nomes(self, id_casa: UUID) -> tuple[list[dict], dict[str, str]]:
+    def _vinculos_e_nomes(
+        self, id_casa: UUID, incluir_inativos: bool = False
+    ) -> tuple[list[dict], dict[str, str]]:
         vinculos, nomes = [], {}
         inicio = 0
         while True:
-            pagina = (
+            consulta = (
                 self.supabase.table("pertencer")
                 .select("fk_usuario_id,score")
                 .eq("fk_casa_id", str(id_casa))
-                .order("fk_usuario_id")
+            )
+            if not incluir_inativos:
+                consulta = consulta.eq("ativo", True)
+            pagina = (
+                consulta.order("fk_usuario_id")
                 .range(inicio, inicio + self.TAMANHO_PAGINA - 1)
                 .execute()
             ).data
@@ -121,9 +127,9 @@ class ServicoPlacar:
             inicio += self.TAMANHO_PAGINA
         return vinculos, nomes
 
-    def _dados(self, id_casa: UUID, agora: datetime):
+    def _dados(self, id_casa: UUID, agora: datetime, incluir_inativos: bool = False):
         nome_fuso, fuso = self._fuso_da_casa(id_casa)
-        vinculos, nomes = self._vinculos_e_nomes(id_casa)
+        vinculos, nomes = self._vinculos_e_nomes(id_casa, incluir_inativos)
         ids = [str(vinculo["fk_usuario_id"]) for vinculo in vinculos]
 
         agora_utc = self._instante_utc(agora)
@@ -178,11 +184,19 @@ class ServicoPlacar:
         }
 
     def obter_saldo(self, id_casa: UUID, id_usuario: UUID) -> dict:
-        vinculo = ServicoPertencer(self.supabase).buscar_pertencer(id_usuario, id_casa)
+        resposta = (
+            self.supabase.table("pertencer")
+            .select("score")
+            .eq("fk_usuario_id", str(id_usuario))
+            .eq("fk_casa_id", str(id_casa))
+            .execute()
+        )
+        if not resposta.data:
+            raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
         return {
             "fk_casa_id": str(id_casa),
             "fk_usuario_id": str(id_usuario),
-            "saldo_atual": vinculo["score"] or 0,
+            "saldo_atual": resposta.data[0]["score"] or 0,
         }
 
     def _limites_periodo(
@@ -204,7 +218,15 @@ class ServicoPlacar:
             .eq("fk_casa_id", str(id_casa))
         )
         if filtros.fk_usuario_id is not None:
-            ServicoPertencer(self.supabase).buscar_pertencer(filtros.fk_usuario_id, id_casa)
+            vinculo = (
+                self.supabase.table("pertencer")
+                .select("fk_usuario_id")
+                .eq("fk_usuario_id", str(filtros.fk_usuario_id))
+                .eq("fk_casa_id", str(id_casa))
+                .execute()
+            )
+            if not vinculo.data:
+                raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
             consulta = consulta.eq("fk_usuario_id", str(filtros.fk_usuario_id))
         resposta = (
             self._filtrar_periodo(consulta, *self._limites_periodo(filtros, fuso))
@@ -253,7 +275,7 @@ class ServicoPlacar:
 
     def auditar_saldos(self, id_casa: UUID) -> list[dict]:
         _, moradores, saldos, eventos_sem_vinculo = self._dados(
-            id_casa, datetime.now(timezone.utc)
+            id_casa, datetime.now(timezone.utc), incluir_inativos=True
         )
         divergencias = [
             {

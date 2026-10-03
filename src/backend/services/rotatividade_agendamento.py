@@ -256,6 +256,7 @@ class ServicoAgendamentoRotatividade:
             self.supabase.table("pertencer")
             .select("fk_usuario_id")
             .eq("fk_casa_id", str(configuracao["fk_casa_id"]))
+            .eq("ativo", True)
             .execute()
         ).data
         membros_da_casa = {str(vinculo["fk_usuario_id"]) for vinculo in vinculos}

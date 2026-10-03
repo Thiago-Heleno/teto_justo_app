@@ -208,7 +208,7 @@ class ServicoCasa:
 
         resposta_pertencer = (
             self.supabase.table("pertencer").select("fk_usuario_id, score")
-            .eq("fk_casa_id", str(id_casa)).execute()
+            .eq("fk_casa_id", str(id_casa)).eq("ativo", True).execute()
         )
 
         if not resposta_pertencer.data:

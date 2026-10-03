@@ -110,6 +110,18 @@ def test_crud_pertencer_no_supabase(
         inexistente = cliente.get(f"/pertencer/{usuario_id}/{casa_id}")
         assert inexistente.status_code == 404
 
+        vinculo_inativo = (
+            get_supabase().table("pertencer").select("ativo, score")
+            .eq("fk_usuario_id", usuario_id).eq("fk_casa_id", casa_id).execute()
+        ).data[0]
+        assert vinculo_inativo == {"ativo": False, "score": 0}
+
+        reativado = cliente.post(
+            "/pertencer/", json={"fk_usuario_id": usuario_id, "fk_casa_id": casa_id}
+        )
+        assert reativado.status_code == 201, reativado.text
+        assert cliente.get(f"/pertencer/{usuario_id}/{casa_id}").status_code == 200
+
 
 # Garante que a API rejeita um segundo vínculo para o mesmo par
 # usuário/casa já cadastrado no Supabase real.

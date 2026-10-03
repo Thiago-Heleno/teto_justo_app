@@ -67,10 +67,6 @@ class Consulta:
         self.dados = dict(dados)
         return self
 
-    def delete(self):
-        self.operacao = "delete"
-        return self
-
     def _bate(self, registro):
         return all(registro.get(c) == valor for c, valor in self.filtros) and all(
             registro.get(c) in valores for c, valores in self.filtros_in
@@ -106,15 +102,14 @@ class Consulta:
 
         if self.operacao == "insert":
             chave = (self.dados["fk_usuario_id"], self.dados["fk_casa_id"])
-            registro = dict(self.dados)
+            registro = {**self.dados, "ativo": True}
             self.banco.vinculos[chave] = registro
             return SimpleNamespace(data=[dict(registro)])
 
-        if self.operacao == "delete":
-            chaves = [chave for chave, v in self.banco.vinculos.items() if self._bate(v)]
-            for chave in chaves:
-                del self.banco.vinculos[chave]
-            return SimpleNamespace(data=[{"ok": True}] if chaves else [])
+        if self.operacao == "update":
+            for registro in encontrados:
+                registro.update(self.dados)
+            return SimpleNamespace(data=[dict(v) for v in encontrados])
 
         if self.operacao == "select":
             if self.intervalo:
@@ -202,18 +197,21 @@ class TesteServicoPertencer(unittest.TestCase):
 
         self.assertEqual(len(resultado), 1)
 
-    # Excluir um vínculo existente deve remover a entrada do banco e
-    # devolver True, confirmando a exclusão.
+    # A saída inativa o vínculo sem perder saldo ou histórico.
     def test_deletar_pertencer_com_sucesso(self):
         self._criar_vinculo()
 
         resultado = self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
 
         self.assertTrue(resultado)
-        self.assertNotIn(
-            (str(self.fk_usuario_id), str(self.fk_casa_id)), self.banco.vinculos
+        self.assertFalse(
+            self.banco.vinculos[(str(self.fk_usuario_id), str(self.fk_casa_id))]["ativo"]
         )
         self.assertEqual(self.banco.rotacao_versao, 1)
+        self.assertEqual(self.servico.listar_pertencer(), [])
+        with self.assertRaises(HTTPException) as contexto:
+            self.servico.buscar_pertencer(self.fk_usuario_id, self.fk_casa_id)
+        self.assertEqual(contexto.exception.status_code, 404)
 
     # Excluir um vínculo que já não existe (ou nunca existiu) deve dar 404.
     def test_deletar_pertencer_inexistente_gera_404(self):
@@ -222,18 +220,26 @@ class TesteServicoPertencer(unittest.TestCase):
 
         self.assertEqual(contexto.exception.status_code, 404)
 
-    def test_deletar_pertencer_com_evento_gera_409(self):
+    def test_deletar_pertencer_preserva_pontos_e_reativa_mesmo_vinculo(self):
         self._criar_vinculo()
-        self.banco.eventos.append({
+        chave = (str(self.fk_usuario_id), str(self.fk_casa_id))
+        self.banco.vinculos[chave]["score"] = 25
+        evento = {
             "id": str(uuid4()),
             "fk_usuario_id": str(self.fk_usuario_id),
             "fk_casa_id": str(self.fk_casa_id),
-        })
+        }
+        self.banco.eventos.append(evento)
 
-        with self.assertRaises(HTTPException) as contexto:
-            self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
+        self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
+        self.assertFalse(self.banco.vinculos[chave]["ativo"])
+        self.assertEqual(self.banco.vinculos[chave]["score"], 25)
+        self.assertEqual(self.banco.eventos, [evento])
 
-        self.assertEqual(contexto.exception.status_code, 409)
+        reativado = self._criar_vinculo()
+        self.assertTrue(reativado["ativo"])
+        self.assertEqual(reativado["score"], 25)
+        self.assertEqual(len(self.banco.vinculos), 1)
 
     def test_deletar_proprietario_gera_409(self):
         self._criar_vinculo()
@@ -262,8 +268,8 @@ class TesteServicoPertencer(unittest.TestCase):
 
         self.assertEqual(contexto.exception.status_code, 409)
 
-    # Uma tarefa já finalizada não deve bloquear a exclusão -- só pendente/atrasada.
-    def test_deletar_pertencer_com_tarefa_finalizada_permite_exclusao(self):
+    # Uma tarefa já finalizada não bloqueia a saída -- só pendente/atrasada.
+    def test_deletar_pertencer_com_tarefa_finalizada_permite_saida(self):
         self._criar_vinculo()
         id_tarefa = str(uuid4())
         self.banco.tarefas[id_tarefa] = {

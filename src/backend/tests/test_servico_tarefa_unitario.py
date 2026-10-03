@@ -975,6 +975,23 @@ def test_responsavel_nao_finaliza_duas_vezes(servico, banco, consulta, registro_
     banco.rpc.assert_not_called()
 
 
+def test_nao_reabre_tarefa_de_responsavel_que_saiu(
+    servico, consulta, registro_tarefa
+):
+    tarefa = {**registro_tarefa, "estado_atual": "finalizado"}
+    responsavel = tarefa["fk_usuario_id"]
+    servico._buscar_tarefa_bruta = MagicMock(return_value=tarefa)
+    servico._buscar_usuarios_atribuidos = MagicMock(return_value=[responsavel])
+    consulta.execute.return_value = SimpleNamespace(data=[])
+
+    with pytest.raises(HTTPException) as erro:
+        servico.reabrir_tarefa(UUID(tarefa["id"]), UUID(responsavel))
+
+    assert erro.value.status_code == 409
+    consulta.eq.assert_any_call("ativo", True)
+    consulta.insert.assert_not_called()
+
+
 def test_consulta_expirada_nao_sobrescreve_conclusao_concorrente(
     servico, consulta, registro_tarefa
 ):

@@ -17,10 +17,24 @@ class ServicoPertencer:
         )
 
         if existente.data:
-            raise HTTPException(
-                status_code=400,
-                detail="Usuário já pertence a esta casa.",
+            if existente.data[0]["ativo"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Usuário já pertence a esta casa.",
+                )
+            resposta = (
+                self.supabase.table("pertencer")
+                .update({"ativo": True})
+                .eq("fk_usuario_id", str(dados.fk_usuario_id))
+                .eq("fk_casa_id", str(dados.fk_casa_id))
+                .eq("ativo", False)
+                .execute()
             )
+            if not resposta.data:
+                raise HTTPException(
+                    status_code=409, detail="O vínculo mudou. Tente novamente."
+                )
+            return resposta.data[0]
 
         resposta = (
             self.supabase.table("pertencer")
@@ -42,6 +56,7 @@ class ServicoPertencer:
             .select("*")
             .eq("fk_usuario_id", str(fk_usuario_id))
             .eq("fk_casa_id", str(fk_casa_id))
+            .eq("ativo", True)
             .execute()
         )
 
@@ -54,6 +69,7 @@ class ServicoPertencer:
         resposta = (
             self.supabase.table("pertencer")
             .select("*")
+            .eq("ativo", True)
             .range(inicio, inicio + limite - 1)
             .execute()
         )
@@ -82,6 +98,7 @@ class ServicoPertencer:
             .select("fk_usuario_id")
             .eq("fk_usuario_id", str(fk_usuario_id))
             .eq("fk_casa_id", str(fk_casa_id))
+            .eq("ativo", True)
             .execute()
         )
         if not vinculo.data:
@@ -89,19 +106,6 @@ class ServicoPertencer:
                 status_code=404,
                 detail="Vínculo não encontrado ou já deletado.",
             )
-        historico = (
-            self.supabase.table("score_event")
-            .select("fk_usuario_id")
-            .eq("fk_usuario_id", str(fk_usuario_id))
-            .eq("fk_casa_id", str(fk_casa_id))
-            .execute()
-        )
-        if historico.data:
-            raise HTTPException(
-                status_code=409,
-                detail="O histórico de pontos deste morador deve ser preservado.",
-            )
-
         ids_tarefas = [
             registro["fk_tarefa_id"]
             for registro in (
@@ -125,9 +129,18 @@ class ServicoPertencer:
                     status_code=409,
                     detail="O morador possui tarefas abertas nesta casa.",
                 )
-        self.supabase.table("pertencer").delete().eq(
-            "fk_usuario_id", str(fk_usuario_id)
-        ).eq("fk_casa_id", str(fk_casa_id)).execute()
+        resposta = (
+            self.supabase.table("pertencer")
+            .update({"ativo": False})
+            .eq("fk_usuario_id", str(fk_usuario_id))
+            .eq("fk_casa_id", str(fk_casa_id))
+            .eq("ativo", True)
+            .execute()
+        )
+        if not resposta.data:
+            raise HTTPException(
+                status_code=404, detail="Vínculo não encontrado ou já deletado."
+            )
         self.supabase.table("casa").update(
             {"rotacao_versao": casa[0]["rotacao_versao"] + 1}
         ).eq("id", str(fk_casa_id)).execute()

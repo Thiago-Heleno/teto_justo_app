@@ -85,7 +85,8 @@ def test_consultas_exigem_sessao_e_acesso_a_casa(consulta_score, monkeypatch, ro
         if acesso == "morador":
             banco.registros["usuario"].append({"id": str(solicitante_id), "nome": "Bia"})
             banco.registros["pertencer"].append({
-                "fk_casa_id": str(casa_id), "fk_usuario_id": str(solicitante_id), "score": 0,
+                "fk_casa_id": str(casa_id), "fk_usuario_id": str(solicitante_id),
+                "score": 0, "ativo": True,
             })
         elif acesso == "proprietario_sem_vinculo":
             banco.registros["casa"][0]["fk_usuario_id"] = str(solicitante_id)
