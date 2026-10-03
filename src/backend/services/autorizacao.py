@@ -61,6 +61,7 @@ class ServicoAutorizacaoCasa:
             self.supabase.table("pertencer")
             .select("fk_usuario_id")
             .eq("fk_casa_id", str(id_casa))
+            .eq("ativo", True)
             .execute()
         )
         ids_validos = {

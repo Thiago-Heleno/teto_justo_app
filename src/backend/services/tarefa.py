@@ -165,6 +165,7 @@ class ServicoTarefa:
             self.supabase.table("pertencer")
             .select("fk_usuario_id")
             .eq("fk_casa_id", str(dados_tarefa.fk_casa_id))
+            .eq("ativo", True)
             .in_("fk_usuario_id", ids_responsaveis)
             .execute()
         )
@@ -495,6 +496,7 @@ class ServicoTarefa:
                 .select("score")
                 .eq("fk_usuario_id", id_usuario)
                 .eq("fk_casa_id", id_casa)
+                .eq("ativo", True)
                 .execute()
             )
             if not atual.data:
@@ -509,6 +511,7 @@ class ServicoTarefa:
                 .update({"score": novo_score})
                 .eq("fk_usuario_id", id_usuario)
                 .eq("fk_casa_id", id_casa)
+                .eq("ativo", True)
                 .eq("score", score_atual)  # CAS: só escreve se ninguém mexeu nesse meio-tempo
                 .execute()
             )
@@ -544,6 +547,7 @@ class ServicoTarefa:
             .select("fk_usuario_id")
             .eq("fk_usuario_id", id_usuario_str)
             .eq("fk_casa_id", id_casa_str)
+            .eq("ativo", True)
             .execute()
         )
         if not vinculo.data:
@@ -592,6 +596,19 @@ class ServicoTarefa:
             raise HTTPException(
                 status_code=409,
                 detail="A tarefa precisa ter exatamente um responsável para ser reaberta.",
+            )
+        vinculo = (
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_usuario_id", responsaveis[0])
+            .eq("fk_casa_id", str(tarefa["fk_casa_id"]))
+            .eq("ativo", True)
+            .execute()
+        )
+        if not vinculo.data:
+            raise HTTPException(
+                status_code=409,
+                detail="Reative o vínculo do responsável antes de reabrir a tarefa.",
             )
         return self._estornar_e_reabrir(tarefa, responsaveis[0])
 

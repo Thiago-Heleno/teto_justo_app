@@ -118,7 +118,8 @@ def montar_servico(fuso="America/Sao_Paulo", score=0, eventos=None):
     casa_id, usuario_id = uuid4(), uuid4()
     banco = Banco(
         [{"id": str(casa_id), "timezone": fuso, "fk_usuario_id": str(usuario_id)}],
-        [{"fk_casa_id": str(casa_id), "fk_usuario_id": str(usuario_id), "score": score}],
+        [{"fk_casa_id": str(casa_id), "fk_usuario_id": str(usuario_id), "score": score,
+          "ativo": True}],
         [{"id": str(usuario_id), "nome": "Ana"}],
         eventos or [],
     )
@@ -183,6 +184,7 @@ def test_placar_inclui_morador_sem_eventos_e_eventos_apos_primeira_pagina():
     banco.registros["usuario"].append({"id": str(outro_id), "nome": "Bia"})
     banco.registros["pertencer"].append({
         "fk_casa_id": str(casa_id), "fk_usuario_id": str(outro_id), "score": 0,
+        "ativo": True,
     })
     banco.registros["score_event"] = [
         evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 1)
@@ -235,10 +237,28 @@ def test_placar_restrito_a_moradores():
     assert erro.value.status_code == 403
 
 
+def test_morador_inativo_sai_do_placar_mas_preserva_saldo_e_auditoria():
+    servico, banco, casa_id, usuario_id = montar_servico(score=25)
+    banco.registros["casa"][0]["fk_usuario_id"] = str(uuid4())
+    banco.registros["pertencer"][0]["ativo"] = False
+    banco.registros["score_event"] = [
+        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25)
+    ]
+
+    assert servico.obter_placar(casa_id)["moradores"] == []
+    assert servico.obter_ranking(casa_id, FiltroPeriodoScore())["moradores"] == []
+    assert servico.obter_saldo(casa_id, usuario_id)["saldo_atual"] == 25
+    assert servico.auditar_saldos(casa_id) == []
+    with pytest.raises(HTTPException) as erro:
+        servico.garantir_acesso(casa_id, usuario_id)
+    assert erro.value.status_code == 403
+
+
 def test_saldo_consulta_o_vinculo_exato_sem_recalcular_ou_alterar_pontos():
     servico, banco, casa_id, usuario_id = montar_servico(score=75)
     banco.registros["pertencer"].append({
         "fk_casa_id": str(uuid4()), "fk_usuario_id": str(usuario_id), "score": 999,
+        "ativo": True,
     })
     banco.registros["score_event"] = [
         evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
@@ -259,6 +279,7 @@ def test_ranking_ordena_pontos_empates_e_moradores_sem_eventos_em_varias_paginas
         banco.registros["usuario"].append({"id": str(id_usuario), "nome": nome})
         banco.registros["pertencer"].append({
             "fk_casa_id": str(casa_id), "fk_usuario_id": str(id_usuario), "score": 0,
+            "ativo": True,
         })
     banco.registros["score_event"] = [
         evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
