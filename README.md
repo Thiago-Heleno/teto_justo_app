@@ -262,6 +262,28 @@ Esses scripts executam `expo run:android` e `expo run:ios`, respectivamente.
 Podem gerar pastas nativas e ajustar a configuração do projeto. Para detalhes,
 consulte [compilação local no Expo](https://docs.expo.dev/guides/local-app-development/).
 
+#### Gerar APK e IPA sem assinatura pelo GitHub Actions
+
+Depois de enviar `.github/workflows/mobile-build.yml` à branch principal, abra
+**Actions → Build APK e IPA unsigned → Run workflow**. Selecione a branch,
+preencha a URL pública HTTPS da API e, se necessário para as telas legadas, o
+ID da casa. Esses valores ficam embutidos no app; não informe credenciais.
+
+Ao terminar, baixe `TetoJusto-Android` e `TetoJusto-iOS-unsigned` em
+**Artifacts** da execução e extraia os arquivos. Não precisa de `EXPO_TOKEN`,
+EAS ou certificados Apple para gerar esses builds.
+
+- O APK usa a configuração Release com a chave de teste padrão do template
+  Expo e inclui o JavaScript; funciona sem Metro. Uma instalação anterior
+  assinada pelo EAS precisa ser desinstalada antes (isso apaga os dados locais).
+- O IPA é para dispositivos iOS e não tem assinatura. Assine-o ao instalar
+  com Sideloadly; não é um arquivo para instalação direta ou TestFlight.
+
+O workflow usa [Prebuild do Expo](https://docs.expo.dev/workflow/continuous-native-generation/)
+para gerar os projetos nativos e compila nos runners do GitHub. Os dois
+builds são independentes: a falha de um não cancela o outro. Os artefatos
+ficam disponíveis por 14 dias.
+
 #### Publicar APK e IPA no GitHub Releases
 
 O workflow em `.github/workflows/mobile-release.yml` roda quando uma tag `v*`

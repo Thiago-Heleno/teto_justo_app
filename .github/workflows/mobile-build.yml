@@ -1,0 +1,99 @@
+name: Build APK e IPA unsigned
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: URL pública da API (HTTPS)
+        required: true
+        type: string
+      casa_id:
+        description: ID da casa (opcional para funcionalidades legadas)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            runner: ubuntu-24.04
+            artifact: TetoJusto-Android
+            path: src/frontend/android/app/build/outputs/apk/release/app-release.apk
+          - platform: ios
+            runner: macos-26
+            artifact: TetoJusto-iOS-unsigned
+            path: src/frontend/build/ipa/TetoJusto-iOS-unsigned.ipa
+    defaults:
+      run:
+        shell: bash
+        working-directory: src/frontend
+    env:
+      CI: '1'
+      EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+      EXPO_PUBLIC_CASA_ID: ${{ inputs.casa_id }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+      - name: Set up Java
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Select Xcode
+        if: matrix.platform == 'ios'
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate native project
+        run: npx expo prebuild --platform ${{ matrix.platform }} --no-install
+      - name: Build APK
+        if: matrix.platform == 'android'
+        working-directory: src/frontend/android
+        run: ./gradlew :app:assembleRelease --no-daemon
+      - name: Install CocoaPods
+        if: matrix.platform == 'ios'
+        working-directory: src/frontend/ios
+        run: pod install
+      - name: Build unsigned IPA
+        if: matrix.platform == 'ios'
+        run: |
+          set -euo pipefail
+          workspaces=(ios/*.xcworkspace)
+          test "${#workspaces[@]}" -eq 1
+          workspace="${workspaces[0]}"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          xcodebuild archive \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/TetoJusto.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+          mkdir -p build/ipa/Payload
+          cp -R build/TetoJusto.xcarchive/Products/Applications/*.app build/ipa/Payload/
+          cd build/ipa
+          zip -qry TetoJusto-iOS-unsigned.ipa Payload
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 14
