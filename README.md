@@ -57,6 +57,27 @@ SUPABASE_KEY=sua-chave-do-supabase
 
 Não versione esse arquivo nem exponha as credenciais.
 
+Para emitir e aceitar convites de casa, configure também
+`CASA_CONVITE_SECRET` no ambiente do backend. Gere um segredo aleatório com ao
+menos 32 bytes, por exemplo a partir da raiz do repositório:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Salve o resultado somente no `.env` local ou no gerenciador de segredos do
+ambiente; nunca no frontend, no repositório ou em logs. O mesmo segredo deve
+ser usado por todas as instâncias do backend. Se ele estiver ausente ou for
+curto demais, as rotas de emitir e aceitar convites respondem `503`; as demais
+rotas continuam disponíveis. Trocar o segredo invalida os convites emitidos
+anteriormente. Os convites expiram em 24 horas; consulte o
+[contrato da casa](./contexto/sprint_3/contrato_casa.md) para as rotas e erros.
+
+O backend também depende de `pertencer.ativo`, adicionado pela
+`docs/migrations/27.sql` da PR #99. A aplicação dessa migration no banco não
+foi verificada nesta Task 207. Antes de implantar, confirme o estado do
+ambiente e siga a [revisão de casa e pertencer](./contexto/sprint_2/revisao_casa_pertencer.md).
+
 Antes de iniciar o backend com um banco existente, confira quais migrations de
 `docs/migrations/` já foram aplicadas. A sequência dos arquivos é `14.sql`,
 `15.sql`, `16.sql`, `17.sql` e `18.sql`, respeitando as que já constam do banco.

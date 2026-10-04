@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 def validar_timezone(valor: str) -> str:
@@ -50,6 +51,21 @@ class CasaResposta(BaseModel):
     foto: Optional[str] = None
     fk_usuario_id: UUID
     timezone: str
+
+class EntrarCasaPedido(BaseModel):
+    convite: str = Field(min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CasaConviteResposta(BaseModel):
+    convite: str
+    expira_em: datetime
+
+
+class ErroCasaResposta(BaseModel):
+    detail: str
+
 
 class MoradorResposta(BaseModel):
     id: UUID

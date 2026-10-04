@@ -19,6 +19,7 @@ def consulta():
     consulta.insert.return_value = consulta
     consulta.select.return_value = consulta
     consulta.eq.return_value = consulta
+    consulta.order.return_value = consulta
     consulta.range.return_value = consulta
     consulta.update.return_value = consulta
     consulta.delete.return_value = consulta
@@ -229,18 +230,27 @@ def test_buscar_casa_com_foto_invalida_no_banco_gera_500(
     assert erro.value.status_code == 500
     assert erro.value.detail == "Formato de foto inválido no banco."
 
-def test_listar_casas_aplica_intervalo_inclusivo(
-    servico, consulta, registro_casa, foto
+def test_listar_casas_filtra_usuario_e_pagina_apos_buscar_vinculos(
+    servico, consulta, id_usuario, registro_casa, foto
 ):
-    consulta.execute.return_value = SimpleNamespace(data=[registro_casa])
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[registro_casa]),
+        SimpleNamespace(data=[]),
+    ]
 
-    resultado = servico.listar_casas(inicio=10, limite=25)
+    resultado = servico.listar_casas(id_usuario, inicio=0, limite=1)
 
     assert len(resultado) == 1
     assert resultado[0]["nome"] == "Casa Azul"
     assert resultado[0]["foto"] == foto["base64"]
 
-    consulta.range.assert_called_once_with(10, 34)
+    assert consulta.eq.call_args_list == [
+        call("fk_usuario_id", str(id_usuario)),
+        call("fk_usuario_id", str(id_usuario)),
+        call("ativo", True),
+    ]
+    assert consulta.order.call_args_list == [call("id"), call("fk_casa_id")]
+    assert consulta.range.call_args_list == [call(0, 499), call(0, 499)]
 
 def test_atualizar_casa_envia_apenas_campos_informados(
     servico, consulta, id_casa, id_usuario, registro_casa

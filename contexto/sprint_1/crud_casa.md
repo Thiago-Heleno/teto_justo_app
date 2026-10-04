@@ -15,14 +15,16 @@ utilizadas no banco. O serviço não utiliza `FIELD_MAP`.
 
 Foram definidos três contratos Pydantic:
 
-- `CasaCriar`: recebe `nome`, `endereco`, `foto` opcional e
-  `fk_usuario_id`.
-- `CasaAtualizar`: permite alterar parcialmente `nome`, `endereco` e `foto`.
+- `CasaCriar`: recebe `nome`, `endereco`, `foto` opcional e `timezone` IANA
+  opcional (padrão `America/Sao_Paulo`). O proprietário é obtido da sessão;
+  `fk_usuario_id` não é aceito no payload.
+- `CasaAtualizar`: permite alterar parcialmente `nome`, `endereco`, `foto` e
+  `timezone`.
 - `CasaResposta`: devolve `id`, os dados da casa e o identificador do
-  proprietário.
+  proprietário, além de `timezone`.
 
-O proprietário é informado somente na criação. O schema de atualização não
-permite trocar `fk_usuario_id`.
+O schema de atualização não permite trocar `fk_usuario_id`. A criação também
+insere o proprietário em `pertencer` com `score` inicial zero e vínculo ativo.
 
 ### `src/backend/services/casa.py`
 
@@ -30,7 +32,8 @@ A classe `ServicoCasa` concentra o acesso à tabela `casa` e implementa:
 
 - criação de uma casa;
 - busca por UUID;
-- listagem paginada por `inicio` e `limite`;
+- listagem das casas próprias ou com vínculo ativo, paginada por `inicio` e
+  `limite`;
 - atualização parcial;
 - exclusão;
 - conversão da foto entre Base64, usado pela API, e o formato hexadecimal de
@@ -47,8 +50,8 @@ O router usa o prefixo `/casas` e delega as operações para `ServicoCasa`:
 | Método | Endpoint | Funcionalidade |
 | --- | --- | --- |
 | `POST` | `/casas/` | Cria uma casa |
-| `GET` | `/casas/` | Lista casas com paginação |
-| `GET` | `/casas/{id_casa}` | Busca uma casa por UUID |
+| `GET` | `/casas/` | Lista casas próprias ou com vínculo ativo, com paginação |
+| `GET` | `/casas/{id_casa}` | Busca uma casa do proprietário ou morador ativo por UUID |
 | `PATCH` | `/casas/{id_casa}` | Atualiza parcialmente uma casa |
 | `DELETE` | `/casas/{id_casa}` | Exclui uma casa |
 
@@ -60,7 +63,10 @@ O endpoint de criação retorna `201 Created`. O router está registrado em
 - UUID ou payload inválido: `422` gerado pela validação do FastAPI/Pydantic.
 - Foto em Base64 inválida: `400`.
 - Atualização sem campos válidos: `400`.
+- Usuário autenticado sem vínculo ativo ou propriedade em uma leitura: `403`.
+- Usuário que não é proprietário em atualização ou exclusão: `403`.
 - Casa inexistente em busca, atualização ou exclusão: `404`.
+- Casa com dados vinculados na exclusão: `409`.
 - Falha de inserção ou foto em formato inesperado no banco: `500`.
 
 ## Persistência
@@ -69,6 +75,11 @@ A tabela `Casa` foi criada em `docs/migrations/01.sql`. A migration
 `02.sql` converteu seu identificador e a chave estrangeira de usuário para
 UUID. A foto é armazenada em uma coluna `BYTEA`, e a exclusão do proprietário
 é restringida enquanto houver uma casa vinculada a ele.
+
+O contrato vigente, incluindo convites, entrada e saída, está em
+`contexto/sprint_3/contrato_casa.md`. A coluna `pertencer.ativo` vem da
+`docs/migrations/27.sql`, já presente na main; sua aplicação no banco não
+foi verificada nesta tarefa.
 
 ## Testes
 
