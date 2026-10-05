@@ -53,6 +53,22 @@ class RotatividadeResposta(BaseModel):
     ativa: bool
 
 
+class RotatividadeDetalhe(RotatividadeResposta):
+    descricao: str | None = None
+    dias_semana: list[int]
+    intervalo_semanas: int
+    prazo_dias: int
+    modo_prazo: str
+
+
+class RotatividadeAtualizar(BaseModel):
+    nome: str | None = Field(default=None, min_length=1)
+    descricao: str | None = None
+    ativa: bool | None = None
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
 class ResultadoJobRotatividade(BaseModel):
     rotatividades_analisadas: int
     ocorrencias_processadas: int

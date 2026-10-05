@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
 
-from schemas.rotatividade import RotatividadeCriar
+from schemas.rotatividade import RotatividadeAtualizar, RotatividadeCriar
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.rotatividade import TarefaDistribuicao, distribuir_tarefas
 from services.score import ServicoScore
@@ -115,6 +115,10 @@ class ServicoAgendamentoRotatividade:
                 status_code=500,
                 detail="Não foi possível salvar todos os participantes do rodízio.",
             )
+        try:
+            self._processar_configuracao(configuracao, datetime.now(timezone.utc))
+        except (APIError, HTTPException):
+            pass  # o job diário repara a ocorrência na próxima execução
         return configuracao
 
     def _remover_configuracao_incompleta(self, id_rotatividade: str) -> None:
@@ -130,6 +134,95 @@ class ServicoAgendamentoRotatividade:
             .eq("id", id_rotatividade)
             .execute()
         )
+
+    def _buscar_configuracao(self, id_rotatividade: UUID) -> dict:
+        resposta = (
+            self.supabase.table("rotatividade")
+            .select("*")
+            .eq("id", str(id_rotatividade))
+            .execute()
+        )
+        if not resposta.data:
+            raise HTTPException(status_code=404, detail="Rodízio não encontrado.")
+        return resposta.data[0]
+
+    def listar_rotatividades(self, id_casa: UUID, id_usuario_atual: UUID) -> list[dict]:
+        ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+            id_casa,
+            id_usuario_atual,
+        )
+        return self._listar("rotatividade", "*", (("eq", "fk_casa_id", str(id_casa)),))
+
+    def atualizar_rotatividade(
+        self,
+        id_rotatividade: UUID,
+        dados: RotatividadeAtualizar,
+        id_usuario_atual: UUID,
+    ) -> dict:
+        configuracao = self._buscar_configuracao(id_rotatividade)
+        ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+            configuracao["fk_casa_id"],
+            id_usuario_atual,
+        )
+        alteracoes = dados.model_dump(exclude_none=True)
+        if not alteracoes:
+            raise HTTPException(status_code=400, detail="Nenhum dado para atualização.")
+        if alteracoes.get("ativa") and not configuracao["ativa"]:
+            fuso = ZoneInfo(configuracao["timezone"])
+            alteracoes["semana_ancora"] = datetime.now(fuso).date().isoformat()
+        resposta = (
+            self.supabase.table("rotatividade")
+            .update(alteracoes)
+            .eq("id", str(id_rotatividade))
+            .execute()
+        )
+        if not resposta.data:
+            raise HTTPException(status_code=404, detail="Rodízio não encontrado.")
+        return resposta.data[0]
+
+    def excluir_rotatividade(self, id_rotatividade: UUID, id_usuario_atual: UUID) -> bool:
+        configuracao = self._buscar_configuracao(id_rotatividade)
+        ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+            configuracao["fk_casa_id"],
+            id_usuario_atual,
+        )
+        conflito = HTTPException(
+            status_code=409,
+            detail="Rodízio com tarefas geradas não pode ser excluído. Pause-o.",
+        )
+        tarefas = (
+            self.supabase.table("tarefa")
+            .select("id")
+            .eq("rotatividade_id", str(id_rotatividade))
+            .limit(1)
+            .execute()
+        ).data
+        if tarefas:
+            raise conflito
+        # Pausa antes de apagar: se algo falhar no meio, o job ignora o rodízio.
+        self.supabase.table("rotatividade").update({"ativa": False}).eq(
+            "id", str(id_rotatividade)
+        ).execute()
+        try:
+            (
+                self.supabase.table("rotatividade_participante")
+                .delete()
+                .eq("fk_rotatividade_id", str(id_rotatividade))
+                .execute()
+            )
+            resposta = (
+                self.supabase.table("rotatividade")
+                .delete()
+                .eq("id", str(id_rotatividade))
+                .execute()
+            )
+        except APIError as erro:
+            if erro.code == "23503":
+                raise conflito from erro
+            raise
+        if not resposta.data:
+            raise HTTPException(status_code=404, detail="Rodízio não encontrado.")
+        return True
 
     def _listar(self, tabela: str, selecao: str, filtros: tuple | None = None) -> list[dict]:
         registros = []
@@ -354,6 +447,33 @@ class ServicoAgendamentoRotatividade:
         finally:
             _LOCK_PROCESSAMENTO.release()
 
+    def _processar_configuracao(self, configuracao: dict, instante: datetime) -> int:
+        fuso = ZoneInfo(configuracao["timezone"])
+        datas_previstas = datas_ocorrencias(
+            configuracao,
+            instante.astimezone(fuso).date(),
+        )
+        if not datas_previstas:
+            return 0
+
+        tarefas_existentes = self._listar(
+            "tarefa",
+            "id,ocorrencia_em,pontuacao",
+            (("eq", "rotatividade_id", str(configuracao["id"])),),
+        )
+        datas_existentes = {
+            data_local_ocorrencia(str(tarefa["ocorrencia_em"]), fuso)
+            for tarefa in tarefas_existentes
+        }
+        membros = self._membros_elegiveis(configuracao)
+
+        processadas = 0
+        for dia in datas_previstas:
+            self._registrar_ocorrencia(configuracao, dia, membros)
+            if dia not in datas_existentes:
+                processadas += 1
+        return processadas
+
     def _processar_ocorrencias(self, agora: datetime | None = None) -> dict[str, int]:
         instante = agora or datetime.now(timezone.utc)
         if instante.tzinfo is None or instante.utcoffset() is None:
@@ -364,33 +484,10 @@ class ServicoAgendamentoRotatividade:
             "*",
             (("eq", "ativa", True),),
         )
-        processadas = 0
-
-        for configuracao in configuracoes:
-            fuso = ZoneInfo(configuracao["timezone"])
-            datas_previstas = datas_ocorrencias(
-                configuracao,
-                instante.astimezone(fuso).date(),
-            )
-            if not datas_previstas:
-                continue
-
-            tarefas_existentes = self._listar(
-                "tarefa",
-                "id,ocorrencia_em,pontuacao",
-                (("eq", "rotatividade_id", str(configuracao["id"])),),
-            )
-            datas_existentes = {
-                data_local_ocorrencia(str(tarefa["ocorrencia_em"]), fuso)
-                for tarefa in tarefas_existentes
-            }
-            membros = self._membros_elegiveis(configuracao)
-
-            for dia in datas_previstas:
-                self._registrar_ocorrencia(configuracao, dia, membros)
-                if dia not in datas_existentes:
-                    processadas += 1
-
+        processadas = sum(
+            self._processar_configuracao(configuracao, instante)
+            for configuracao in configuracoes
+        )
         return {
             "rotatividades_analisadas": len(configuracoes),
             "ocorrencias_processadas": processadas,
