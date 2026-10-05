@@ -70,6 +70,12 @@ def test_cria_configuracao_e_participantes_com_escritas_diretas(monkeypatch):
         "services.rotatividade_agendamento.ServicoAutorizacaoCasa",
         AutorizacaoFalsa,
     )
+    processar_configuracao = MagicMock(return_value=0)
+    monkeypatch.setattr(
+        ServicoAgendamentoRotatividade,
+        "_processar_configuracao",
+        processar_configuracao,
+    )
     dados = RotatividadeCriar(
         fk_casa_id=id_casa,
         nome="Limpar cozinha",
@@ -87,6 +93,8 @@ def test_cria_configuracao_e_participantes_com_escritas_diretas(monkeypatch):
     )
 
     assert resultado == configuracao
+    processar_configuracao.assert_called_once()
+    assert processar_configuracao.call_args.args[0] == configuracao
     configuracao_gravada = consulta.insert.call_args_list[0].args[0]
     participantes_gravados = consulta.insert.call_args_list[1].args[0]
     assert configuracao_gravada["fk_usuario_id"] == str(id_admin)

@@ -169,23 +169,22 @@ def test_criar_e_processar_rotatividade_no_supabase(
             participante_id,
         ]
 
-        cabecalho_job = {"X-Rotatividade-Job-Token": token_job}
-        primeiro_processamento = cliente.post(
-            "/jobs/rotatividades",
-            headers=cabecalho_job,
+        # A criação já gera a ocorrência de hoje; o job só repara o que faltar.
+        tarefas_apos_criar = (
+            supabase.table("tarefa")
+            .select("id")
+            .eq("rotatividade_id", rotatividade["id"])
+            .execute()
+            .data
         )
-        assert primeiro_processamento.status_code == 200, primeiro_processamento.text
-        assert primeiro_processamento.json() == {
-            "rotatividades_analisadas": 1,
-            "ocorrencias_processadas": 1,
-        }
+        assert len(tarefas_apos_criar) == 1
 
-        segundo_processamento = cliente.post(
+        processamento = cliente.post(
             "/jobs/rotatividades",
-            headers=cabecalho_job,
+            headers={"X-Rotatividade-Job-Token": token_job},
         )
-        assert segundo_processamento.status_code == 200, segundo_processamento.text
-        assert segundo_processamento.json() == {
+        assert processamento.status_code == 200, processamento.text
+        assert processamento.json() == {
             "rotatividades_analisadas": 1,
             "ocorrencias_processadas": 0,
         }

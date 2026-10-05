@@ -66,10 +66,11 @@ def registro_tarefa(id_tarefa, ids_relacionados):
 
 
 def test_criar_tarefa_com_atribuicoes(servico, consulta, registro_tarefa, ids_relacionados):
-    # A ordem esperada é: autorizar casa (retorna o dono), buscar em 'pertencer'
-    # os responsáveis informados, inserir tarefa, inserir atribuições e buscar
+    # A ordem esperada é: autorizar casa (retorna o dono), validar responsáveis
+    # (casa e 'pertencer'), inserir tarefa, inserir atribuições e buscar
     # as atribuições da resposta.
     consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]),
         SimpleNamespace(data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]),
         SimpleNamespace(
             data=[
@@ -121,6 +122,7 @@ def test_criar_tarefa_com_atribuicoes(servico, consulta, registro_tarefa, ids_re
 
 def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relacionados):
     consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]),
         SimpleNamespace(data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]),
         SimpleNamespace(
             data=[
@@ -565,6 +567,7 @@ def test_criar_tarefa_rejeita_requisitos_invalidos(campo, valor, ids_relacionado
 
 def test_criar_tarefa_rejeita_responsavel_de_outra_casa(servico, consulta, ids_relacionados):
     consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]),
         SimpleNamespace(data=[{"fk_usuario_id": str(ids_relacionados["fk_usuario_id"])}]),
         SimpleNamespace(data=[]),
     ]
