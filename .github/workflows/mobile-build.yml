@@ -7,10 +7,6 @@ on:
         description: URL pública da API (HTTPS)
         required: true
         type: string
-      casa_id:
-        description: ID da casa (opcional para funcionalidades legadas)
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -39,7 +35,6 @@ jobs:
     env:
       CI: '1'
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
-      EXPO_PUBLIC_CASA_ID: ${{ inputs.casa_id }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6

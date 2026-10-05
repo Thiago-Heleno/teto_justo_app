@@ -33,11 +33,17 @@ acessa o Supabase para persistir os dados.
 
 ## Como rodar localmente
 
-O aplicativo abre a tela de login antes de liberar as abas. Inicie o backend
-e configure a URL da API no frontend. Uma conta pode ser criada pelo endpoint
-público `POST /usuarios/` na documentação interativa `/docs` do backend.
-As telas de tarefas e pontuação também precisam do ID da casa configurado
-abaixo e de um usuário com as permissões correspondentes.
+O aplicativo abre a tela de login e consulta as casas do usuário antes de
+liberar as abas. Uma única casa é aberta automaticamente; com várias, o
+usuário escolhe. A última escolha é lembrada enquanto a sessão continuar
+válida e a casa permanecer acessível. **Trocar de casa**, no Início, volta à
+seleção; sair da conta apaga a preferência.
+
+Inicie o backend e configure a URL da API no frontend. Uma conta pode ser
+criada pelo endpoint público `POST /usuarios/` na documentação interativa
+`/docs` do backend. Nesta etapa, criação e entrada por convite ainda são
+feitas pela API: os formulários serão implementados nas próximas partes.
+Quem não possui casa vê a lista vazia, com opções de atualizar e sair.
 
 ### Pré-requisitos
 
@@ -210,8 +216,10 @@ Para carregar a tela **Tarefas** com dados reais, crie
 
 ```env
 EXPO_PUBLIC_API_URL=http://127.0.0.1:8000
-EXPO_PUBLIC_CASA_ID=uuid-da-casa
 ```
+
+`EXPO_PUBLIC_CASA_ID` não é mais utilizado. Tarefas, moradores e pontuação
+usam a casa selecionada após o login.
 
 Entre com o e-mail e a senha da sua conta. O token é recebido de
 `POST /sessoes/login` e salvo no SecureStore (celular) ou no `localStorage`
@@ -287,8 +295,8 @@ consulte [compilação local no Expo](https://docs.expo.dev/guides/local-app-dev
 
 Depois de enviar `.github/workflows/mobile-build.yml` à branch principal, abra
 **Actions → Build APK e IPA unsigned → Run workflow**. Selecione a branch,
-preencha a URL pública HTTPS da API e, se necessário para as telas legadas, o
-ID da casa. Esses valores ficam embutidos no app; não informe credenciais.
+preencha a URL pública HTTPS da API. Esse valor fica embutido no app; não
+informe credenciais. A casa é escolhida após o login.
 
 Ao terminar, baixe `TetoJusto-Android` e `TetoJusto-iOS-unsigned` em
 **Artifacts** da execução e extraia os arquivos. Não precisa de `EXPO_TOKEN`,
@@ -340,7 +348,7 @@ comando de build Android acima.
 O login agora obtém a credencial em tempo de execução. Não configure tokens
 de sessão no EAS, no GitHub ou em variáveis `EXPO_PUBLIC_*`, pois elas ficam
 legíveis no aplicativo distribuído. Configure somente a URL pública da API
-(HTTPS em ambientes distribuídos) e o ID da casa.
+(HTTPS em ambientes distribuídos).
 
 Esta mudança não libera o projeto para distribuição pública: ainda há
 pendências de autorização por recurso, limitação de tentativas de login e

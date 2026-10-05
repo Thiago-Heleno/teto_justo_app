@@ -48,6 +48,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test:tarefas": "node --experimental-test-module-mocks --test scripts/autenticacao-api.test.mjs scripts/filtros-tarefa.test.mjs scripts/tarefas-api.test.mjs scripts/criacao-tarefa.test.mjs scripts/edicao-tarefa.test.mjs",
+    "test:casas": "node --experimental-test-module-mocks --test scripts/casas.test.mjs",
     "reset-project": "node ./scripts/reset-project.js"
   },
   "private": true,
