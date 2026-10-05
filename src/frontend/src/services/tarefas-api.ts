@@ -1,4 +1,5 @@
 import { requisitar } from "./api.ts";
+import { sessao } from "./sessao-store.ts";
 
 import type { EstadoTarefa, PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
@@ -81,18 +82,15 @@ export type Placar = {
 };
 
 export function temConfiguracaoTarefas() {
-  return Boolean(
-    process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_CASA_ID,
-  );
+  return Boolean(process.env.EXPO_PUBLIC_API_URL);
 }
 
 function configuracao() {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
-  const casaId = process.env.EXPO_PUBLIC_CASA_ID;
+  const casaId = sessao.getState().casaAtiva?.id;
 
-  if (!apiUrl || !casaId) {
-    throw new Error("Configure EXPO_PUBLIC_API_URL e EXPO_PUBLIC_CASA_ID.");
-  }
+  if (!apiUrl) throw new Error("Configure EXPO_PUBLIC_API_URL.");
+  if (!casaId) throw new Error("Escolha uma casa para continuar.");
 
   return { apiUrl, casaId };
 }

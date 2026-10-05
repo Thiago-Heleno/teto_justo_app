@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import test, { mock } from "node:test";
+import test, { beforeEach, mock } from "node:test";
+
+mock.module("../src/services/casa-storage.ts", {
+  namedExports: {
+    lerCasaSelecionada: async () => null,
+    salvarCasaSelecionada: async () => {},
+    removerCasaSelecionada: async () => {},
+  },
+});
 
 mock.module("../src/services/token-storage.ts", {
   namedExports: {
@@ -9,6 +17,12 @@ mock.module("../src/services/token-storage.ts", {
   },
 });
 const { sessao } = await import("../src/services/sessao-store.ts");
+
+beforeEach(() => {
+  sessao.setState({
+    casaAtiva: { id: "casa-123", nome: "Casa real", fk_usuario_id: "morador" },
+  });
+});
 
 const {
   carregarTarefas,
@@ -289,7 +303,7 @@ test("consulta placar da casa", async () => {
   }
 });
 
-test("configuração parcial informa o erro em vez de trocar por dados fictícios", async () => {
+test("a configuração antiga da casa é ignorada e não substitui a URL da API", async () => {
   const nomes = ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_CASA_ID"];
 
   const anteriores = nomes.map((nome) => process.env[nome]);
@@ -303,7 +317,7 @@ test("configuração parcial informa o erro em vez de trocar por dados fictício
 
     process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
 
-    assert.equal(temConfiguracaoTarefas(), true);
+    assert.equal(temConfiguracaoTarefas(), false);
 
     await assert.rejects(
       carregarContextoTarefas(),
@@ -341,7 +355,7 @@ test("configuração ausente é capturada pelos handlers da tela, sem erro sínc
   };
 
   try {
-    for (const ausente of [null, ...nomes]) {
+    for (const ausente of [null, "EXPO_PUBLIC_API_URL"]) {
       for (const nome of nomes) {
         if (ausente === null || nome === ausente) {
           delete process.env[nome];

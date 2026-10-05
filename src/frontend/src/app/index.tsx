@@ -2,11 +2,14 @@ import { Link } from "expo-router";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useStore } from "zustand";
 
 import { Caldera } from "@/constants/theme";
 import { sair } from "@/services/autenticacao-api";
+import { sessao, trocarCasa } from "@/services/sessao-store";
 
 export default function HomeScreen() {
+  const casa = useStore(sessao, (estado) => estado.casaAtiva);
   const [erro, setErro] = useState<string>();
   const [saindo, setSaindo] = useState(false);
   const envioEmAndamento = useRef(false);
@@ -33,7 +36,7 @@ export default function HomeScreen() {
       <View style={styles.content}>
         <Text style={styles.brand}>TETO JUSTO</Text>
         <Text accessibilityRole="header" style={styles.title}>
-          Sua casa, em dia.
+          {casa?.nome ?? "Sua casa, em dia."}
         </Text>
         <Text style={styles.description}>
           Acompanhe as tarefas da casa e a contribuição de cada morador.
@@ -41,6 +44,15 @@ export default function HomeScreen() {
         <Link href="/tarefas" style={styles.link}>
           Ver tarefas
         </Link>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: saindo }}
+          disabled={saindo}
+          onPress={trocarCasa}
+          style={styles.button}
+        >
+          <Text style={styles.buttonText}>Trocar de casa</Text>
+        </Pressable>
         {erro && (
           <Text accessibilityRole="alert" style={styles.error}>
             {erro}

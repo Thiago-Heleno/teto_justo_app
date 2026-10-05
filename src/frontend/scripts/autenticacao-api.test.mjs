@@ -4,6 +4,13 @@ import { afterEach, beforeEach, mock, test } from "node:test";
 
 let tokenSalvo = null;
 let falhaArmazenamento = false;
+mock.module("../src/services/casa-storage.ts", {
+  namedExports: {
+    lerCasaSelecionada: async () => null,
+    salvarCasaSelecionada: async () => {},
+    removerCasaSelecionada: async () => {},
+  },
+});
 mock.module("../src/services/token-storage.ts", {
   namedExports: {
     lerToken: async () => tokenSalvo,
@@ -28,7 +35,12 @@ const novoToken = () => randomBytes(32).toString("base64url");
 beforeEach(() => {
   tokenSalvo = null;
   falhaArmazenamento = false;
-  sessao.setState({ token: null, pronta: false });
+  sessao.setState({
+    token: null,
+    pronta: false,
+    casaAtiva: null,
+    casaPreferidaId: null,
+  });
   process.env.EXPO_PUBLIC_API_URL = "http://api.test/";
 });
 
@@ -130,7 +142,12 @@ test("restauração sem token termina sem consultar a API", async () => {
     throw new Error("Não deve consultar a rede");
   };
   await iniciarAutenticacao();
-  assert.deepEqual(sessao.getState(), { token: null, pronta: true });
+  assert.deepEqual(sessao.getState(), {
+    token: null,
+    pronta: true,
+    casaAtiva: null,
+    casaPreferidaId: null,
+  });
 });
 
 test("sessão expirada é removida ao restaurar", async () => {
@@ -142,7 +159,12 @@ test("sessão expirada é removida ao restaurar", async () => {
   });
   await iniciarAutenticacao();
   assert.equal(tokenSalvo, null);
-  assert.deepEqual(sessao.getState(), { token: null, pronta: true });
+  assert.deepEqual(sessao.getState(), {
+    token: null,
+    pronta: true,
+    casaAtiva: null,
+    casaPreferidaId: null,
+  });
 });
 
 test("falha de rede ao restaurar preserva o token para nova tentativa", async () => {
@@ -153,7 +175,12 @@ test("falha de rede ao restaurar preserva o token para nova tentativa", async ()
   };
   await assert.rejects(iniciarAutenticacao(), /Sem conexão/);
   assert.equal(tokenSalvo, token);
-  assert.deepEqual(sessao.getState(), { token, pronta: true });
+  assert.deepEqual(sessao.getState(), {
+    token,
+    pronta: true,
+    casaAtiva: null,
+    casaPreferidaId: null,
+  });
 });
 
 test("logout revoga a própria sessão e aceita resposta 204 sem JSON", async () => {

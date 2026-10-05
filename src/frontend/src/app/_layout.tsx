@@ -6,8 +6,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useStore } from "zustand";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import AppTabs from "@/components/app-tabs";
 import { LoginScreen } from "@/components/login";
+import { FluxoCasa } from "@/components/selecao-casa";
 import { Caldera } from "@/constants/theme";
 import { iniciarAutenticacao } from "@/services/autenticacao-api";
 import { sessao } from "@/services/sessao-store";
@@ -40,7 +40,7 @@ export default function TabLayout() {
             <ActivityIndicator accessibilityLabel="Carregando sessão" />
           </View>
         ) : token ? (
-          <AppTabs />
+          <FluxoCasa key={token} />
         ) : (
           <LoginScreen aviso={aviso} />
         )}
