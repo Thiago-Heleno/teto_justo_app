@@ -318,10 +318,14 @@ def banco_login():
 
 
 @contextmanager
-def cliente_principal(banco):
+def cliente_principal(banco, base_url="http://testserver"):
     app_principal.dependency_overrides[get_supabase] = lambda: banco
     try:
-        with TestClient(app_principal, raise_server_exceptions=False) as cliente:
+        with TestClient(
+            app_principal,
+            base_url=base_url,
+            raise_server_exceptions=False,
+        ) as cliente:
             yield cliente
     finally:
         app_principal.dependency_overrides.clear()
@@ -352,6 +356,59 @@ def test_login_acessa_rota_protegida_e_logout_preserva_outra_sessao(banco_login)
             "/usuarios/eu", headers={"Authorization": f"Bearer {outro_token}"}
         ).status_code == 200
         assert len(banco.dados["sessao"]) == 1
+
+
+def test_login_web_usa_cookie_httponly_e_valida_origem(banco_login, monkeypatch):
+    banco, credenciais = banco_login
+    origem = "https://frontend.example"
+    monkeypatch.setenv("CORS_ORIGINS", origem)
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
+
+    with cliente_principal(banco, base_url=origem) as cliente:
+        login = cliente.post(
+            "/sessoes/login",
+            json=credenciais,
+            headers={
+                "Origin": origem,
+                "X-Session-Transport": "cookie",
+            },
+        )
+
+        assert login.status_code == 200
+        assert login.json()["token"] is None
+        cookie = login.headers["set-cookie"]
+        assert "HttpOnly" in cookie
+        assert "Secure" in cookie
+        assert "SameSite=lax" in cookie
+
+        eu = cliente.get("/usuarios/eu", headers={"Origin": origem})
+        assert eu.status_code == 200
+
+        forgery = cliente.post("/sessoes/logout", headers={"Origin": "https://evil.example"})
+        assert forgery.status_code == 403
+
+        logout = cliente.post("/sessoes/logout", headers={"Origin": origem})
+        assert logout.status_code == 204
+        assert "Max-Age=0" in logout.headers["set-cookie"]
+        assert cliente.get("/usuarios/eu", headers={"Origin": origem}).status_code == 401
+
+
+def test_login_web_rejeita_origem_ausente_da_lista(banco_login, monkeypatch):
+    banco, credenciais = banco_login
+    monkeypatch.setenv("CORS_ORIGINS", "https://frontend.example")
+
+    with cliente_principal(banco) as cliente:
+        resposta = cliente.post(
+            "/sessoes/login",
+            json=credenciais,
+            headers={
+                "Origin": "https://evil.example",
+                "X-Session-Transport": "cookie",
+            },
+        )
+
+    assert resposta.status_code == 403
+    assert banco.dados["sessao"] == []
 
 
 def test_hash_armazenado_e_token_legado_nao_autenticam(banco_login):

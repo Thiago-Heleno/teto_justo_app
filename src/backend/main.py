@@ -1,21 +1,17 @@
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from core.config import origens_frontend
 from routers import casa, jobs, pertencer, rotatividade, sessao, tarefa, usuario
 
 app = FastAPI(title="Teto Justo API")
 
-origens_frontend = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:8081,http://127.0.0.1:8081",
-).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origens_frontend,
-    allow_credentials=False,
+    allow_origins=origens_frontend(),
+    allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-Transport"],
 )
 
 app.include_router(usuario.router)

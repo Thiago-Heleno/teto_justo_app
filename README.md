@@ -14,7 +14,7 @@ O fluxo e as telas do aplicativo estão disponíveis no
 
 ## Tecnologias
 
-- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web. Login e logout integrados à API.
+- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand; sessão usa Expo SecureStore e Bearer no celular, e cookie `HttpOnly` na web. Login e logout integrados à API.
 - **Backend:** Python, FastAPI, Pydantic e Uvicorn.
 - **Dados:** Supabase.
 - **Qualidade:** ESLint, Prettier, Ruff, Bandit e Pytest.
@@ -122,9 +122,14 @@ uvicorn main:app --reload
 A API ficará disponível em `http://127.0.0.1:8000`. Para confirmar que está
 ativa, acesse `http://127.0.0.1:8000/health`.
 
-Para o navegador em outra origem, defina `CORS_ORIGINS` no `.env` do backend
-com as origens separadas por vírgula (por exemplo,
-`http://localhost:8081,http://127.0.0.1:8081`).
+Defina `CORS_ORIGINS` no `.env` do backend com as origens exatas do frontend,
+separadas por vírgula (por exemplo,
+`http://localhost:8081,http://127.0.0.1:8081`). Para o navegador local, use
+`localhost` tanto na URL do frontend quanto na URL da API (o cookie usa
+`SameSite=Lax`). Para a versão hospedada,
+cadastre a URL real do frontend nas variáveis da Vercel do backend. Como a web
+usa cookie de sessão, CORS precisa permitir credenciais. Em desenvolvimento
+HTTP, configure `SESSION_COOKIE_SECURE=false`; na Vercel mantenha `true`.
 
 #### Rotina agendada de penalidades
 
@@ -229,17 +234,18 @@ Para carregar a tela **Tarefas** com dados reais, crie
 `src/frontend/.env.local` (esse arquivo é ignorado pelo Git):
 
 ```env
-EXPO_PUBLIC_API_URL=http://127.0.0.1:8000
+EXPO_PUBLIC_API_URL=http://localhost:8000
 ```
 
 `EXPO_PUBLIC_CASA_ID` não é mais utilizado. Tarefas, moradores e pontuação
 usam a casa selecionada após o login.
 
-Entre com o e-mail e a senha da sua conta. O token é recebido de
-`POST /sessoes/login` e salvo no SecureStore (celular) ou no `localStorage`
-(web). O aplicativo não lê mais `EXPO_PUBLIC_TETO_JUSTO_TOKEN`; remova essa
-variável de configurações antigas. No celular, substitua `127.0.0.1` pelo IP
-da máquina na rede local.
+Entre com o e-mail e a senha da sua conta. O login é feito por
+`POST /sessoes/login`. No celular, o token Bearer fica no SecureStore. Na web,
+o servidor define um cookie `HttpOnly`, inacessível ao JavaScript; o navegador
+o envia automaticamente. O aplicativo não lê mais
+`EXPO_PUBLIC_TETO_JUSTO_TOKEN`; remova essa variável de configurações antigas.
+No celular, substitua `127.0.0.1` pelo IP da máquina na rede local.
 
 A sessão expira em 24 horas. **Sair da conta** revoga a sessão atual por
 `POST /sessoes/logout`. Tokens antigos armazenados em texto puro no banco

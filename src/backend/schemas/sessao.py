@@ -11,5 +11,5 @@ class LoginEntrada(BaseModel):
 
 
 class LoginResposta(BaseModel):
-    token: str
+    token: str | None = None
     expira_em: datetime

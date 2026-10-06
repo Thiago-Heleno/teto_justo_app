@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { encerrarSessao, sessao } from "./sessao-store.ts";
 
 type ErroValidacao = { loc: (string | number)[]; msg: string };
@@ -24,12 +26,14 @@ export async function requisitar<T>(
     method?: "GET" | "PATCH" | "POST";
     body?: unknown;
     publica?: boolean;
+    cookieSessao?: boolean;
   },
 ): Promise<T> {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
   if (!apiUrl) throw new Error("Configure EXPO_PUBLIC_API_URL.");
 
   const token = opcoes?.publica ? null : sessao.getState().token;
+  const tokenBearer = Platform.OS !== "web" ? token : null;
   if (!opcoes?.publica && !token) {
     throw new Error("Entre na sua conta para continuar.");
   }
@@ -37,9 +41,13 @@ export async function requisitar<T>(
   const resposta = await fetch(`${apiUrl}${caminho}`, {
     method: opcoes?.method ?? "GET",
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(tokenBearer ? { Authorization: `Bearer ${tokenBearer}` } : {}),
       ...(opcoes?.body ? { "Content-Type": "application/json" } : {}),
+      ...(Platform.OS === "web" && opcoes?.cookieSessao
+        ? { "X-Session-Transport": "cookie" }
+        : {}),
     },
+    credentials: Platform.OS === "web" ? "include" : "omit",
     body: opcoes?.body ? JSON.stringify(opcoes.body) : undefined,
     signal,
   });

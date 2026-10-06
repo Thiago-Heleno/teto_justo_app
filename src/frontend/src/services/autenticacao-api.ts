@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { ErroApi, requisitar } from "./api.ts";
 import {
   encerrarSessao,
@@ -5,6 +7,7 @@ import {
   salvarSessao,
   sessao,
 } from "./sessao-store.ts";
+import { SESSAO_WEB } from "./token-storage.ts";
 
 export async function iniciarAutenticacao() {
   try {
@@ -21,12 +24,19 @@ export async function iniciarAutenticacao() {
 }
 
 export async function entrar(email: string, senha: string) {
-  const resposta = await requisitar<{ token: string; expira_em: string }>(
+  const resposta = await requisitar<{ token: string | null; expira_em: string }>(
     "/sessoes/login",
     undefined,
-    { method: "POST", publica: true, body: { email: email.trim(), senha } },
+    {
+      method: "POST",
+      publica: true,
+      cookieSessao: Platform.OS === "web",
+      body: { email: email.trim(), senha },
+    },
   );
-  await salvarSessao(resposta.token);
+  const token = Platform.OS === "web" ? SESSAO_WEB : resposta.token;
+  if (!token) throw new Error("O servidor não retornou um token de sessão.");
+  await salvarSessao(token);
 }
 
 export async function sair() {

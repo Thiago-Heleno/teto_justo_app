@@ -68,12 +68,18 @@ tabela `sessao` já existentes no projeto.
   oferece acesso às tarefas e logout; o formulário antigo que imprimia a senha
   no console foi retirado.
 - `sessao-store.ts` usa Zustand e o armazenamento existente:
-  SecureStore no celular e `localStorage` na web. A sessão salva é validada em
+  SecureStore no celular e cookie `HttpOnly` emitido pelo backend na web. A sessão salva é validada em
   `GET /usuarios/eu` ao abrir o app. Respostas `401` removem a sessão atual;
   uma resposta atrasada de uma sessão anterior não apaga um login novo.
 - `api.ts` centraliza as requisições autenticadas; `autenticacao-api.ts`
   implementa login/logout. `tarefas-api.ts` usa essa sessão em execução, sem
   ler `EXPO_PUBLIC_TETO_JUSTO_TOKEN`. Login não depende do ID de uma casa.
+- No transporte web, o token não é incluído no JSON de login nem persistido em
+  armazenamento acessível a JavaScript. O cookie usa `HttpOnly`, `SameSite=Lax`,
+  `Path=/` e `Secure` por padrão. Chamadas autenticadas por cookie exigem uma
+  origem presente em `CORS_ORIGINS`; CORS permite credenciais apenas
+  para essas origens. A Vercel precisa definir a origem exata do frontend e
+  manter `SESSION_COOKIE_SECURE=true`; HTTP local usa `false`.
 
 ## Pertencer
 
@@ -122,8 +128,10 @@ Não há PATCH público de score: a pontuação é alterada pelos serviços pró
   recuperação de senha ou tela de cadastro.
 - O frontend ainda usa `EXPO_PUBLIC_CASA_ID` para selecionar a casa; não há
   seletor de moradia por usuário.
-- Na web, `localStorage` continua acessível a scripts da página. Uma sessão
-  web por cookie `HttpOnly` e proteção CSRF requer uma implementação específica.
+- O cookie web reduz o risco de roubo do token por JavaScript. A proteção CSRF
+  usa `SameSite=Lax` e validação estrita do cabeçalho `Origin` em toda chamada
+  autenticada por cookie, inclusive GET; a lista de origens precisa permanecer restrita às URLs
+  confiáveis do frontend.
 - `expira_em` usa `TIMESTAMP` sem fuso, interpretado como UTC. Uma migration
   futura deve considerar `TIMESTAMPTZ`.
 - Listagem e consulta gerais de casas, tarefas e vínculos ainda não filtram por
