@@ -27,7 +27,7 @@ mock.module("../src/services/casa-storage.ts", {
   },
 });
 
-const { listarCasas, casaInicial } =
+const { listarCasas, casaInicial, criarCasa } =
   await import("../src/services/casas-api.ts");
 const {
   sessao,
@@ -39,7 +39,7 @@ const {
 } = await import("../src/services/sessao-store.ts");
 const { carregarTarefas, carregarPlacar, carregarContextoTarefas } =
   await import("../src/services/tarefas-api.ts");
-const { requisitar } = await import("../src/services/api.ts");
+const { requisitar, ErroApi } = await import("../src/services/api.ts");
 const fetchOriginal = globalThis.fetch;
 const ambiente = { ...process.env };
 const casa = (id) => ({
@@ -229,4 +229,82 @@ test("sessão expirada apaga a casa ativa e a seleção persistida", async () =>
   assert.equal(sessao.getState().token, null);
   assert.equal(sessao.getState().casaAtiva, null);
   assert.equal(casaSalva, null);
+});
+
+test("cria casa autenticada enviando só nome e endereço, com administrador definido pelo backend", async () => {
+  const sinal = new AbortController().signal;
+  const criada = { ...casa("nova"), fk_usuario_id: "usuario-autenticado" };
+  let pedido;
+  globalThis.fetch = async (url, opcoes) => {
+    pedido = { url, opcoes };
+    return { ...resposta(criada), status: 201 };
+  };
+  const resultado = await criarCasa(
+    {
+      nome: "  Casa nova  ",
+      endereco: "  Rua das Flores, 10  ",
+      fk_usuario_id: "nao-deve-ser-enviado",
+    },
+    sinal,
+  );
+  assert.equal(pedido.url, "http://api.test/casas/");
+  assert.equal(pedido.opcoes.method, "POST");
+  assert.equal(pedido.opcoes.headers.Authorization, "Bearer sessao-teste");
+  assert.equal(pedido.opcoes.signal, sinal);
+  assert.deepEqual(JSON.parse(pedido.opcoes.body), {
+    nome: "Casa nova",
+    endereco: "Rua das Flores, 10",
+  });
+  assert.deepEqual(resultado, criada);
+});
+
+test("validação 422 preserva os campos e mensagens sem reter o conteúdo enviado no erro", async () => {
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 422,
+    json: async () => ({
+      detail: [
+        {
+          loc: ["body", "nome"],
+          msg: "Nome inválido.",
+          input: "valor-enviado",
+        },
+        { loc: ["body", "endereco"], msg: "Endereço inválido." },
+        { loc: ["body"], msg: "Confira os dados da casa." },
+      ],
+    }),
+  });
+  await assert.rejects(criarCasa({ nome: "Casa", endereco: "Rua" }), (erro) => {
+    assert.ok(erro instanceof ErroApi);
+    assert.equal(erro.status, 422);
+    assert.deepEqual(erro.validacoes, [
+      { loc: ["body", "nome"], msg: "Nome inválido." },
+      { loc: ["body", "endereco"], msg: "Endereço inválido." },
+      { loc: ["body"], msg: "Confira os dados da casa." },
+    ]);
+    assert.equal(
+      erro.message,
+      "Nome inválido. Endereço inválido. Confira os dados da casa.",
+    );
+    return true;
+  });
+});
+
+test("erro geral de criação mantém a mensagem do backend e permite outra tentativa", async () => {
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 500,
+    json: async () => ({ detail: "Erro ao vincular o proprietário à casa." }),
+  });
+  await assert.rejects(criarCasa({ nome: "Casa", endereco: "Rua" }), (erro) => {
+    assert.equal(erro.message, "Erro ao vincular o proprietário à casa.");
+    assert.deepEqual(erro.validacoes, []);
+    return true;
+  });
+  assert.equal(sessao.getState().casaAtiva, null);
+  globalThis.fetch = async () => resposta(casa("nova"));
+  assert.deepEqual(
+    await criarCasa({ nome: "Casa", endereco: "Rua" }),
+    casa("nova"),
+  );
 });

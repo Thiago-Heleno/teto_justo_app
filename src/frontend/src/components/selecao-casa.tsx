@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
 import AppTabs from "@/components/app-tabs";
+import { CriarCasa } from "@/components/criar-casa";
 import { Caldera, CompactFont } from "@/constants/theme";
 import { sair } from "@/services/autenticacao-api";
 import { casaInicial, listarCasas, type Casa } from "@/services/casas-api";
@@ -19,24 +20,46 @@ import { selecionarCasa, sessao } from "@/services/sessao-store";
 export function FluxoCasa() {
   const casaAtiva = useStore(sessao, (estado) => estado.casaAtiva);
   const [restaurar, setRestaurar] = useState(true);
+  const [criando, setCriando] = useState(false);
 
   const selecionar = useCallback(async (casa: Casa, signal?: AbortSignal) => {
     if (await selecionarCasa(casa, signal)) setRestaurar(false);
   }, []);
 
-  return casaAtiva ? (
-    <AppTabs key={casaAtiva.id} />
-  ) : (
-    <SelecaoCasa restaurar={restaurar} selecionar={selecionar} />
+  if (casaAtiva) return <AppTabs key={casaAtiva.id} />;
+  if (criando) {
+    return (
+      <CriarCasa
+        onVoltar={() => setCriando(false)}
+        onCriada={async (casa, signal) => {
+          if (await selecionarCasa(casa, signal)) {
+            setRestaurar(false);
+            setCriando(false);
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <SelecaoCasa
+      restaurar={restaurar}
+      selecionar={selecionar}
+      onCriar={() => {
+        setRestaurar(false);
+        setCriando(true);
+      }}
+    />
   );
 }
 
 function SelecaoCasa({
   restaurar,
   selecionar,
+  onCriar,
 }: {
   restaurar: boolean;
   selecionar: (casa: Casa, signal?: AbortSignal) => Promise<void>;
+  onCriar: () => void;
 }) {
   const [casas, setCasas] = useState<Casa[] | null>(null);
   const [erro, setErro] = useState<string>();
@@ -126,8 +149,8 @@ function SelecaoCasa({
             <View style={styles.card}>
               <Text style={styles.houseName}>Nenhuma casa por aqui ainda</Text>
               <Text style={styles.description}>
-                Sua conta ainda não está vinculada a uma casa. Atualize a lista
-                depois que seu vínculo for criado.
+                Crie sua casa para começar a organizar as tarefas e acompanhar a
+                contribuição de cada morador.
               </Text>
             </View>
           )}
@@ -162,6 +185,19 @@ function SelecaoCasa({
           {ocupado && <ActivityIndicator accessibilityLabel="Aguarde" />}
 
           <View style={styles.actions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={ocupado}
+              accessibilityState={{ disabled: ocupado }}
+              onPress={onCriar}
+              style={[
+                styles.button,
+                styles.createButton,
+                ocupado && styles.dimmed,
+              ]}
+            >
+              <Text style={styles.buttonText}>Criar casa</Text>
+            </Pressable>
             {!carregando && (
               <Pressable
                 accessibilityRole="button"
@@ -222,6 +258,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   buttonText: { color: Caldera.obsidian, fontWeight: "600" },
+  createButton: { backgroundColor: Caldera.ember, borderColor: Caldera.ember },
   error: { color: "#a32316", lineHeight: 22 },
   dimmed: { opacity: 0.6 },
 });

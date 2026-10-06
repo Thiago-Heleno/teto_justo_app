@@ -41,9 +41,12 @@ seleção; sair da conta apaga a preferência.
 
 Inicie o backend e configure a URL da API no frontend. Uma conta pode ser
 criada pelo endpoint público `POST /usuarios/` na documentação interativa
-`/docs` do backend. Nesta etapa, criação e entrada por convite ainda são
-feitas pela API: os formulários serão implementados nas próximas partes.
-Quem não possui casa vê a lista vazia, com opções de atualizar e sair.
+`/docs` do backend. Na seleção, **Criar casa** abre o formulário de nome e
+endereço. Após a criação, a casa é aberta automaticamente e o criador vira
+administrador pela sessão autenticada. Os erros de validação aparecem junto
+aos campos, preservando os dados digitados. Quem já está numa casa pode usar
+**Trocar de casa → Criar casa**. A entrada por convite ainda é feita pela API;
+seu formulário fica para a próxima etapa.
 
 ### Pré-requisitos
 
