@@ -1,12 +1,13 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar, TarefaResposta
 from services.tarefa import ServicoTarefa
+from services.autorizacao import ServicoAutorizacaoCasa
 
 router = APIRouter(prefix="/tarefas", tags=["Tarefas"])
 
@@ -24,12 +25,12 @@ def criar_tarefa(
 @router.get("/", response_model=list[TarefaResposta])
 def listar_tarefas(
     usuario_atual: UsuarioAtual,
-    inicio: int = 0,
-    limite: int = 100,
+    inicio: int = Query(0, ge=0),
+    limite: int = Query(100, ge=1),
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
-    return servico.listar_tarefas(inicio, limite)
+    return servico.listar_tarefas_acessiveis(usuario_atual.id, inicio, limite)
 
 
 @router.get("/casa/{id_casa}", response_model=list[TarefaResposta])
@@ -41,6 +42,7 @@ def listar_tarefas_por_casa(
     prazo: Literal["todos", "hoje", "sete_dias", "atrasadas"] | None = None,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoTarefa(supabase)
     return servico.listar_tarefas_por_casa(
         id_casa, estado=estado, responsavel=responsavel, prazo=prazo
@@ -54,7 +56,7 @@ def buscar_tarefa(
     supabase=Depends(get_supabase),
 ):
     servico = ServicoTarefa(supabase)
-    return servico.buscar_tarefa(id_tarefa)
+    return servico.buscar_tarefa_autorizada(id_tarefa, usuario_atual.id)
 
 
 @router.post("/{id_tarefa}/conclusoes", response_model=TarefaResposta)

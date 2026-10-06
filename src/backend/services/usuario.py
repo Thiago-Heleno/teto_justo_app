@@ -2,6 +2,7 @@ from uuid import UUID
 import bcrypt
 from fastapi import HTTPException
 from schemas.usuario import UsuarioCriar, UsuarioAtualizar
+from services.autorizacao import ServicoAutorizacaoCasa
 
 
 class ServicoUsuario:
@@ -80,3 +81,14 @@ class ServicoUsuario:
             .execute()
         )
         return resposta.data
+
+    def listar_usuarios_visiveis(
+        self, id_usuario: UUID, inicio: int = 0, limite: int = 100
+    ):
+        autorizacao = ServicoAutorizacaoCasa(self.supabase)
+        ids = autorizacao.ids_usuarios_visiveis(id_usuario)
+        pagina = ids[inicio:inicio + limite]
+        return autorizacao.registros_por_ids(
+            "usuario", "id", pagina,
+            "id,nome,email,telefone,foto,usuario_tipo,data_criacao", ("id",),
+        )

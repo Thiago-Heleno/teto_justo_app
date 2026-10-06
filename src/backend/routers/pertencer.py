@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
@@ -30,11 +30,13 @@ def registrar_pertencer(
 @router.get("/", response_model=list[PertencerResposta])
 def listar_pertencer(
     usuario_atual: UsuarioAtual,
-    inicio: int = 0,
-    limite: int = 100,
+    inicio: int = Query(0, ge=0),
+    limite: int = Query(100, ge=1),
     supabase=Depends(get_supabase),
 ):
-    return ServicoPertencer(supabase).listar_pertencer(inicio, limite)
+    return ServicoPertencer(supabase).listar_pertencer_acessiveis(
+        usuario_atual.id, inicio, limite
+    )
 
 
 @router.get(
@@ -47,6 +49,7 @@ def buscar_pertencer(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(fk_casa_id, usuario_atual.id)
     return ServicoPertencer(supabase).buscar_pertencer(fk_usuario_id, fk_casa_id)
 
 

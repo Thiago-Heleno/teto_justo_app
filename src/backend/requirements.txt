@@ -6,3 +6,4 @@ python-dotenv==1.2.3
 pydantic[email]==2.13.5
 bcrypt==5.0.0
 tzdata==2025.3
+redis==6.4.0

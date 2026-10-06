@@ -200,6 +200,26 @@ class ServicoTarefa:
     def buscar_tarefa(self, id_tarefa: UUID):
         return self._montar_resposta(self._buscar_tarefa_bruta(id_tarefa))
 
+    def buscar_tarefa_autorizada(self, id_tarefa: UUID, id_usuario: UUID):
+        tarefa = self._buscar_tarefa_bruta(id_tarefa)
+        ServicoAutorizacaoCasa(self.supabase).garantir_acesso(
+            tarefa["fk_casa_id"], id_usuario
+        )
+        return self._montar_resposta(tarefa)
+
+    def listar_tarefas_acessiveis(
+        self, id_usuario: UUID, inicio: int = 0, limite: int = 100
+    ):
+        autorizacao = ServicoAutorizacaoCasa(self.supabase)
+        ids_casas = autorizacao.ids_casas_acessiveis(id_usuario)
+        registros = autorizacao.registros_por_ids(
+            "tarefa", "fk_casa_id", ids_casas, "*", ("id",)
+        )
+        pagina = sorted(registros, key=lambda tarefa: str(tarefa["id"]))[
+            inicio:inicio + limite
+        ]
+        return [self._montar_resposta(tarefa) for tarefa in pagina]
+
     def listar_tarefas(self, inicio: int = 0, limite: int = 100):
         resposta = (
             self.supabase.table("tarefa")

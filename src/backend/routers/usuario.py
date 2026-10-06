@@ -1,9 +1,10 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioAtualizar
 from services.usuario import ServicoUsuario
+from services.autorizacao import ServicoAutorizacaoCasa
 
 router = APIRouter(prefix="/usuarios", tags=["Usuários"])
 
@@ -16,12 +17,12 @@ def registrar_usuario(usuario: UsuarioCriar, supabase=Depends(get_supabase)):
 @router.get("/", response_model=list[UsuarioResposta])
 def listar_usuarios(
     usuario_atual: UsuarioAtual,
-    inicio: int = 0,
-    limite: int = 100,
+    inicio: int = Query(0, ge=0),
+    limite: int = Query(100, ge=1),
     supabase=Depends(get_supabase),
 ):
     servico = ServicoUsuario(supabase)
-    return servico.listar_usuarios(inicio, limite)
+    return servico.listar_usuarios_visiveis(usuario_atual.id, inicio, limite)
 
 
 @router.get("/eu", response_model=UsuarioResposta)
@@ -35,6 +36,9 @@ def buscar_usuario(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):  # Voltou UUID
+    ServicoAutorizacaoCasa(supabase).garantir_usuario_visivel(
+        id_usuario, usuario_atual.id
+    )
     servico = ServicoUsuario(supabase)
     return servico.buscar_usuario(id_usuario)
 
@@ -46,7 +50,8 @@ def atualizar_usuario(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    # Voltou UUID
+    if id_usuario != usuario_atual.id:
+        raise HTTPException(status_code=403, detail="Somente a própria conta pode ser alterada.")
     servico = ServicoUsuario(supabase)
     return servico.atualizar_usuario(id_usuario, dados)
 
@@ -57,6 +62,8 @@ def deletar_usuario(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):  # Voltou UUID
+    if id_usuario != usuario_atual.id:
+        raise HTTPException(status_code=403, detail="Somente a própria conta pode ser excluída.")
     servico = ServicoUsuario(supabase)
     servico.deletar_usuario(id_usuario)
     return

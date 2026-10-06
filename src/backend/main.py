@@ -16,6 +16,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Retry-After"],
 )
 
 app.include_router(usuario.router)

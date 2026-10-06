@@ -1,6 +1,7 @@
 from uuid import UUID
 from fastapi import HTTPException
 from schemas.pertencer import PertencerCriar
+from services.autorizacao import ServicoAutorizacaoCasa
 
 
 class ServicoPertencer:
@@ -74,6 +75,20 @@ class ServicoPertencer:
             .execute()
         )
         return resposta.data
+
+    def listar_pertencer_acessiveis(
+        self, id_usuario: UUID, inicio: int = 0, limite: int = 100
+    ):
+        autorizacao = ServicoAutorizacaoCasa(self.supabase)
+        ids_casas = autorizacao.ids_casas_acessiveis(id_usuario)
+        registros = autorizacao.registros_por_ids(
+            "pertencer", "fk_casa_id", ids_casas, "*",
+            ("fk_casa_id", "fk_usuario_id"), ativo=True,
+        )
+        return sorted(
+            registros,
+            key=lambda vinculo: (str(vinculo["fk_casa_id"]), str(vinculo["fk_usuario_id"])),
+        )[inicio:inicio + limite]
 
     def deletar_pertencer(self, fk_usuario_id: UUID, fk_casa_id: UUID):
 

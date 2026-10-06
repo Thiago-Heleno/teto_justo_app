@@ -39,6 +39,14 @@ export function LoginScreen({ aviso }: { aviso?: string }) {
       let mensagem = "Não foi possível entrar. Tente novamente em instantes.";
       if (falha instanceof ErroApi) {
         if (falha.status === 401) mensagem = "E-mail ou senha inválidos.";
+        else if (falha.status === 429) {
+          const segundos = falha.retryAfter;
+          mensagem = segundos
+            ? `Muitas tentativas. Tente novamente em ${segundos >= 60 ? `${Math.ceil(segundos / 60)} min` : `${segundos} s`}.`
+            : "Muitas tentativas. Aguarde antes de tentar novamente.";
+        } else if (falha.status === 503)
+          mensagem =
+            "Login temporariamente indisponível. Tente novamente mais tarde.";
         else if (falha.status === 422)
           mensagem = "Confira o e-mail e a senha informados.";
       } else if (falha instanceof TypeError) {
