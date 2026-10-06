@@ -45,8 +45,15 @@ criada pelo endpoint público `POST /usuarios/` na documentação interativa
 endereço. Após a criação, a casa é aberta automaticamente e o criador vira
 administrador pela sessão autenticada. Os erros de validação aparecem junto
 aos campos, preservando os dados digitados. Quem já está numa casa pode usar
-**Trocar de casa → Criar casa**. A entrada por convite ainda é feita pela API;
-seu formulário fica para a próxima etapa.
+**Trocar de casa → Criar casa**. Para participar de uma casa existente, use
+**Entrar por convite** na seleção, cole o convite do administrador e confirme.
+A casa é aberta automaticamente após a aceitação. Erros de convite inválido
+ou expirado, casa removida e serviço indisponível aparecem no formulário.
+
+A geração do convite continua na API: o administrador chama
+`POST /casas/{id_casa}/convites` com sua sessão e entrega o valor do campo
+`convite` ao morador. O formulário recebe esse valor completo; links e QR
+codes não estão implementados. Os convites expiram em 24 horas.
 
 ### Pré-requisitos
 
