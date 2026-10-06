@@ -1,4 +1,4 @@
-# Seleção da casa após o login — parte 2
+# Seleção e criação de casa após o login
 
 ## Objetivo e regras
 
@@ -6,7 +6,8 @@ O app consulta as casas do usuário antes de liberar as abas. A seleção usa
 `GET /casas/`, com paginação, e substitui `EXPO_PUBLIC_CASA_ID` nas consultas
 de tarefas, moradores e pontuação.
 
-- Sem casas: mostra o estado vazio, atualização da lista e saída da conta.
+- Sem casas: mostra o estado vazio, criação de casa, atualização da lista e
+  saída da conta.
 - Uma casa: abre automaticamente.
 - Várias casas: solicita uma escolha, exceto quando a última casa selecionada
   ainda está na lista de acesso retornada pela API.
@@ -20,19 +21,42 @@ de tarefas, moradores e pontuação.
   dados, filtros e formulários locais da casa anterior.
 - Logout, sessão expirada e novo login: limpam a casa ativa e sua preferência.
 
-A regra acordada para as próximas etapas é abrir a casa criada ou aquela cujo
-convite foi aceito. Os formulários de criação e entrada por convite ainda não
-fazem parte desta implementação. Até lá, um usuário sem casas precisa obter
-seu vínculo pela API antes de atualizar a lista.
+A seleção inclui **Criar casa**, disponível também a quem já possui casas
+pelo caminho **Início → Trocar de casa → Criar casa**. O formulário envia nome
+e endereço para `POST /casas/` e abre a casa devolvida pela API, salvando-a como
+preferência. A lista é consultada novamente ao voltar à seleção.
+
+O nome e o endereço são obrigatórios e têm espaços externos removidos no
+envio. Foto e fuso não são enviados nesta versão do formulário: o backend
+usa foto ausente e `America/Sao_Paulo`. O administrador não é um campo do
+formulário; o backend o obtém da sessão e cria o vínculo automaticamente.
+
+Durante o envio, campos e botões ficam bloqueados, com proteção contra
+submissões repetidas. Erros do backend são exibidos por campo quando há
+localização na resposta de validação; os demais aparecem no formulário. Os
+valores digitados são preservados. Se a criação for confirmada, mas salvar a
+seleção falhar, **Abrir casa** tenta somente abrir a casa já criada, sem
+repetir o POST. Uma falha de conexão sem confirmação orienta a conferir a
+lista antes de reenviar, pois o backend não oferece chave de idempotência.
+
+O formulário de entrada por convite fica para a próxima etapa. A regra
+acordada é abrir a casa cujo convite for aceito.
 
 ## Implementação
 
 - `src/frontend/src/components/selecao-casa.tsx`: controle de acesso às abas,
-  lista, escolha automática/manual, carregamento, erros e nova tentativa.
+  lista, escolha automática/manual, acesso à criação, carregamento, erros e
+  nova tentativa.
+- `src/frontend/src/components/criar-casa.tsx`: formulário, validação local,
+  erros por campo, bloqueio de envio repetido e recuperação após criação.
 - `src/frontend/src/app/_layout.tsx`: exige seleção da casa após autenticação.
 - `src/frontend/src/app/index.tsx`: nome da casa ativa e ação de troca.
 - `src/frontend/src/services/casas-api.ts`: contrato da casa, listagem paginada
-  e escolha inicial conforme preferência e quantidade de casas.
+  e escolha inicial conforme preferência e quantidade de casas; criação
+  autenticada com nome e endereço.
+- `src/frontend/src/services/api.ts`: mantém localização e mensagem dos erros
+  de validação, além da mensagem geral já usada pelas outras telas. Não retém
+  o campo `input` eventualmente retornado pelo backend.
 - `src/frontend/src/services/sessao-store.ts`: estado global da casa, vínculo
   ao ciclo da sessão e serialização das gravações para coordenar seleção,
   logout e novo login.
@@ -51,7 +75,7 @@ migration ou dado do banco foi alterado.
 - TypeScript (`tsc --noEmit`): passou.
 - ESLint direcionado aos arquivos de aplicação alterados: sem erros. Os
   scripts `.mjs` são ignorados pela configuração existente de lint.
-- 49 testes passaram: casas (10), autenticação (12), API de tarefas (9),
+- 52 testes passaram: casas (13), autenticação (12), API de tarefas (9),
   criação de tarefas (10), edição (3), filtros (2) e placar (3). Os testes
   substituem rede e armazenamento; não validam integração com banco real.
 - O executor agregado encontrou `spawn EPERM` no ambiente restrito. Os
@@ -64,6 +88,13 @@ migration ou dado do banco foi alterado.
   Nenhum erro de execução foi observado no navegador.
 - Inspeção visual em 1280 × 900 e 390 × 844: seleção legível e sem
   transbordamento horizontal.
+- Verificação da criação no Chrome com API e falha de armazenamento
+  simuladas: acesso sem casas, cancelamento sem gravação, campos vazios ou
+  só com espaços, erros 422 por campo, erro geral, preservação dos valores,
+  clique duplicado, abertura sem repetir o POST, casa criada na lista,
+  restauração e sessão expirada passaram. Nenhum erro de execução foi
+  observado. O formulário e seus erros foram inspecionados em 1280 × 900 e
+  390 × 844, sem transbordamento horizontal.
 
 ## Limites
 

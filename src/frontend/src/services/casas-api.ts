@@ -9,6 +9,15 @@ export type Casa = {
   timezone: string;
 };
 
+export type CasaCriar = Pick<Casa, "nome" | "endereco">;
+
+export function criarCasa(dados: CasaCriar, signal?: AbortSignal) {
+  return requisitar<Casa>("/casas/", signal, {
+    method: "POST",
+    body: { nome: dados.nome.trim(), endereco: dados.endereco.trim() },
+  });
+}
+
 export async function listarCasas(signal?: AbortSignal): Promise<Casa[]> {
   const casas: Casa[] = [];
   const limite = 100;

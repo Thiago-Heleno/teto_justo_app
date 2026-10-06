@@ -1,11 +1,19 @@
 import { encerrarSessao, sessao } from "./sessao-store.ts";
 
+type ErroValidacao = { loc: (string | number)[]; msg: string };
+
 export class ErroApi extends Error {
   status: number;
+  validacoes: ErroValidacao[];
 
-  constructor(mensagem: string, status: number) {
+  constructor(
+    mensagem: string,
+    status: number,
+    validacoes: ErroValidacao[] = [],
+  ) {
     super(mensagem);
     this.status = status;
+    this.validacoes = validacoes;
   }
 }
 
@@ -42,18 +50,21 @@ export async function requisitar<T>(
     }
     const corpo = await resposta.json().catch(() => null);
     const detalhe = corpo?.detail;
+    const validacoes: ErroValidacao[] = Array.isArray(detalhe)
+      ? detalhe.flatMap((erro) =>
+          typeof erro?.msg === "string"
+            ? [{ loc: Array.isArray(erro.loc) ? erro.loc : [], msg: erro.msg }]
+            : [],
+        )
+      : [];
     const mensagem =
       typeof detalhe === "string"
         ? detalhe
-        : Array.isArray(detalhe)
-          ? detalhe
-              .map((erro: { msg?: string }) => erro.msg)
-              .filter(Boolean)
-              .join(" ")
-          : "";
+        : validacoes.map((erro) => erro.msg).join(" ");
     throw new ErroApi(
       mensagem || "Não foi possível concluir a operação.",
       resposta.status,
+      validacoes,
     );
   }
 
