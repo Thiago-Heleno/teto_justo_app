@@ -422,7 +422,7 @@ ruff check --fix .
 ruff format .
 ```
 
-As regras estão definidas em `src/backend/pyproject.toml`.
+As regras estão definidas em `src/backend/ruff.toml`.
 
 ### Backend: Bandit (SAST)
 

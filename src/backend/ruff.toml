@@ -1,7 +1,6 @@
-[tool.ruff]
 #tamanho da linha
 line-length = 100
 
-[tool.ruff.lint]
+[lint]
 # Habilita as regras do Pyflakes (F) e pycodestyle (E, W)
 select = ["E", "F", "W"]
