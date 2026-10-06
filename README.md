@@ -50,10 +50,14 @@ aos campos, preservando os dados digitados. Quem já está numa casa pode usar
 A casa é aberta automaticamente após a aceitação. Erros de convite inválido
 ou expirado, casa removida e serviço indisponível aparecem no formulário.
 
-A geração do convite continua na API: o administrador chama
-`POST /casas/{id_casa}/convites` com sua sessão e entrega o valor do campo
-`convite` ao morador. O formulário recebe esse valor completo; links e QR
-codes não estão implementados. Os convites expiram em 24 horas.
+Na tela inicial da casa, **Convidar morador** aparece para o proprietário,
+que é o administrador. O botão gera o convite, mostra sua validade e permite
+usar **Copiar convite** para enviá-lo a outra pessoa. Quem recebe usa
+**Entrar por convite** na seleção de casas. O convite pode ser usado por mais
+de uma pessoa e expira em 24 horas. A API confirma a permissão em cada emissão;
+moradores não podem convidar. Links, QR codes e envio automático não estão
+implementados. O endpoint `POST /casas/{id_casa}/convites` continua disponível
+para uso direto pela API.
 
 ### Pré-requisitos
 
