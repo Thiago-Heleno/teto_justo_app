@@ -12,6 +12,7 @@ import { useStore } from "zustand";
 
 import AppTabs from "@/components/app-tabs";
 import { CriarCasa } from "@/components/criar-casa";
+import { EntrarCasa } from "@/components/entrar-casa";
 import { Caldera, CompactFont } from "@/constants/theme";
 import { sair } from "@/services/autenticacao-api";
 import { casaInicial, listarCasas, type Casa } from "@/services/casas-api";
@@ -20,24 +21,24 @@ import { selecionarCasa, sessao } from "@/services/sessao-store";
 export function FluxoCasa() {
   const casaAtiva = useStore(sessao, (estado) => estado.casaAtiva);
   const [restaurar, setRestaurar] = useState(true);
-  const [criando, setCriando] = useState(false);
+  const [formulario, setFormulario] = useState<"criar" | "entrar" | null>(null);
 
   const selecionar = useCallback(async (casa: Casa, signal?: AbortSignal) => {
-    if (await selecionarCasa(casa, signal)) setRestaurar(false);
+    if (await selecionarCasa(casa, signal)) {
+      setRestaurar(false);
+      setFormulario(null);
+    }
   }, []);
 
   if (casaAtiva) return <AppTabs key={casaAtiva.id} />;
-  if (criando) {
+  if (formulario === "criar") {
     return (
-      <CriarCasa
-        onVoltar={() => setCriando(false)}
-        onCriada={async (casa, signal) => {
-          if (await selecionarCasa(casa, signal)) {
-            setRestaurar(false);
-            setCriando(false);
-          }
-        }}
-      />
+      <CriarCasa onVoltar={() => setFormulario(null)} onCriada={selecionar} />
+    );
+  }
+  if (formulario === "entrar") {
+    return (
+      <EntrarCasa onVoltar={() => setFormulario(null)} onEntrada={selecionar} />
     );
   }
   return (
@@ -46,7 +47,11 @@ export function FluxoCasa() {
       selecionar={selecionar}
       onCriar={() => {
         setRestaurar(false);
-        setCriando(true);
+        setFormulario("criar");
+      }}
+      onEntrar={() => {
+        setRestaurar(false);
+        setFormulario("entrar");
       }}
     />
   );
@@ -56,10 +61,12 @@ function SelecaoCasa({
   restaurar,
   selecionar,
   onCriar,
+  onEntrar,
 }: {
   restaurar: boolean;
   selecionar: (casa: Casa, signal?: AbortSignal) => Promise<void>;
   onCriar: () => void;
+  onEntrar: () => void;
 }) {
   const [casas, setCasas] = useState<Casa[] | null>(null);
   const [erro, setErro] = useState<string>();
@@ -149,8 +156,8 @@ function SelecaoCasa({
             <View style={styles.card}>
               <Text style={styles.houseName}>Nenhuma casa por aqui ainda</Text>
               <Text style={styles.description}>
-                Crie sua casa para começar a organizar as tarefas e acompanhar a
-                contribuição de cada morador.
+                Crie sua casa ou use o convite do administrador para entrar numa
+                casa existente.
               </Text>
             </View>
           )}
@@ -197,6 +204,15 @@ function SelecaoCasa({
               ]}
             >
               <Text style={styles.buttonText}>Criar casa</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={ocupado}
+              accessibilityState={{ disabled: ocupado }}
+              onPress={onEntrar}
+              style={[styles.button, ocupado && styles.dimmed]}
+            >
+              <Text style={styles.buttonText}>Entrar por convite</Text>
             </Pressable>
             {!carregando && (
               <Pressable

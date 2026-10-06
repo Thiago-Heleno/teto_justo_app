@@ -18,6 +18,13 @@ export function criarCasa(dados: CasaCriar, signal?: AbortSignal) {
   });
 }
 
+export function entrarCasa(convite: string, signal?: AbortSignal) {
+  return requisitar<Casa>("/casas/entrar", signal, {
+    method: "POST",
+    body: { convite: convite.trim() },
+  });
+}
+
 export async function listarCasas(signal?: AbortSignal): Promise<Casa[]> {
   const casas: Casa[] = [];
   const limite = 100;

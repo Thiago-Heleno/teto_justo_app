@@ -27,7 +27,7 @@ mock.module("../src/services/casa-storage.ts", {
   },
 });
 
-const { listarCasas, casaInicial, criarCasa } =
+const { listarCasas, casaInicial, criarCasa, entrarCasa } =
   await import("../src/services/casas-api.ts");
 const {
   sessao,
@@ -307,4 +307,102 @@ test("erro geral de criação mantém a mensagem do backend e permite outra tent
     await criarCasa({ nome: "Casa", endereco: "Rua" }),
     casa("nova"),
   );
+});
+
+test("entrada envia só o convite no corpo e usa a sessão para identificar o morador", async () => {
+  const sinal = new AbortController().signal;
+  const destino = { ...casa("compartilhada"), fk_usuario_id: "administrador" };
+  let pedido;
+  globalThis.fetch = async (url, opcoes) => {
+    pedido = { url, opcoes };
+    return resposta(destino);
+  };
+  const resultado = await entrarCasa("  convite-simulado.assinatura\n", sinal);
+  assert.equal(pedido.url, "http://api.test/casas/entrar");
+  assert.equal(pedido.opcoes.method, "POST");
+  assert.equal(pedido.opcoes.headers.Authorization, "Bearer sessao-teste");
+  assert.equal(pedido.opcoes.signal, sinal);
+  assert.deepEqual(JSON.parse(pedido.opcoes.body), {
+    convite: "convite-simulado.assinatura",
+  });
+  assert.deepEqual(resultado, destino);
+  assert.equal(casaSalva, null);
+});
+
+for (const [status, mensagem] of [
+  [400, "Convite inválido ou expirado."],
+  [404, "Casa não encontrada."],
+  [409, "O vínculo mudou. Tente novamente."],
+  [503, "Serviço de convites indisponível."],
+]) {
+  test(`falha ${status} ao aceitar convite preserva a sessão e não seleciona a casa`, async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status,
+      json: async () => ({ detail: mensagem }),
+    });
+    await assert.rejects(entrarCasa("convite-simulado.assinatura"), (erro) => {
+      assert.ok(erro instanceof ErroApi);
+      assert.equal(erro.status, status);
+      assert.equal(erro.message, mensagem);
+      return true;
+    });
+    assert.equal(sessao.getState().token, "sessao-teste");
+    assert.equal(sessao.getState().casaAtiva, null);
+    assert.equal(casaSalva, null);
+  });
+}
+
+test("validação do convite preserva a mensagem por campo sem incluir o convite nos detalhes do erro", async () => {
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 422,
+    json: async () => ({
+      detail: [
+        {
+          loc: ["body", "convite"],
+          msg: "Informe um convite válido.",
+          input: "convite-simulado",
+        },
+      ],
+    }),
+  });
+  await assert.rejects(entrarCasa("convite-simulado"), (erro) => {
+    assert.deepEqual(erro.validacoes, [
+      { loc: ["body", "convite"], msg: "Informe um convite válido." },
+    ]);
+    return true;
+  });
+});
+
+test("sessão expirada durante a entrada limpa a preferência anterior", async () => {
+  await selecionarCasa(casa("anterior"));
+  trocarCasa();
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({ detail: "Sessão expirada." }),
+  });
+  await assert.rejects(
+    entrarCasa("convite-simulado.assinatura"),
+    /Sessão expirada/,
+  );
+  assert.equal(sessao.getState().token, null);
+  assert.equal(sessao.getState().casaPreferidaId, null);
+  assert.equal(casaSalva, null);
+});
+
+test("falha de conexão na entrada permite tentar novamente e abrir a casa retornada", async () => {
+  globalThis.fetch = async () => {
+    throw new TypeError("Sem conexão");
+  };
+  await assert.rejects(
+    entrarCasa("convite-simulado.assinatura"),
+    /Sem conexão/,
+  );
+  assert.equal(sessao.getState().casaAtiva, null);
+  globalThis.fetch = async () => resposta(casa("destino"));
+  await selecionarCasa(await entrarCasa("convite-simulado.assinatura"));
+  assert.equal(sessao.getState().casaAtiva.id, "destino");
+  assert.equal(casaSalva, "destino");
 });
