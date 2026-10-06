@@ -1,10 +1,12 @@
 """Integração real do login/logout com o Supabase de teste."""
 
 import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from postgrest.exceptions import APIError
 
 from core.database import get_supabase
 from main import app
@@ -54,3 +56,20 @@ def test_login_logout_no_supabase(usuario_temporario):
         assert logout.status_code == 204
         assert not logout.content
         assert cliente.get("/usuarios/eu", headers=headers).status_code == 401
+
+
+def test_hash_de_token_unico_no_supabase(usuario_temporario):
+    supabase = get_supabase()
+    hash_token = hash_token_sessao(secrets.token_urlsafe(32))
+    dados = {
+        "token": hash_token,
+        "fk_usuario_id": usuario_temporario["id"],
+        "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+    }
+    try:
+        assert supabase.table("sessao").insert(dados).execute().data
+        with pytest.raises(APIError) as erro:
+            supabase.table("sessao").insert(dados).execute()
+        assert erro.value.code == "23505"
+    finally:
+        supabase.table("sessao").delete().eq("token", hash_token).execute()

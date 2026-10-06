@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 from uuid import UUID
 
 import bcrypt
@@ -22,7 +23,9 @@ class ServicoSessao:
     def __init__(self, supabase_client):
         self.supabase = supabase_client
 
-    def login(self, dados: LoginEntrada) -> LoginResposta:
+    def login(
+        self, dados: LoginEntrada, antes_de_emitir_token: Callable[[], None] | None = None
+    ) -> LoginResposta:
         resposta = (
             self.supabase.table("usuario")
             .select("id,senha_hash")
@@ -49,6 +52,8 @@ class ServicoSessao:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        if antes_de_emitir_token:
+            antes_de_emitir_token()
         token = secrets.token_urlsafe(32)
         expira_em = datetime.now(timezone.utc) + timedelta(hours=24)
         criada = (

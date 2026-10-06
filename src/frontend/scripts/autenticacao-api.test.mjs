@@ -98,6 +98,20 @@ test("senha incorreta mostra erro e não persiste sessão", async () => {
   assert.equal(sessao.getState().token, null);
 });
 
+test("bloqueio de login informa o tempo de espera sem salvar sessão", async () => {
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 429,
+    headers: { get: (nome) => (nome === "Retry-After" ? "61" : null) },
+    json: async () => ({ detail: "Muitas tentativas de login." }),
+  });
+  await assert.rejects(
+    entrar("morador@example.com", novoToken()),
+    (erro) => erro.status === 429 && erro.retryAfter === 61,
+  );
+  assert.equal(tokenSalvo, null);
+});
+
 test("falha ao salvar token não libera as telas autenticadas", async () => {
   falhaArmazenamento = true;
   globalThis.fetch = async () => ({

@@ -21,6 +21,21 @@ from core.autenticacao import UsuarioAtual  # noqa: E402
 from core.database import get_supabase  # noqa: E402
 from main import app as app_principal  # noqa: E402
 from services.sessao import hash_token_sessao  # noqa: E402
+from services.limite_login import get_limitador_login  # noqa: E402
+
+
+class LimitadorFalso:
+    def reservar_tentativa(self, _email, _ip):
+        pass
+
+    def registrar_falha(self, _email, _ip):
+        pass
+
+    def confirmar_sucesso(self, _email, _ip):
+        pass
+
+    def cancelar_tentativa(self, _email, _ip):
+        pass
 
 
 class ConsultaFalsa:
@@ -320,6 +335,7 @@ def banco_login():
 @contextmanager
 def cliente_principal(banco):
     app_principal.dependency_overrides[get_supabase] = lambda: banco
+    app_principal.dependency_overrides[get_limitador_login] = LimitadorFalso
     try:
         with TestClient(app_principal, raise_server_exceptions=False) as cliente:
             yield cliente
@@ -411,6 +427,8 @@ def test_openapi_publica_login_logout_e_pertencer_sem_crud_sessao():
     assert "/sessoes/" not in caminhos
     assert "/sessoes/{id_sessao}" not in caminhos
     assert not caminhos["/sessoes/login"]["post"].get("security")
+    assert {"429", "503"} <= caminhos["/sessoes/login"]["post"]["responses"].keys()
+    assert "Retry-After" in caminhos["/sessoes/login"]["post"]["responses"]["429"]["headers"]
     assert caminhos["/sessoes/logout"]["post"]["security"]
     assert {"get", "post"} <= caminhos["/pertencer/"].keys()
     assert {"get", "delete"} <= caminhos["/pertencer/{fk_usuario_id}/{fk_casa_id}"].keys()

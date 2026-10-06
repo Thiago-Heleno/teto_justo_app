@@ -5,15 +5,18 @@ type ErroValidacao = { loc: (string | number)[]; msg: string };
 export class ErroApi extends Error {
   status: number;
   validacoes: ErroValidacao[];
+  retryAfter?: number;
 
   constructor(
     mensagem: string,
     status: number,
     validacoes: ErroValidacao[] = [],
+    retryAfter?: number,
   ) {
     super(mensagem);
     this.status = status;
     this.validacoes = validacoes;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -65,6 +68,9 @@ export async function requisitar<T>(
       mensagem || "Não foi possível concluir a operação.",
       resposta.status,
       validacoes,
+      resposta.status === 429
+        ? Number(resposta.headers?.get("Retry-After")) || undefined
+        : undefined,
     );
   }
 

@@ -63,6 +63,7 @@ para uso direto pela API.
 
 - Para o frontend: Node.js e npm; o projeto utiliza Expo SDK 57;
 - Para o backend: Python 3 e um projeto Supabase com as variáveis de acesso;
+- Para o login: Redis compartilhado entre as instâncias do backend;
 - Opcionalmente, Docker e Docker Compose para executar o backend em container.
 
 ### 1. Configure as variáveis de ambiente
@@ -73,9 +74,20 @@ Supabase:
 ```env
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-chave-do-supabase
+REDIS_URL=redis://localhost:6379/0
 ```
 
 Não versione esse arquivo nem exponha as credenciais.
+
+No Docker Compose, use `REDIS_URL=redis://redis:6379/0`. O serviço Redis não
+publica porta no host. Para outro ambiente, use uma instância Redis protegida
+e a respectiva URL; `rediss://` habilita TLS. Sem Redis disponível, o login
+responde `503` em vez de aceitar tentativas sem limite. Cinco falhas por e-mail
+ou vinte por IP em quinze minutos respondem `429` com `Retry-After`. O backend
+usa o IP da conexão; se houver proxy, configure somente os endereços de proxy
+confiáveis no Uvicorn para que cabeçalhos encaminhados não possam ser forjados.
+Consulte o [roteiro de implantação da ECH-205](./contexto/sprint_3/seguranca_pos_login.md)
+antes de distribuir o app.
 
 Para emitir e aceitar convites de casa, configure também
 `CASA_CONVITE_SECRET` no ambiente do backend. Gere um segredo aleatório com ao

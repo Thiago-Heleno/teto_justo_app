@@ -4,6 +4,7 @@ import os
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -18,6 +19,7 @@ os.environ.setdefault("SUPABASE_KEY", "unit-test-placeholder")
 from core.autenticacao import obter_usuario_atual  # noqa: E402
 from core.database import get_supabase  # noqa: E402
 from main import app  # noqa: E402
+from services.limite_login import get_limitador_login  # noqa: E402
 
 
 SEGREDO_TESTE = "segredo-de-teste-para-convites-da-casa-com-mais-de-32-caracteres"
@@ -201,6 +203,7 @@ def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, mo
 
     cliente, banco, _, _, _ = ambiente
     monkeypatch.delitem(app.dependency_overrides, obter_usuario_atual)
+    monkeypatch.setitem(app.dependency_overrides, get_limitador_login, lambda: Mock())
     senha = secrets.token_urlsafe(16)
     senha_hash = bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
     usuarios = [

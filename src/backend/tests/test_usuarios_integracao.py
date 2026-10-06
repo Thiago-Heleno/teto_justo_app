@@ -1,5 +1,7 @@
 """Integração real do CRUD de usuário com o Supabase de teste."""
 
+import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -7,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from core.database import get_supabase
 from main import app
+from services.sessao import hash_token_sessao
 
 
 # Payload válido de criação de usuário, com e-mail único por execução para
@@ -58,6 +61,14 @@ def test_crud_usuario_no_supabase(
         assert "senha" not in usuario
         assert "senha_hash" not in usuario
 
+        token = secrets.token_urlsafe(32)
+        get_supabase().table("sessao").insert({
+            "token": hash_token_sessao(token),
+            "fk_usuario_id": usuario["id"],
+            "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        }).execute()
+        cliente.headers["Authorization"] = f"Bearer {token}"
+
         # Busca o usuário recém-criado por id.
         encontrado = cliente.get(f"/usuarios/{usuario['id']}")
         assert encontrado.status_code == 200, encontrado.text
@@ -78,7 +89,7 @@ def test_crud_usuario_no_supabase(
 
         # Garante que o usuário deixou de existir depois de excluído.
         inexistente = cliente.get(f"/usuarios/{usuario['id']}")
-        assert inexistente.status_code == 404
+        assert inexistente.status_code == 401
 
 
 # Garante que a API rejeita a criação de um segundo usuário com o mesmo
@@ -95,7 +106,7 @@ def test_email_duplicado_retorna_400(usuario_payload, limpar_usuario):
 
 
 # Cobre casos de erro das rotas: payload inválido (422), id malformado (422)
-# e operações (GET/PATCH/DELETE) sobre ids inexistentes (404/400).
+# e operações (GET/PATCH/DELETE) sobre ids de outras contas (403).
 def test_validacoes_e_erros(usuario_payload, autenticacao_temporaria):
     with TestClient(
         app,
@@ -115,18 +126,18 @@ def test_validacoes_e_erros(usuario_payload, autenticacao_temporaria):
         )
         # Id que não é um UUID válido.
         assert cliente.get("/usuarios/id-invalido").status_code == 422
-        # Busca por um UUID válido, mas inexistente no banco.
-        assert cliente.get(f"/usuarios/{uuid4()}").status_code == 404
+        # Um ID que não é visível recebe 403, exista ou não no banco.
+        assert cliente.get(f"/usuarios/{uuid4()}").status_code == 403
         # Atualização sem nenhum campo enviado.
         assert (
-            cliente.patch(f"/usuarios/{uuid4()}", json={}).status_code == 400
+            cliente.patch(f"/usuarios/{uuid4()}", json={}).status_code == 403
         )
         # Atualização de um usuário inexistente.
         assert (
             cliente.patch(
                 f"/usuarios/{uuid4()}", json={"nome": "Alguém"}
             ).status_code
-            == 404
+            == 403
         )
         # Exclusão de um usuário inexistente.
-        assert cliente.delete(f"/usuarios/{uuid4()}").status_code == 404
+        assert cliente.delete(f"/usuarios/{uuid4()}").status_code == 403
