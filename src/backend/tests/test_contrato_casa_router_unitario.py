@@ -194,6 +194,83 @@ def trocar_usuario(monkeypatch, usuario_id):
     )
 
 
+def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, monkeypatch):
+    import secrets
+
+    import bcrypt
+
+    cliente, banco, _, _, _ = ambiente
+    monkeypatch.delitem(app.dependency_overrides, obter_usuario_atual)
+    senha = secrets.token_urlsafe(16)
+    senha_hash = bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
+    usuarios = [
+        {
+            "id": str(UUID(int=numero)), "nome": nome, "email": f"{nome}@example.com",
+            "senha_hash": senha_hash, "telefone": None, "foto": None,
+            "usuario_tipo": 0, "data_criacao": None,
+        }
+        for numero, nome in [(70, "ana-fluxo"), (71, "bia-fluxo")]
+    ]
+    banco.registros["usuario"].extend(usuarios)
+
+    def entrar(usuario):
+        resposta = cliente.post("/sessoes/login", json={
+            "email": usuario["email"], "senha": senha,
+        })
+        assert resposta.status_code == 200
+        return {"Authorization": f"Bearer {resposta.json()['token']}"}
+
+    admin = entrar(usuarios[0])
+    morador = entrar(usuarios[1])
+    assert cliente.get("/casas/", headers=admin).json() == []
+    assert cliente.get("/casas/", headers=morador).json() == []
+
+    criacao = cliente.post("/casas/", headers=admin, json={
+        "nome": "Casa compartilhada", "endereco": "Rua de teste, 10",
+    })
+    assert criacao.status_code == 201, criacao.text
+    criada = criacao.json()
+    casa_id = criada["id"]
+    assert criada["fk_usuario_id"] == usuarios[0]["id"]
+    assert cliente.get("/casas/", headers=admin).json() == [criada]
+    assert cliente.get(f"/casas/{casa_id}", headers=morador).status_code == 403
+    assert cliente.post(f"/casas/{casa_id}/convites", headers=morador).status_code == 403
+
+    emissao = cliente.post(f"/casas/{casa_id}/convites", headers=admin)
+    assert emissao.status_code == 200
+    convite = emissao.json()["convite"]
+    entrada = cliente.post("/casas/entrar", headers=morador, json={"convite": convite})
+    assert entrada.status_code == 200
+    assert entrada.json() == criada
+    assert cliente.get("/casas/", headers=morador).json() == [criada]
+    assert cliente.post(f"/casas/{casa_id}/convites", headers=morador).status_code == 403
+    moradores = cliente.get(f"/casas/{casa_id}/moradores", headers=morador)
+    assert moradores.status_code == 200
+    assert {item["id"] for item in moradores.json()} == {item["id"] for item in usuarios}
+
+    reentrada = cliente.post("/casas/entrar", headers=morador, json={"convite": convite})
+    assert reentrada.status_code == 200
+    assert len([
+        item for item in banco.registros["pertencer"] if item["fk_casa_id"] == casa_id
+    ]) == 2
+
+    segunda = cliente.post("/casas/", headers=admin, json={
+        "nome": "Outra casa", "endereco": "Rua de teste, 20",
+    })
+    assert segunda.status_code == 201
+    assert {item["id"] for item in cliente.get("/casas/", headers=admin).json()} == {
+        casa_id, segunda.json()["id"],
+    }
+    assert cliente.get("/casas/", headers=morador).json() == [criada]
+    assert cliente.get(f"/casas/{segunda.json()['id']}", headers=morador).status_code == 403
+
+    assert cliente.post("/sessoes/logout", headers=morador).status_code == 204
+    assert cliente.get("/casas/", headers=morador).status_code == 401
+    assert cliente.get("/casas/", headers=admin).status_code == 200
+    nova_sessao = entrar(usuarios[1])
+    assert cliente.get("/casas/", headers=nova_sessao).json() == [criada]
+
+
 def test_listagem_filtra_antes_de_paginar_ordena_e_remove_duplicatas(ambiente):
     cliente, _, casas, _, _ = ambiente
 

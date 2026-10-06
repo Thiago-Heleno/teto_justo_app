@@ -27,7 +27,7 @@ mock.module("../src/services/casa-storage.ts", {
   },
 });
 
-const { listarCasas, casaInicial, criarCasa, entrarCasa } =
+const { listarCasas, casaInicial, criarCasa, entrarCasa, criarConviteCasa } =
   await import("../src/services/casas-api.ts");
 const {
   sessao,
@@ -78,6 +78,69 @@ afterEach(() => {
     if (ambiente[nome] === undefined) delete process.env[nome];
     else process.env[nome] = ambiente[nome];
   }
+});
+
+test("emite convite para a casa informada usando a sessão, sem enviar cargo ou usuário", async () => {
+  const sinal = new AbortController().signal;
+  const convite = {
+    convite: "convite-simulado",
+    expira_em: "2099-01-01T00:00:00Z",
+  };
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/casas/casa-escolhida/convites");
+    assert.equal(opcoes.method, "POST");
+    assert.equal(opcoes.headers.Authorization, "Bearer sessao-teste");
+    assert.equal(opcoes.signal, sinal);
+    assert.equal(opcoes.body, undefined);
+    return resposta(convite);
+  };
+  assert.deepEqual(await criarConviteCasa("casa-escolhida", sinal), convite);
+  assert.equal(casaSalva, null);
+});
+
+for (const status of [403, 404, 503]) {
+  test(`erro ${status} ao emitir convite mantém a mensagem da API e a sessão`, async () => {
+    await selecionarCasa(casa("a"));
+    globalThis.fetch = async () => ({
+      ok: false,
+      status,
+      json: async () => ({ detail: "Não foi possível emitir o convite." }),
+    });
+    await assert.rejects(criarConviteCasa("a"), (erro) => {
+      assert.ok(erro instanceof ErroApi);
+      assert.equal(erro.status, status);
+      assert.equal(erro.message, "Não foi possível emitir o convite.");
+      return true;
+    });
+    assert.equal(sessao.getState().token, "sessao-teste");
+    assert.equal(sessao.getState().casaAtiva.id, "a");
+  });
+}
+
+test("sessão expirada na emissão de convite limpa o acesso à casa", async () => {
+  await selecionarCasa(casa("a"));
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({ detail: "Não autenticado." }),
+  });
+  await assert.rejects(criarConviteCasa("a"), (erro) => erro.status === 401);
+  assert.equal(sessao.getState().token, null);
+  assert.equal(sessao.getState().casaAtiva, null);
+  assert.equal(casaSalva, null);
+});
+
+test("falha de rede permite emitir convite novamente", async () => {
+  globalThis.fetch = async () => {
+    throw new TypeError("Sem conexão");
+  };
+  await assert.rejects(criarConviteCasa("a"), /Sem conexão/);
+  const convite = {
+    convite: "convite-simulado",
+    expira_em: "2099-01-01T00:00:00Z",
+  };
+  globalThis.fetch = async () => resposta(convite);
+  assert.deepEqual(await criarConviteCasa("a"), convite);
 });
 
 test("zero casas mantém a escolha vazia; uma casa permite entrada automática", async () => {

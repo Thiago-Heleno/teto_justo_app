@@ -11,6 +11,14 @@ export type Casa = {
 
 export type CasaCriar = Pick<Casa, "nome" | "endereco">;
 
+export type ConviteCasa = { convite: string; expira_em: string };
+
+export function criarConviteCasa(casaId: string, signal?: AbortSignal) {
+  return requisitar<ConviteCasa>(`/casas/${casaId}/convites`, signal, {
+    method: "POST",
+  });
+}
+
 export function criarCasa(dados: CasaCriar, signal?: AbortSignal) {
   return requisitar<Casa>("/casas/", signal, {
     method: "POST",
