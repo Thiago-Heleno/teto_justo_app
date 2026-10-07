@@ -29,6 +29,14 @@ export async function entrar(email: string, senha: string) {
   await salvarSessao(resposta.token);
 }
 
+export async function cadastrar(nome: string, email: string, senha: string) {
+  await requisitar("/usuarios/", undefined, {
+    method: "POST",
+    publica: true,
+    body: { nome: nome.trim(), email: email.trim(), senha },
+  });
+}
+
 export async function sair() {
   if (sessao.getState().token) {
     await requisitar<void>("/sessoes/logout", undefined, { method: "POST" });

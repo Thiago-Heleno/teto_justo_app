@@ -24,10 +24,11 @@ mock.module("../src/services/token-storage.ts", {
   },
 });
 
-const { entrar, sair, iniciarAutenticacao } =
+const { cadastrar, entrar, sair, iniciarAutenticacao } =
   await import("../src/services/autenticacao-api.ts");
 const { requisitar } = await import("../src/services/api.ts");
 const { sessao } = await import("../src/services/sessao-store.ts");
+const { validarCadastro } = await import("../src/utils/cadastro.ts");
 const fetchOriginal = globalThis.fetch;
 const ambiente = { ...process.env };
 const novoToken = () => randomBytes(32).toString("base64url");
@@ -82,6 +83,73 @@ test("login envia credenciais e salva somente o token recebido em execução", a
   });
   assert.equal(tokenSalvo, token);
   assert.equal(sessao.getState().token, token);
+});
+
+test("cadastro público envia apenas nome, e-mail e senha sem iniciar sessão", async () => {
+  const senha = novoToken();
+  let pedido;
+  globalThis.fetch = async (url, opcoes) => {
+    pedido = { url, opcoes };
+    return { ok: true, status: 201, json: async () => ({ id: "novo-usuario" }) };
+  };
+
+  await cadastrar("  Moradora  ", "  moradora@example.com  ", senha);
+
+  assert.equal(pedido.url, "http://api.test/usuarios/");
+  assert.equal(pedido.opcoes.method, "POST");
+  assert.equal(pedido.opcoes.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(pedido.opcoes.body), {
+    nome: "Moradora",
+    email: "moradora@example.com",
+    senha,
+  });
+  assert.equal(tokenSalvo, null);
+  assert.equal(sessao.getState().token, null);
+});
+
+test("cadastro preserva erros de e-mail duplicado e validação sem iniciar sessão", async () => {
+  for (const [status, detail] of [
+    [400, "E-mail já cadastrado."],
+    [422, [{ loc: ["body", "email"], msg: "E-mail inválido." }]],
+  ]) {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status,
+      json: async () => ({ detail }),
+    });
+    await assert.rejects(
+      cadastrar("Moradora", "moradora@example.com", novoToken()),
+      (erro) => erro.status === status,
+    );
+    assert.equal(tokenSalvo, null);
+    assert.equal(sessao.getState().token, null);
+  }
+});
+
+test("cadastro propaga falha de conexão sem iniciar sessão", async () => {
+  globalThis.fetch = async () => {
+    throw new TypeError("Conexão indisponível");
+  };
+  await assert.rejects(cadastrar("Moradora", "moradora@example.com", novoToken()), TypeError);
+  assert.equal(tokenSalvo, null);
+  assert.equal(sessao.getState().token, null);
+});
+
+test("cadastro valida campos obrigatórios, e-mail e confirmação da senha", () => {
+  assert.deepEqual(validarCadastro({
+    nome: " ", email: "sem-arroba", senha: " ", confirmacao: "",
+  }), {
+    nome: "Informe seu nome.",
+    email: "Informe um e-mail válido.",
+    senha: "Informe uma senha.",
+    confirmacao: "Confirme sua senha.",
+  });
+  assert.equal(validarCadastro({
+    nome: "Moradora", email: "moradora@example.com", senha: "senha-A", confirmacao: "senha-B",
+  }).confirmacao, "As senhas não coincidem.");
+  assert.deepEqual(validarCadastro({
+    nome: " Moradora ", email: " moradora@example.com ", senha: "senha-A", confirmacao: "senha-A",
+  }), {});
 });
 
 test("senha incorreta mostra erro e não persiste sessão", async () => {

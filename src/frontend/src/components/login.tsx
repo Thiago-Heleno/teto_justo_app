@@ -16,8 +16,20 @@ import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { entrar } from "@/services/autenticacao-api";
 
-export function LoginScreen({ aviso }: { aviso?: string }) {
-  const [email, setEmail] = useState("");
+export function LoginScreen({
+  aviso,
+  emailInicial = "",
+  mensagemCadastro,
+  onCriarConta,
+  onIniciarLogin,
+}: {
+  aviso?: string;
+  emailInicial?: string;
+  mensagemCadastro?: string;
+  onCriarConta: (email: string) => void;
+  onIniciarLogin: () => void;
+}) {
+  const [email, setEmail] = useState(emailInicial);
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string>();
   const [enviando, setEnviando] = useState(false);
@@ -25,6 +37,7 @@ export function LoginScreen({ aviso }: { aviso?: string }) {
 
   async function fazerLogin() {
     if (envioEmAndamento.current) return;
+    onIniciarLogin();
     if (!email.trim() || !senha) {
       setErro("Preencha seu e-mail e sua senha.");
       return;
@@ -114,6 +127,11 @@ export function LoginScreen({ aviso }: { aviso?: string }) {
                 {erro || aviso}
               </Text>
             )}
+            {mensagemCadastro && (
+              <Text accessibilityRole="alert" style={styles.success}>
+                {mensagemCadastro}
+              </Text>
+            )}
             <Pressable
               accessibilityLabel="Entrar"
               accessibilityRole="button"
@@ -128,6 +146,16 @@ export function LoginScreen({ aviso }: { aviso?: string }) {
               ) : (
                 <Text style={styles.buttonText}>Entrar</Text>
               )}
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Criar conta"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: enviando }}
+              disabled={enviando}
+              onPress={() => onCriarConta(email.trim())}
+              style={styles.createAccountButton}
+            >
+              <Text style={styles.createAccountText}>Criar conta</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -175,4 +203,7 @@ const styles = StyleSheet.create({
   buttonText: { color: Caldera.chalk, fontWeight: "700", fontSize: 16 },
   disabled: { opacity: 0.6 },
   error: { color: "#a32316", marginBottom: 12, lineHeight: 22 },
+  success: { color: "#176b39", marginBottom: 12, lineHeight: 22 },
+  createAccountButton: { alignItems: "center", padding: 16, marginTop: 8 },
+  createAccountText: { color: Caldera.obsidian, fontWeight: "600" },
 });

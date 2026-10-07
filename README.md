@@ -14,7 +14,7 @@ O fluxo e as telas do aplicativo estão disponíveis no
 
 ## Tecnologias
 
-- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web. Login e logout integrados à API.
+- **Frontend:** React Native, Expo, Expo Router e TypeScript. Estado global com Zustand e token de sessão guardado com Expo SecureStore no celular e `localStorage` na web. Cadastro, login e logout integrados à API.
 - **Backend:** Python, FastAPI, Pydantic e Uvicorn.
 - **Dados:** Supabase.
 - **Qualidade:** ESLint, Prettier, Ruff, Bandit e Pytest.
@@ -39,9 +39,11 @@ usuário escolhe. A última escolha é lembrada enquanto a sessão continuar
 válida e a casa permanecer acessível. **Trocar de casa**, no Início, volta à
 seleção; sair da conta apaga a preferência.
 
-Inicie o backend e configure a URL da API no frontend. Uma conta pode ser
-criada pelo endpoint público `POST /usuarios/` na documentação interativa
-`/docs` do backend. Na seleção, **Criar casa** abre o formulário de nome e
+Inicie o backend e configure a URL da API no frontend. Na tela de login,
+**Criar conta** abre o formulário de cadastro; após criar a conta, entre com
+o e-mail e a senha informados. O endpoint público `POST /usuarios/` também
+está disponível na documentação interativa `/docs` do backend. Na seleção,
+**Criar casa** abre o formulário de nome e
 endereço. Após a criação, a casa é aberta automaticamente e o criador vira
 administrador pela sessão autenticada. Os erros de validação aparecem junto
 aos campos, preservando os dados digitados. Quem já está numa casa pode usar

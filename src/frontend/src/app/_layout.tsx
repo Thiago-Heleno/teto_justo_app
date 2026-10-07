@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useStore } from "zustand";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
+import { CadastroScreen } from "@/components/cadastro";
 import { LoginScreen } from "@/components/login";
 import { FluxoCasa } from "@/components/selecao-casa";
 import { Caldera } from "@/constants/theme";
@@ -18,6 +19,9 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { token, pronta } = useStore(sessao);
   const [aviso, setAviso] = useState<string>();
+  const [cadastroAberto, setCadastroAberto] = useState(false);
+  const [emailLogin, setEmailLogin] = useState("");
+  const [mensagemCadastro, setMensagemCadastro] = useState<string>();
 
   useEffect(() => {
     void iniciarAutenticacao().catch(() => {
@@ -41,8 +45,34 @@ export default function TabLayout() {
           </View>
         ) : token ? (
           <FluxoCasa key={token} />
+        ) : cadastroAberto ? (
+          <CadastroScreen
+            emailInicial={emailLogin}
+            onVoltar={(email) => {
+              setEmailLogin(email);
+              setCadastroAberto(false);
+            }}
+            onCadastrado={(email) => {
+              setEmailLogin(email);
+              setMensagemCadastro(
+                "Conta criada. Entre com seu e-mail e senha.",
+              );
+              setAviso(undefined);
+              setCadastroAberto(false);
+            }}
+          />
         ) : (
-          <LoginScreen aviso={aviso} />
+          <LoginScreen
+            aviso={aviso}
+            emailInicial={emailLogin}
+            mensagemCadastro={mensagemCadastro}
+            onIniciarLogin={() => setMensagemCadastro(undefined)}
+            onCriarConta={(email) => {
+              setEmailLogin(email);
+              setMensagemCadastro(undefined);
+              setCadastroAberto(true);
+            }}
+          />
         )}
       </ThemeProvider>
     </GestureHandlerRootView>
