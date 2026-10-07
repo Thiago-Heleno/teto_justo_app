@@ -5,7 +5,8 @@ e-mail, senha e confirmação; valida os campos antes do envio e chama o endpoin
 público `POST /usuarios/` com somente `nome`, `email` e `senha`. O cadastro não
 cria uma sessão. Após o sucesso, o aplicativo volta ao login com o e-mail
 preenchido e uma confirmação. Erros de e-mail já cadastrado, validação da API e
-conexão são exibidos no formulário.
+conexão são exibidos no formulário. No Android, o botão físico Voltar retorna
+ao login enquanto o formulário não está enviando dados.
 
 O fluxo pré-autenticação é controlado por `src/frontend/src/app/_layout.tsx`,
 sem criar uma rota que possa ser aberta após o login. A tela está em

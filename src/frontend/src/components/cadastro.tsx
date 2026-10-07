@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -38,6 +39,15 @@ export function CadastroScreen({
   const emailInput = useRef<TextInput>(null);
   const senhaInput = useRef<TextInput>(null);
   const confirmacaoInput = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const retorno = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!enviando) onVoltar(email.trim());
+      return true;
+    });
+    return () => retorno.remove();
+  }, [email, enviando, onVoltar]);
 
   function focarPrimeiroErro(erros: ErrosCadastro) {
     if (erros.nome) nomeInput.current?.focus();
