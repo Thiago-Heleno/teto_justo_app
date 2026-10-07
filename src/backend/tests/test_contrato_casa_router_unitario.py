@@ -574,18 +574,6 @@ def test_uuid_invalido_retorna_422(ambiente):
     assert cliente.post("/casas/uuid-invalido/convites").status_code == 422
     assert cliente.delete("/casas/uuid-invalido/sair").status_code == 422
 
-
-def test_edicao_e_exclusao_sao_reservadas_ao_proprietario(ambiente):
-    cliente, banco, casas, _, _ = ambiente
-    antes = deepcopy(banco.registros["casa"])
-
-    edicao = cliente.patch(f"/casas/{casas[2]}", json={"nome": "Alterada"})
-    exclusao = cliente.delete(f"/casas/{casas[2]}")
-
-    assert edicao.status_code == exclusao.status_code == 403
-    assert banco.registros["casa"] == antes
-
-
 def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
     cliente, banco, _, proprietario, outro_proprietario = ambiente
     dados = {"nome": "Casa Nova", "endereco": "Rua Nova"}
@@ -616,3 +604,50 @@ def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
     exclusao = cliente.delete(f"/casas/{criada['id']}")
     assert exclusao.status_code == 200, exclusao.text
     assert exclusao.json() is True
+
+
+ID_POR_CARGO = {"administrador": 1, "morador": 2, "forasteiro": 3}
+
+MATRIZ_CARGOS = [
+    ("administrador", "get", "", None, 200),
+    ("morador", "get", "", None, 200),
+    ("forasteiro", "get", "", None, 403),
+    ("administrador", "get", "/moradores", None, 200),
+    ("morador", "get", "/moradores", None, 200),
+    ("forasteiro", "get", "/moradores", None, 403),
+    ("administrador", "patch", "", {"nome": "Alterada"}, 200),
+    ("morador", "patch", "", {"nome": "Alterada"}, 403),
+    ("forasteiro", "patch", "", {"nome": "Alterada"}, 403),
+    ("administrador", "delete", "", None, 200),
+    ("morador", "delete", "", None, 403),
+    ("forasteiro", "delete", "", None, 403),
+]
+
+
+@pytest.mark.parametrize("cargo,metodo,sufixo,corpo,esperado", MATRIZ_CARGOS)
+def test_operacoes_da_casa_por_cargo(
+    ambiente, cargo, metodo, sufixo, corpo, esperado
+):
+    cliente, banco, casas, _, _ = ambiente
+    id_casa = casas[ID_POR_CARGO[cargo]]
+    antes = deepcopy(banco.registros["casa"])
+
+    resposta = getattr(cliente, metodo)(
+        f"/casas/{id_casa}{sufixo}", **({"json": corpo} if corpo else {})
+    )
+
+    assert resposta.status_code == esperado, resposta.text
+    if esperado == 403:
+        assert banco.registros["casa"] == antes
+
+
+def test_listagem_inclui_casas_de_administrador_e_morador_mas_nao_do_forasteiro(
+    ambiente,
+):
+    cliente, _, casas, _, _ = ambiente
+
+    ids = {item["id"] for item in cliente.get("/casas/").json()}
+
+    assert {str(casas[1]), str(casas[2])} <= ids
+    assert str(casas[3]) not in ids
+

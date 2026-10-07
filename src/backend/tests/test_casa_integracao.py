@@ -119,3 +119,86 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         )
 
         assert inexistente.status_code == 404
+@pytest.fixture
+def cenario_cargos(autenticacao_temporaria, criar_autenticacao_temporaria):
+    """Casa real com um administrador, um morador vinculado e um forasteiro."""
+    supabase = get_supabase()
+    admin = autenticacao_temporaria
+    morador = criar_autenticacao_temporaria()
+    forasteiro = criar_autenticacao_temporaria()
+
+    with TestClient(app, raise_server_exceptions=False) as cliente:
+        criada = cliente.post(
+            "/casas/",
+            headers=admin["headers"],
+            json={
+                "nome": f"Casa cargos {uuid4().hex}",
+                "endereco": "Rua dos Cargos, 1",
+            },
+        )
+        assert criada.status_code == 201, criada.text
+        casa = criada.json()
+
+        supabase.table("pertencer").insert({
+            "fk_usuario_id": morador["usuario_id"],
+            "fk_casa_id": casa["id"],
+            "score": 0,
+        }).execute()
+
+        yield cliente, casa, {
+            "administrador": admin["headers"],
+            "morador": morador["headers"],
+            "forasteiro": forasteiro["headers"],
+        }
+
+    supabase.table("pertencer").delete().eq("fk_casa_id", casa["id"]).execute()
+    supabase.table("casa").delete().eq("id", casa["id"]).execute()
+
+
+@pytest.mark.parametrize("cargo,esperado", [
+    ("administrador", 200),
+    ("morador", 200),
+    ("forasteiro", 403),
+])
+def test_leitura_da_casa_por_cargo_no_supabase(cenario_cargos, cargo, esperado):
+    cliente, casa, headers = cenario_cargos
+
+    for rota in (f"/casas/{casa['id']}", f"/casas/{casa['id']}/moradores"):
+        resposta = cliente.get(rota, headers=headers[cargo])
+        assert resposta.status_code == esperado, resposta.text
+
+    ids = {item["id"] for item in cliente.get("/casas/", headers=headers[cargo]).json()}
+    assert (casa["id"] in ids) is (esperado == 200)
+
+
+@pytest.mark.parametrize("cargo", ["morador", "forasteiro"])
+def test_edicao_e_exclusao_negadas_a_quem_nao_e_administrador_no_supabase(
+    cenario_cargos, cargo
+):
+    cliente, casa, headers = cenario_cargos
+
+    edicao = cliente.patch(
+        f"/casas/{casa['id']}", headers=headers[cargo], json={"nome": "Invasão"}
+    )
+    exclusao = cliente.delete(f"/casas/{casa['id']}", headers=headers[cargo])
+
+    assert edicao.status_code == exclusao.status_code == 403
+    persistida = (
+        get_supabase().table("casa").select("nome").eq("id", casa["id"]).execute()
+    ).data
+    assert persistida == [{"nome": casa["nome"]}]
+
+
+def test_administrador_edita_e_exclui_casa_com_morador_no_supabase(cenario_cargos):
+    cliente, casa, headers = cenario_cargos
+    admin = headers["administrador"]
+
+    edicao = cliente.patch(
+        f"/casas/{casa['id']}", headers=admin, json={"nome": "Casa renomeada"}
+    )
+    assert edicao.status_code == 200, edicao.text
+    assert edicao.json()["nome"] == "Casa renomeada"
+
+    exclusao = cliente.delete(f"/casas/{casa['id']}", headers=admin)
+    assert exclusao.status_code == 200, exclusao.text
+    assert cliente.get(f"/casas/{casa['id']}", headers=admin).status_code == 404
