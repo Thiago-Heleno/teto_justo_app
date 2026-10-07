@@ -622,7 +622,7 @@ MATRIZ_CARGOS = [
     ("forasteiro", "delete", "", None, 403),
 ]
 
-@pytest.Mark.parametrize( "cargo,metodo,sufixo,corpo,esperado",MATRIZ_CARGOS)
+@pytest.mark.parametrize( "cargo,metodo,sufixo,corpo,esperado",MATRIZ_CARGOS)
 def test_operacoes_da_casa_por_cargo(ambiente, cargo, metodo, sufixo, 
 corpo, esperado):
     cliente, banco, casas, _, _ = ambiente
