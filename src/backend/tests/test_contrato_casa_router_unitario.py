@@ -605,7 +605,8 @@ def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
     assert exclusao.status_code == 200, exclusao.text
     assert exclusao.json() is True
 
-ID_POR_CARGO = { "Morador":1, "Dono":2, "Forasteiro":3}
+
+ID_POR_CARGO = {"administrador": 1, "morador": 2, "forasteiro": 3}
 
 MATRIZ_CARGOS = [
     ("administrador", "get", "", None, 200),
@@ -622,9 +623,11 @@ MATRIZ_CARGOS = [
     ("forasteiro", "delete", "", None, 403),
 ]
 
-@pytest.mark.parametrize( "cargo,metodo,sufixo,corpo,esperado",MATRIZ_CARGOS)
-def test_operacoes_da_casa_por_cargo(ambiente, cargo, metodo, sufixo,
-corpo, esperado):
+
+@pytest.mark.parametrize("cargo,metodo,sufixo,corpo,esperado", MATRIZ_CARGOS)
+def test_operacoes_da_casa_por_cargo(
+    ambiente, cargo, metodo, sufixo, corpo, esperado
+):
     cliente, banco, casas, _, _ = ambiente
     id_casa = casas[ID_POR_CARGO[cargo]]
     antes = deepcopy(banco.registros["casa"])
@@ -636,6 +639,7 @@ corpo, esperado):
     assert resposta.status_code == esperado, resposta.text
     if esperado == 403:
         assert banco.registros["casa"] == antes
+
 
 def test_listagem_inclui_casas_de_administrador_e_morador_mas_nao_do_forasteiro(
     ambiente,
