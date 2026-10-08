@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -95,6 +102,10 @@ function iniciais(nome: string) {
 }
 
 export default function TarefasScreen() {
+  const { width } = useWindowDimensions();
+  const telaPequena = width < 600;
+  const estiloPagina = [styles.page, telaPequena && styles.pageSmall];
+  const scrollRef = useRef<ScrollView>(null);
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
   const [placar, setPlacar] = useState<Placar>();
@@ -114,6 +125,10 @@ export default function TarefasScreen() {
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
   const [editando, setEditando] = useState(false);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [tarefaSelecionadaId, editando]);
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -266,7 +281,7 @@ export default function TarefasScreen() {
     const erro = erroContexto || erroTarefas;
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <View style={[styles.page, styles.feedback]}>
+        <View style={[estiloPagina, styles.feedback]}>
           <Text style={styles.emptyTitle}>
             {erro ? "NÃO FOI POSSÍVEL CARREGAR" : "CARREGANDO TAREFAS"}
           </Text>
@@ -291,7 +306,7 @@ export default function TarefasScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <ScrollView contentContainerStyle={styles.page}>
+      <ScrollView ref={scrollRef} contentContainerStyle={estiloPagina}>
         {tarefaSelecionada && editando ? (
           <EditarTarefa
             tarefa={tarefaSelecionada}
@@ -319,12 +334,15 @@ export default function TarefasScreen() {
         ) : (
           <Animated.View
             entering={FadeIn.duration(220).reduceMotion(ReduceMotion.System)}
-            style={styles.content}
+            style={[styles.content, telaPequena && styles.contentSmall]}
           >
             <View style={styles.hero}>
               <View style={styles.heroCopy}>
                 <Text style={styles.houseName}>{casa.nome}</Text>
-                <Text accessibilityRole="header" style={styles.title}>
+                <Text
+                  accessibilityRole="header"
+                  style={[styles.title, telaPequena && styles.titleSmall]}
+                >
                   TAREFAS DA CASA
                 </Text>
                 <Text style={styles.subtitle}>
@@ -332,15 +350,23 @@ export default function TarefasScreen() {
                   cada prazo.
                 </Text>
               </View>
-              <View style={styles.statCard}>
+              <View
+                style={[styles.statCard, telaPequena && styles.statCardSmall]}
+              >
                 <Text style={styles.statLabel}>EM ABERTO</Text>
                 <Text style={styles.statValue}>{tarefasEmAberto}</Text>
                 <Text style={styles.statCaption}>tarefas pedem atenção</Text>
               </View>
             </View>
 
-            <View style={styles.filtersCard}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>
+            <View style={[styles.filtersCard, telaPequena && styles.cardSmall]}>
+              <Text
+                accessibilityRole="header"
+                style={[
+                  styles.sectionTitle,
+                  telaPequena && styles.sectionTitleSmall,
+                ]}
+              >
                 PLACAR DA CASA
               </Text>
               {placar ? (
@@ -378,7 +404,7 @@ export default function TarefasScreen() {
               )}
             </View>
 
-            <View style={styles.filtersCard}>
+            <View style={[styles.filtersCard, telaPequena && styles.cardSmall]}>
               <View style={styles.filterGroup}>
                 <Text style={styles.filterLabel}>STATUS</Text>
                 <View style={styles.filterOptions}>
@@ -455,7 +481,14 @@ export default function TarefasScreen() {
             </View>
 
             <View style={styles.listHeading}>
-              <Text style={styles.sectionTitle}>TAREFAS</Text>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  telaPequena && styles.sectionTitleSmall,
+                ]}
+              >
+                TAREFAS
+              </Text>
               <Animated.Text
                 key={tarefasFiltradas.length}
                 accessibilityLiveRegion="polite"
@@ -500,7 +533,10 @@ export default function TarefasScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
                         onPress={() => setTarefaSelecionadaId(tarefa.id)}
-                        style={styles.taskCard}
+                        style={[
+                          styles.taskCard,
+                          telaPequena && styles.cardSmall,
+                        ]}
                       >
                         <View style={styles.taskTopRow}>
                           <View
@@ -521,7 +557,12 @@ export default function TarefasScreen() {
                           <Text style={styles.weight}>PESO {tarefa.peso}</Text>
                         </View>
 
-                        <Text style={styles.taskTitle}>
+                        <Text
+                          style={[
+                            styles.taskTitle,
+                            telaPequena && styles.taskTitleSmall,
+                          ]}
+                        >
                           {tarefa.nome.toUpperCase()}
                         </Text>
                         <Text numberOfLines={2} style={styles.taskDescription}>
@@ -529,7 +570,7 @@ export default function TarefasScreen() {
                         </Text>
 
                         <View style={styles.taskMeta}>
-                          <View>
+                          <View style={styles.deadline}>
                             <Text style={styles.metaLabel}>PRAZO</Text>
                             <Text style={styles.metaValue}>
                               {formatarPrazo(tarefa.data_fim, tarefa.data_fixa)}
@@ -560,7 +601,7 @@ export default function TarefasScreen() {
                 exiting={FadeOut.duration(140).reduceMotion(
                   ReduceMotion.System,
                 )}
-                style={styles.emptyCard}
+                style={[styles.emptyCard, telaPequena && styles.cardSmall]}
               >
                 <Text style={styles.emptyTitle}>NENHUMA TAREFA POR AQUI</Text>
                 <Text style={styles.emptyText}>
@@ -583,12 +624,18 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "web" ? 112 : Spacing.four,
     paddingBottom: Spacing.six,
   },
+  pageSmall: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Platform.OS === "web" ? 160 : Spacing.three,
+  },
   content: {
     width: "100%",
     maxWidth: 1280,
     alignSelf: "center",
     gap: 40,
   },
+  contentSmall: { gap: Spacing.four },
+  cardSmall: { padding: Spacing.three, borderRadius: 24 },
   hero: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -610,6 +657,7 @@ const styles = StyleSheet.create({
     lineHeight: 62,
     letterSpacing: 1.28,
   },
+  titleSmall: { fontSize: 40, lineHeight: 44, letterSpacing: 0.8 },
   subtitle: {
     color: Caldera.obsidian,
     fontSize: 18,
@@ -619,6 +667,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flexGrow: 1,
+    flexShrink: 1,
     flexBasis: 240,
     maxWidth: 360,
     minHeight: 210,
@@ -626,6 +675,11 @@ const styles = StyleSheet.create({
     backgroundColor: Caldera.ember,
     padding: Spacing.five,
     justifyContent: "space-between",
+  },
+  statCardSmall: {
+    padding: Spacing.three,
+    borderRadius: 24,
+    minHeight: 160,
   },
   statLabel: { color: Caldera.chalk, fontSize: 14, fontWeight: "500" },
   statValue: {
@@ -644,7 +698,10 @@ const styles = StyleSheet.create({
   placarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   placarMorador: {
     flexGrow: 1,
-    minWidth: 180,
+    flexShrink: 1,
+    flexBasis: 180,
+    minWidth: 0,
+    maxWidth: "100%",
     gap: 6,
     padding: Spacing.three,
     backgroundColor: Caldera.pumice,
@@ -655,6 +712,9 @@ const styles = StyleSheet.create({
   filterLabel: { color: Caldera.obsidian, fontSize: 12, fontWeight: "500" },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   filterPill: {
+    maxWidth: "100%",
+    minHeight: 44,
+    justifyContent: "center",
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,
@@ -664,20 +724,24 @@ const styles = StyleSheet.create({
   filterPillText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   listHeading: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "flex-end",
     gap: Spacing.three,
   },
   sectionTitle: {
+    maxWidth: "100%",
     color: Caldera.obsidian,
     fontFamily: CompactFont,
     fontSize: 48,
     lineHeight: 48,
     letterSpacing: 0.96,
   },
+  sectionTitleSmall: { fontSize: 32, lineHeight: 36, letterSpacing: 0.64 },
   resultCount: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   taskGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
   taskCardSlot: {
+    minWidth: 0,
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 320,
@@ -692,11 +756,13 @@ const styles = StyleSheet.create({
   },
   taskTopRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
     gap: Spacing.two,
   },
   statusBadge: {
+    maxWidth: "100%",
     backgroundColor: Caldera.sulfur,
     borderRadius: 800,
     paddingHorizontal: 10,
@@ -713,6 +779,7 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     letterSpacing: 0.64,
   },
+  taskTitleSmall: { fontSize: 28, lineHeight: 32, letterSpacing: 0.56 },
   taskDescription: {
     color: Caldera.obsidian,
     fontSize: 16,
@@ -722,10 +789,12 @@ const styles = StyleSheet.create({
   taskMeta: {
     marginTop: "auto",
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "flex-end",
     gap: Spacing.three,
   },
+  deadline: { flexShrink: 1, minWidth: 0, maxWidth: "100%" },
   metaLabel: {
     color: Caldera.obsidian,
     fontSize: 12,
@@ -733,7 +802,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   metaValue: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
-  avatars: { flexDirection: "row" },
+  avatars: { flexDirection: "row", flexWrap: "wrap", maxWidth: "100%" },
   avatar: {
     width: 36,
     height: 36,
