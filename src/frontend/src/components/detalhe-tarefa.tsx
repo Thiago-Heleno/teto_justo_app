@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { Modal, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
@@ -8,6 +15,7 @@ import Animated, {
   ReduceMotion,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
@@ -50,6 +58,8 @@ export function DetalheTarefa({
   onFinalizar,
   onContinuar,
 }: Props) {
+  const { width } = useWindowDimensions();
+  const telaPequena = width < 600;
   const [finalizando, setFinalizando] = useState(false);
   const [erroFinalizacao, setErroFinalizacao] = useState<string>();
   const [resultado, setResultado] = useState<ResultadoFinalizacao>();
@@ -114,11 +124,14 @@ export function DetalheTarefa({
           <Text style={styles.backButtonText}>← Voltar para tarefas</Text>
         </MotionPressable>
 
-        <View style={styles.card}>
+        <View style={[styles.card, telaPequena && styles.cardSmall]}>
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
               <Text style={styles.eyebrow}>DETALHE DA TAREFA</Text>
-              <Text accessibilityRole="header" style={styles.title}>
+              <Text
+                accessibilityRole="header"
+                style={[styles.title, telaPequena && styles.titleSmall]}
+              >
                 {tarefa.nome.toUpperCase()}
               </Text>
             </View>
@@ -181,9 +194,7 @@ export function DetalheTarefa({
                       {iniciais(morador.nome)}
                     </Text>
                   </View>
-                  <View>
-                    <Text style={styles.responsibleName}>{morador.nome}</Text>
-                  </View>
+                  <Text style={styles.responsibleName}>{morador.nome}</Text>
                 </View>
               ))}
             </View>
@@ -195,7 +206,7 @@ export function DetalheTarefa({
                 <MotionPressable
                   accessibilityRole="button"
                   onPress={onEditar}
-                  style={styles.editButton}
+                  style={[styles.editButton, telaPequena && styles.buttonSmall]}
                 >
                   <Text style={styles.editButtonText}>Editar tarefa</Text>
                 </MotionPressable>
@@ -211,6 +222,7 @@ export function DetalheTarefa({
                   onPress={concluirTarefa}
                   style={[
                     styles.finishButton,
+                    telaPequena && styles.buttonSmall,
                     finalizando && styles.finishButtonDisabled,
                   ]}
                 >
@@ -234,40 +246,56 @@ export function DetalheTarefa({
           transparent
           visible={Boolean(resultado)}
         >
-          <View style={styles.modalBackdrop}>
-            <View accessibilityViewIsModal style={styles.modalCard}>
-              <Text style={styles.modalEyebrow}>TAREFA CONCLUÍDA</Text>
-              <Text accessibilityRole="header" style={styles.modalTitle}>
-                PARABÉNS!
-              </Text>
-              <Text style={styles.modalBody}>
-                Você finalizou {tarefa.nome}.
-              </Text>
-
-              <View style={styles.scoreCard}>
-                <Text style={styles.scoreLabel}>PONTOS POSSÍVEIS</Text>
-                <Text style={styles.scoreValue}>
-                  {resultado?.pontosPossiveis ?? 0}
-                </Text>
-                <Text style={styles.scoreLabel}>PONTOS OBTIDOS</Text>
-                <Text style={styles.scoreValue}>
-                  +{resultado?.pontosObtidos ?? 0}
-                </Text>
-              </View>
-
-              <Text style={styles.balanceText}>
-                Seu saldo atual é de {resultado?.saldoAtual ?? 0} pontos.
-              </Text>
-
-              <MotionPressable
-                accessibilityRole="button"
-                onPress={onContinuar}
-                style={styles.continueButton}
+          <SafeAreaView style={styles.modalBackdrop}>
+            <ScrollView
+              contentContainerStyle={[
+                styles.modalContent,
+                telaPequena && styles.modalContentSmall,
+              ]}
+            >
+              <View
+                accessibilityViewIsModal
+                style={[styles.modalCard, telaPequena && styles.cardSmall]}
               >
-                <Text style={styles.continueButtonText}>Continuar</Text>
-              </MotionPressable>
-            </View>
-          </View>
+                <Text style={styles.modalEyebrow}>TAREFA CONCLUÍDA</Text>
+                <Text
+                  accessibilityRole="header"
+                  style={[styles.modalTitle, telaPequena && styles.titleSmall]}
+                >
+                  PARABÉNS!
+                </Text>
+                <Text style={styles.modalBody}>
+                  Você finalizou {tarefa.nome}.
+                </Text>
+
+                <View style={styles.scoreCard}>
+                  <Text style={styles.scoreLabel}>PONTOS POSSÍVEIS</Text>
+                  <Text style={styles.scoreValue}>
+                    {resultado?.pontosPossiveis ?? 0}
+                  </Text>
+                  <Text style={styles.scoreLabel}>PONTOS OBTIDOS</Text>
+                  <Text style={styles.scoreValue}>
+                    +{resultado?.pontosObtidos ?? 0}
+                  </Text>
+                </View>
+
+                <Text style={styles.balanceText}>
+                  Seu saldo atual é de {resultado?.saldoAtual ?? 0} pontos.
+                </Text>
+
+                <MotionPressable
+                  accessibilityRole="button"
+                  onPress={onContinuar}
+                  style={[
+                    styles.continueButton,
+                    telaPequena && styles.buttonSmall,
+                  ]}
+                >
+                  <Text style={styles.continueButtonText}>Continuar</Text>
+                </MotionPressable>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
         </Modal>
       </Animated.View>
     </GestureDetector>
@@ -282,6 +310,9 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   backButton: {
+    maxWidth: "100%",
+    minHeight: 44,
+    justifyContent: "center",
     alignSelf: "flex-start",
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
@@ -296,6 +327,7 @@ const styles = StyleSheet.create({
     padding: Spacing.five,
     gap: Spacing.five,
   },
+  cardSmall: { padding: Spacing.three, borderRadius: 24, gap: Spacing.four },
   headingRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -303,7 +335,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: Spacing.three,
   },
-  headingCopy: { flex: 1, minWidth: 240, gap: Spacing.two },
+  headingCopy: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 240,
+    minWidth: 0,
+    gap: Spacing.two,
+  },
   eyebrow: {
     color: Caldera.ember,
     fontSize: 12,
@@ -317,7 +355,9 @@ const styles = StyleSheet.create({
     lineHeight: 48,
     letterSpacing: 0.96,
   },
+  titleSmall: { fontSize: 32, lineHeight: 36, letterSpacing: 0.64 },
   statusBadge: {
+    maxWidth: "100%",
     backgroundColor: Caldera.sulfur,
     borderRadius: 800,
     paddingHorizontal: 12,
@@ -336,6 +376,8 @@ const styles = StyleSheet.create({
   infoGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   infoCard: {
     flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
     flexBasis: 180,
     minHeight: 120,
     borderRadius: 20,
@@ -361,12 +403,17 @@ const styles = StyleSheet.create({
   },
   responsibles: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   responsible: {
-    minWidth: 210,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 210,
+    minWidth: 0,
+    maxWidth: "100%",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   avatar: {
+    flexShrink: 0,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -375,9 +422,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
-  responsibleName: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  responsibleName: {
+    flex: 1,
+    minWidth: 0,
+    color: Caldera.obsidian,
+    fontSize: 16,
+    fontWeight: "500",
+  },
   completionSection: { gap: Spacing.two, alignItems: "flex-start" },
+  buttonSmall: { alignSelf: "stretch" },
   editButton: {
+    maxWidth: "100%",
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,
@@ -385,11 +440,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   editButtonText: {
+    textAlign: "center",
     color: Caldera.obsidian,
     fontSize: 16,
     fontWeight: "500",
   },
   finishButton: {
+    maxWidth: "100%",
     backgroundColor: Caldera.ember,
     borderRadius: 800,
     paddingHorizontal: Spacing.four,
@@ -397,6 +454,7 @@ const styles = StyleSheet.create({
   },
   finishButtonDisabled: { opacity: 0.6 },
   finishButtonText: {
+    textAlign: "center",
     color: Caldera.obsidian,
     fontSize: 16,
     fontWeight: "500",
@@ -405,10 +463,14 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(7, 6, 7, 0.58)",
+  },
+  modalContent: {
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.four,
   },
+  modalContentSmall: { padding: Spacing.three },
   modalCard: {
     width: "100%",
     maxWidth: 520,
@@ -455,6 +517,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   continueButton: {
+    maxWidth: "100%",
     alignSelf: "flex-start",
     backgroundColor: Caldera.obsidian,
     borderRadius: 800,
@@ -462,6 +525,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   continueButtonText: {
+    textAlign: "center",
     color: Caldera.chalk,
     fontSize: 16,
     fontWeight: "500",
