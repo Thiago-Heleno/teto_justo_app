@@ -2,6 +2,9 @@
 
 ## Objetivo e comportamento
 
+- `dev.cmd`, na raiz, inicia o script com `-ExecutionPolicy Bypass` somente
+  para o processo filho. Encaminha opções como `-Ip` e `-CheckOnly` e preserva
+  o código de saída. Não altera políticas permanentes nem políticas de grupo.
 - `scripts/dev.ps1` prepara e inicia o ambiente de desenvolvimento para Expo
   Go com um comando, a partir de qualquer diretório de execução.
 - Verifica Node.js 24.3+, npm e Docker Compose; solicita autorização antes de
@@ -25,6 +28,10 @@
 
 ## Validações
 
+- `dev.cmd`: passou em PowerShell 7 e Windows PowerShell 5.1, iniciado por um
+  processo com política `Restricted`, em pasta com espaços. O teste confirmou
+  a política temporária do processo filho, os argumentos e o código de saída,
+  usando um script de teste sem iniciar serviços.
 - Parser PowerShell: sem erros de sintaxe.
 - `scripts/test-dev.ps1`: passou em PowerShell 7 e Windows PowerShell 5.1, com
   serviços simulados, cobrindo configuração,

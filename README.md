@@ -78,15 +78,22 @@ para uso direto pela API.
 Na raiz do repositório, execute no PowerShell:
 
 ```powershell
-.\scripts\dev.ps1
+.\dev.cmd
 ```
 
-Se a política de execução bloquear o arquivo, execute somente esta chamada
-com a política temporária, sem alterar a configuração do computador:
+O iniciador `dev.cmd` chama `scripts/dev.ps1` com uma política de execução
+temporária, válida apenas para o processo iniciado. Assim, não é preciso
+liberar scripts permanentemente nem executar como administrador para abrir
+o script. Instalações de dependências ainda podem solicitar elevação.
+
+Se preferir chamar o PowerShell diretamente, o comando equivalente é:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
 ```
+
+Se o computador tiver uma política de grupo que bloqueia scripts, essa política
+continua valendo; nesse caso, solicite a liberação ao administrador responsável.
 
 O script verifica Node.js 24.3 ou superior, npm e Docker Desktop com Compose.
 Se faltar Node ou Docker, pede confirmação para instalar pelo WinGet. Sem
@@ -115,7 +122,7 @@ login exibidas pelo Expo quando necessário. Se houver mais de uma rede, o scrip
 pede para escolher. Para indicar o IPv4 manualmente, ainda na raiz:
 
 ```powershell
-.\scripts\dev.ps1 -Ip 192.168.1.10
+.\dev.cmd -Ip 192.168.1.10
 ```
 
 Substitua pelo IPv4 do computador na rede do celular. VPN, Wi-Fi com isolamento
@@ -134,7 +141,7 @@ Para apenas conferir dependências e configuração, sem instalar, editar arquiv
 ou iniciar serviços, execute na raiz (código de saída 1 indica pendência):
 
 ```powershell
-.\scripts\dev.ps1 -CheckOnly
+.\dev.cmd -CheckOnly
 ```
 
 Ao encerrar o Expo com Ctrl+C, os containers continuam disponíveis. Para

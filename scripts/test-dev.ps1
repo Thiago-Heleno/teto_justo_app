@@ -26,6 +26,20 @@ try {
     [IO.File]::WriteAllText("$work/src/frontend/node_modules/.bin/expo.cmd", '')
     [IO.File]::WriteAllText("$work/.env.example", "SUPABASE_URL=`nSUPABASE_KEY=`nCASA_CONVITE_SECRET=`n")
 
+    $launcherRoot = Join-Path $work 'checkout com espacos'
+    New-Item -ItemType Directory -Path "$launcherRoot/scripts" | Out-Null
+    Copy-Item -LiteralPath "$PSScriptRoot/../dev.cmd" -Destination "$launcherRoot/dev.cmd"
+    [IO.File]::WriteAllText("$launcherRoot/scripts/dev.ps1", @'
+param([switch]$CheckOnly, [string]$Ip)
+if (!$CheckOnly -or $Ip -ne '192.0.2.10') { exit 2 }
+if ((Get-ExecutionPolicy -Scope Process) -ne 'Bypass') { exit 3 }
+exit 37
+'@)
+    $launcherPath = "$launcherRoot/dev.cmd".Replace("'", "''")
+    & powershell.exe -NoProfile -ExecutionPolicy Restricted -Command "& '$launcherPath' -CheckOnly -Ip 192.0.2.10; exit `$LASTEXITCODE"
+    Assert-DevTest ($LASTEXITCODE -eq 37) 'Iniciador falhou sob Restricted, perdeu argumentos ou codigo de saida.'
+    Write-Host 'PASS: dev.cmd sob Restricted, caminho com espacos, argumentos e codigo de saida.'
+
     $configuration = [pscustomobject]@{
         SUPABASE_URL = 'https://example.supabase.co'
         SUPABASE_KEY = [guid]::NewGuid().ToString()

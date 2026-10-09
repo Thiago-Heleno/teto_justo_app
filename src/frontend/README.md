@@ -9,7 +9,7 @@ considerando caminhos relativos à raiz do repositório.
 Na **raiz do repositório**, execute no PowerShell:
 
 ```powershell
-.\scripts\dev.ps1
+.\dev.cmd
 ```
 
 O script verifica as dependências, solicita a instalação do que faltar,
@@ -17,7 +17,9 @@ orienta a configuração do Supabase de teste no `.env`, inicia backend e Redis
 e abre o Expo com a URL local da API configurada. No celular, use o Expo Go
 compatível com o SDK 57 e a mesma rede do computador para ler o QR code.
 
-Se o PowerShell bloquear a execução, use, também na raiz:
+O `dev.cmd` aplica uma política temporária apenas ao PowerShell que inicia o
+script, sem modificar a política permanente do computador. O comando
+equivalente, também a partir da raiz, é:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
