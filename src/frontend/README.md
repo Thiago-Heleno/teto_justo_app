@@ -1,56 +1,45 @@
-# Welcome to your Expo app 👋
+# Frontend — Teto Justo
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo React Native com Expo SDK 57 e Expo Router. As telas ficam em
+`src/frontend/src/app/` e os componentes em `src/frontend/src/components/`,
+considerando caminhos relativos à raiz do repositório.
 
-## Get started
+## Iniciar no Windows
 
-1. Install dependencies
+Na **raiz do repositório**, execute no PowerShell:
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+.\dev.cmd
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+O script verifica as dependências, solicita a instalação do que faltar,
+orienta a configuração do Supabase de teste no `.env`, inicia backend e Redis
+e abre o Expo com a URL local da API configurada. No celular, use o Expo Go
+compatível com o SDK 57 e a mesma rede do computador para ler o QR code.
 
-### Other setup steps
+O `dev.cmd` aplica uma política temporária apenas ao PowerShell que inicia o
+script, sem modificar a política permanente do computador. O comando
+equivalente, também a partir da raiz, é:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
 
-## Learn more
+As opções de IP, diagnóstico, encerramento e solução de problemas estão no
+[guia de inicialização do projeto](../../README.md#iniciar-tudo-com-um-comando-no-windows).
 
-To learn more about developing your project with Expo, look at the following resources:
+## Executar somente o frontend
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Para iniciar os serviços separadamente, siga a
+[configuração manual no README principal](../../README.md#como-rodar-localmente),
+incluindo backend, Redis e `EXPO_PUBLIC_API_URL`. No celular, essa URL precisa
+usar um endereço acessível do computador, e não `localhost`.
 
-## Join the community
+Com o backend configurado e iniciado, execute em `src/frontend/`:
 
-Join our community of developers creating universal apps.
+```powershell
+npm.cmd ci
+npm.cmd start -- --go --lan
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Esses comandos iniciam apenas o frontend; não preparam o backend nem o banco.

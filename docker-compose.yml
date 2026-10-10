@@ -9,6 +9,8 @@ services:
       - ./src/backend:/app
     env_file:
       - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
   redis:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]

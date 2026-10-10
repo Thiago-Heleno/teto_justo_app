@@ -39,7 +39,11 @@ usuário escolhe. A última escolha é lembrada enquanto a sessão continuar
 válida e a casa permanecer acessível. **Trocar de casa**, no Início, volta à
 seleção; sair da conta apaga a preferência.
 
-Inicie o backend e configure a URL da API no frontend. Na tela de login,
+No Windows, use o [comando de inicialização](#iniciar-tudo-com-um-comando-no-windows)
+para iniciar backend, Redis e Expo juntos. As instruções manuais abaixo são
+uma alternativa para executar os serviços separadamente.
+
+Na tela de login,
 **Criar conta** abre o formulário de cadastro; após criar a conta, entre com
 o e-mail e a senha informados. O endpoint público `POST /usuarios/` também
 está disponível na documentação interativa `/docs` do backend. Na seleção,
@@ -66,7 +70,90 @@ para uso direto pela API.
 - Para o frontend: Node.js e npm; o projeto utiliza Expo SDK 57;
 - Para o backend: Python 3 e um projeto Supabase com as variáveis de acesso;
 - Para o login: Redis compartilhado entre as instâncias do backend;
-- Opcionalmente, Docker e Docker Compose para executar o backend em container.
+- Docker Desktop com Docker Compose para usar o script de inicialização;
+  na execução manual sem containers, Python e Redis precisam estar disponíveis.
+
+### Iniciar tudo com um comando no Windows
+
+Na raiz do repositório, execute no PowerShell:
+
+```powershell
+.\dev.cmd
+```
+
+O iniciador `dev.cmd` chama `scripts/dev.ps1` com uma política de execução
+temporária, válida apenas para o processo iniciado. Assim, não é preciso
+liberar scripts permanentemente nem executar como administrador para abrir
+o script. Instalações de dependências ainda podem solicitar elevação.
+
+Se preferir chamar o PowerShell diretamente, o comando equivalente é:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
+
+Se o computador tiver uma política de grupo que bloqueia scripts, essa política
+continua valendo; nesse caso, solicite a liberação ao administrador responsável.
+
+O script verifica Node.js 24.3 ou superior, npm e Docker Desktop com Compose.
+Se faltar Node ou Docker, pede confirmação para instalar pelo WinGet. Sem
+WinGet, informa o site oficial para instalação manual. O instalador pode pedir
+permissão de administrador; Docker/WSL ou virtualização podem exigir uma
+configuração adicional e reinício. Nesses casos, conclua a preparação e rode
+o mesmo comando novamente. Python e Redis são executados nos containers.
+
+Na primeira execução, o script cria `.env` a partir de `.env.example`, caso
+ele não exista. Preencha nesse arquivo `SUPABASE_URL` e `SUPABASE_KEY` (ou
+`SUPABASE_SECRET_KEY`) com um **projeto Supabase de teste** e pressione Enter
+no terminal para continuar. Credenciais existentes são preservadas; um segredo
+de convites é gerado localmente somente quando estiver ausente. Nenhum valor
+privado é mostrado pelo script.
+
+Depois, o script instala as dependências com `npm ci`, inicia backend e Redis,
+aguarda `/health`, verifica o acesso do backend ao Redis e abre o Expo com QR
+code. As próximas execuções reutilizam a instalação do frontend enquanto
+`package.json`, `package-lock.json` e a versão do Node não mudarem. A URL da API
+e o IP anunciado pelo Expo são definidos apenas para essa execução; arquivos
+de configuração do frontend não são alterados.
+
+No celular, instale o [Expo Go compatível com o SDK 57](https://expo.dev/go),
+conecte-se à mesma rede do computador e leia o QR code. Siga as instruções de
+login exibidas pelo Expo quando necessário. Se houver mais de uma rede, o script
+pede para escolher. Para indicar o IPv4 manualmente, ainda na raiz:
+
+```powershell
+.\dev.cmd -Ip 192.168.1.10
+```
+
+Substitua pelo IPv4 do computador na rede do celular. VPN, Wi-Fi com isolamento
+de dispositivos e firewall podem impedir a conexão. Libere Node/Docker e as
+portas TCP 8000 e 8081 somente na rede privada utilizada para desenvolvimento.
+Antes de ler o QR, confira no navegador do celular o endereço `/health` mostrado
+no terminal. Um túnel do Expo, sozinho, não torna o backend local acessível.
+
+O script **não cria banco, não aplica migrations e não inicia o agendador de
+penalidades/rotatividade**. A validação de `/health` e do Redis não comprova as
+credenciais, a conectividade ou o esquema do Supabase; cadastro e login devem
+ser conferidos no ambiente de teste preparado pela equipe. O comando usa
+HTTP na rede local e não substitui hospedagem HTTPS para um APK distribuído.
+
+Para apenas conferir dependências e configuração, sem instalar, editar arquivos
+ou iniciar serviços, execute na raiz (código de saída 1 indica pendência):
+
+```powershell
+.\dev.cmd -CheckOnly
+```
+
+Ao encerrar o Expo com Ctrl+C, os containers continuam disponíveis. Para
+pará-los sem apagar volumes, execute na raiz:
+
+```powershell
+docker compose stop backend redis
+```
+
+Os testes do script podem ser executados na raiz com
+`.\scripts\test-dev.ps1`. Eles simulam instaladores e serviços; não acessam
+Supabase, não sobem containers nem instalam programas.
 
 ### 1. Configure as variáveis de ambiente
 
@@ -81,8 +168,9 @@ REDIS_URL=redis://localhost:6379/0
 
 Não versione esse arquivo nem exponha as credenciais.
 
-No Docker Compose, use `REDIS_URL=redis://redis:6379/0`. O serviço Redis não
-publica porta no host. Para outro ambiente, use uma instância Redis protegida
+No Docker Compose, o backend recebe automaticamente `REDIS_URL` apontando
+para o serviço `redis` local, independentemente do valor no `.env`. O Redis não
+publica porta no host. Fora do Compose, use uma instância Redis protegida
 e a respectiva URL; `rediss://` habilita TLS. Sem Redis disponível, o login
 responde `503` em vez de aceitar tentativas sem limite. Cinco falhas por e-mail
 ou vinte por IP em quinze minutos respondem `429` com `Retry-After`. O backend
