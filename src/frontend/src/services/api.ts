@@ -24,7 +24,7 @@ export async function requisitar<T>(
   caminho: string,
   signal?: AbortSignal,
   opcoes?: {
-    method?: "GET" | "PATCH" | "POST";
+    method?: "GET" | "PATCH" | "POST" | "DELETE";
     body?: unknown;
     publica?: boolean;
   },

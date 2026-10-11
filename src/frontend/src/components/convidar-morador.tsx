@@ -1,6 +1,5 @@
 import * as Clipboard from "expo-clipboard";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -18,54 +17,14 @@ import {
   type Casa,
   type ConviteCasa,
 } from "@/services/casas-api";
-import { carregarUsuarioAtual } from "@/services/tarefas-api";
-
-export function ConvidarMorador({ casa }: { casa: Casa }) {
-  const [usuarioId, setUsuarioId] = useState<string>();
-  const [erro, setErro] = useState<string>();
-  const [tentativa, setTentativa] = useState(0);
-
-  useFocusEffect(
-    useCallback(() => {
-      const controlador = new AbortController();
-      setUsuarioId(undefined);
-      setErro(undefined);
-      carregarUsuarioAtual(controlador.signal)
-        .then((usuario) => {
-          if (!controlador.signal.aborted) setUsuarioId(usuario.id);
-        })
-        .catch(() => {
-          if (!controlador.signal.aborted) {
-            setErro("Não foi possível verificar seu acesso aos convites.");
-          }
-        });
-      return () => {
-        controlador.abort();
-        setUsuarioId(undefined);
-      };
-      // A nova tentativa precisa refazer a consulta mesmo sem mudar de aba.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tentativa]),
-  );
-
-  if (erro) {
-    return (
-      <View style={styles.feedback}>
-        <Text accessibilityRole="alert" style={styles.error}>
-          {erro}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setTentativa((valor) => valor + 1)}
-          style={styles.button}
-        >
-          <Text style={styles.buttonText}>Verificar acesso aos convites</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  if (!usuarioId || usuarioId !== casa.fk_usuario_id) return null;
+export function ConvidarMorador({
+  casa,
+  usuarioId,
+}: {
+  casa: Casa;
+  usuarioId: string;
+}) {
+  if (usuarioId !== casa.fk_usuario_id) return null;
   return <EmissaoConvite key={casa.id} casa={casa} />;
 }
 
@@ -261,7 +220,6 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
 }
 
 const styles = StyleSheet.create({
-  feedback: { gap: 12 },
   card: {
     padding: 24,
     borderRadius: 24,
