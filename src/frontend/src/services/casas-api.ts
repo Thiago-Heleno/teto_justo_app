@@ -33,6 +33,12 @@ export function entrarCasa(convite: string, signal?: AbortSignal) {
   });
 }
 
+export function sairDaCasa(casaId: string, signal?: AbortSignal) {
+  return requisitar<void>(`/casas/${casaId}/sair`, signal, {
+    method: "DELETE",
+  });
+}
+
 export async function listarCasas(signal?: AbortSignal): Promise<Casa[]> {
   const casas: Casa[] = [];
   const limite = 100;

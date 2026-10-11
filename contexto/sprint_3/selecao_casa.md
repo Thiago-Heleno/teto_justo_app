@@ -72,8 +72,9 @@ armazenamento persistente.
 
 Na tela inicial da casa, **Convidar morador** aparece somente depois que
 `GET /usuarios/eu` confirma que a conta é o proprietário (`fk_usuario_id`).
-A identidade é consultada novamente ao voltar à aba; uma falha permite
-repetir a consulta. O backend continua autorizando cada emissão em
+A identidade também determina a visibilidade da ação de saída da casa. Ela é
+consultada novamente ao voltar à aba; uma falha oculta ambas as ações e
+permite repetir a consulta. O backend continua autorizando cada emissão em
 `POST /casas/{id_casa}/convites`, sem receber cargo ou usuário do frontend.
 
 - O clique gera um convite da casa ativa, bloqueando cliques repetidos.
@@ -97,6 +98,22 @@ repetir a consulta. O backend continua autorizando cada emissão em
 A API exige `CASA_CONVITE_SECRET` configurado. Os convites expiram em 24 horas.
 Não foram adicionados links/QR codes, envio automático ou cargos adicionais.
 
+## Saída de uma casa no app
+
+Na tela Início, **Sair desta casa** aparece somente quando `GET /usuarios/eu`
+confirma que a conta é moradora e não proprietária da casa ativa. A ação abre
+uma confirmação; cancelar não faz requisição. Confirmar envia
+`DELETE /casas/{id_casa}/sair` sem corpo, usando a sessão atual. O envio fica
+bloqueado para evitar chamadas repetidas.
+
+Após `204`, o app limpa a casa ativa e a preferência salva, mantém a conta
+conectada e volta à seleção com uma nova consulta da lista. `404` significa
+que o acesso já não está ativo e segue o mesmo retorno à seleção. `409`
+mantém a casa aberta e orienta a concluir ou reatribuir tarefas abertas;
+falhas de conexão também mantêm a casa aberta. `401` segue o encerramento
+de sessão do cliente compartilhado. O backend preserva saldo e histórico ao
+inativar o vínculo; um novo acesso requer convite.
+
 ## Implementação
 
 - `src/frontend/src/components/selecao-casa.tsx`: controle de acesso às abas,
@@ -107,21 +124,22 @@ Não foram adicionados links/QR codes, envio automático ou cargos adicionais.
   erros por campo, bloqueio de envio repetido e recuperação após criação.
 - `src/frontend/src/components/entrar-casa.tsx`: formulário de convite,
   validação, erros de entrada, bloqueio de envio repetido e abertura da casa.
-- `src/frontend/src/components/convidar-morador.tsx`: verificação da conta,
-  emissão de convite, cópia, validade, erros e descarte do painel.
+- `src/frontend/src/components/convidar-morador.tsx`: emissão de convite para
+  o proprietário verificado, cópia, validade, erros e descarte do painel.
 - `src/frontend/src/app/_layout.tsx`: exige seleção da casa após autenticação.
-- `src/frontend/src/app/index.tsx`: nome da casa ativa, ação de troca e acesso
-  ao convite, com conteúdo rolável para acomodar o painel em telas pequenas.
+- `src/frontend/src/app/index.tsx`: nome da casa ativa, verificação de
+  identidade, ações de troca, convite e saída da casa, com confirmação.
 - `src/frontend/src/services/casas-api.ts`: contrato da casa, listagem paginada
   e escolha inicial conforme preferência e quantidade de casas; criação
   autenticada com nome e endereço; entrada autenticada por convite; emissão
-  autenticada com o ID da casa, recebendo `convite` e `expira_em`.
+  autenticada com o ID da casa, recebendo `convite` e `expira_em`; saída
+  autenticada sem corpo.
 - `src/frontend/src/services/api.ts`: mantém localização e mensagem dos erros
   de validação, além da mensagem geral já usada pelas outras telas. Não retém
   o campo `input` eventualmente retornado pelo backend.
 - `src/frontend/src/services/sessao-store.ts`: estado global da casa, vínculo
   ao ciclo da sessão e serialização das gravações para coordenar seleção,
-  logout e novo login.
+  saída da casa, logout e novo login.
 - `src/frontend/src/services/casa-storage.ts`: persiste apenas o ID da casa,
   usando SecureStore no aplicativo nativo e localStorage na web, seguindo o
   padrão existente do token.

@@ -65,6 +65,15 @@ export function trocarCasa() {
   sessao.setState({ casaAtiva: null });
 }
 
+export async function limparCasaAposSaida(casaId: string, token: string) {
+  await gravar(async () => {
+    const estado = sessao.getState();
+    if (estado.token !== token || estado.casaAtiva?.id !== casaId) return;
+    sessao.setState({ casaAtiva: null, casaPreferidaId: null });
+    await removerCasaSelecionada().catch(() => {});
+  });
+}
+
 export function encerrarSessao() {
   if (!encerrando) {
     encerrando = gravar(async () => {

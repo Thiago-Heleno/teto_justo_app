@@ -27,14 +27,21 @@ mock.module("../src/services/casa-storage.ts", {
   },
 });
 
-const { listarCasas, casaInicial, criarCasa, entrarCasa, criarConviteCasa } =
-  await import("../src/services/casas-api.ts");
+const {
+  listarCasas,
+  casaInicial,
+  criarCasa,
+  entrarCasa,
+  criarConviteCasa,
+  sairDaCasa,
+} = await import("../src/services/casas-api.ts");
 const {
   sessao,
   restaurarSessao,
   salvarSessao,
   selecionarCasa,
   trocarCasa,
+  limparCasaAposSaida,
   encerrarSessao,
 } = await import("../src/services/sessao-store.ts");
 const { carregarTarefas, carregarPlacar, carregarContextoTarefas } =
@@ -468,4 +475,80 @@ test("falha de conexão na entrada permite tentar novamente e abrir a casa retor
   await selecionarCasa(await entrarCasa("convite-simulado.assinatura"));
   assert.equal(sessao.getState().casaAtiva.id, "destino");
   assert.equal(casaSalva, "destino");
+});
+
+test("saída envia DELETE sem corpo com a sessão e limpa apenas a casa após 204", async () => {
+  const sinal = new AbortController().signal;
+  await selecionarCasa(casa("compartilhada"));
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/casas/compartilhada/sair");
+    assert.equal(opcoes.method, "DELETE");
+    assert.equal(opcoes.headers.Authorization, "Bearer sessao-teste");
+    assert.equal(opcoes.body, undefined);
+    assert.equal(opcoes.signal, sinal);
+    return { ok: true, status: 204 };
+  };
+
+  assert.equal(await sairDaCasa("compartilhada", sinal), undefined);
+  await limparCasaAposSaida("compartilhada", "sessao-teste");
+  assert.equal(sessao.getState().token, "sessao-teste");
+  assert.equal(sessao.getState().casaAtiva, null);
+  assert.equal(sessao.getState().casaPreferidaId, null);
+  assert.equal(casaSalva, null);
+});
+
+test("409 na saída mantém casa e preferência para permitir corrigir tarefas", async () => {
+  await selecionarCasa(casa("compartilhada"));
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 409,
+    json: async () => ({ detail: "O morador possui tarefas abertas nesta casa." }),
+  });
+  await assert.rejects(sairDaCasa("compartilhada"), (erro) => {
+    assert.ok(erro instanceof ErroApi);
+    assert.equal(erro.status, 409);
+    assert.equal(erro.message, "O morador possui tarefas abertas nesta casa.");
+    return true;
+  });
+  assert.equal(sessao.getState().casaAtiva.id, "compartilhada");
+  assert.equal(sessao.getState().casaPreferidaId, "compartilhada");
+  assert.equal(casaSalva, "compartilhada");
+});
+
+test("404 na saída permite limpar um acesso que já não existe", async () => {
+  await selecionarCasa(casa("compartilhada"));
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 404,
+    json: async () => ({ detail: "Vínculo não encontrado ou já deletado." }),
+  });
+  await assert.rejects(sairDaCasa("compartilhada"), (erro) => erro.status === 404);
+  await limparCasaAposSaida("compartilhada", "sessao-teste");
+  assert.equal(sessao.getState().casaAtiva, null);
+  assert.equal(casaSalva, null);
+});
+
+test("falha de conexão na saída mantém acesso local e permite nova tentativa", async () => {
+  await selecionarCasa(casa("compartilhada"));
+  globalThis.fetch = async () => {
+    throw new TypeError("Sem conexão");
+  };
+  await assert.rejects(sairDaCasa("compartilhada"), /Sem conexão/);
+  assert.equal(sessao.getState().casaAtiva.id, "compartilhada");
+  assert.equal(casaSalva, "compartilhada");
+  globalThis.fetch = async () => ({ ok: true, status: 204 });
+  await sairDaCasa("compartilhada");
+  await limparCasaAposSaida("compartilhada", "sessao-teste");
+  assert.equal(sessao.getState().casaAtiva, null);
+  assert.equal(casaSalva, null);
+});
+
+test("saída atrasada não limpa a casa de outra sessão", async () => {
+  await selecionarCasa(casa("compartilhada"));
+  await salvarSessao("nova-sessao");
+  await selecionarCasa(casa("nova"));
+  await limparCasaAposSaida("compartilhada", "sessao-teste");
+  assert.equal(sessao.getState().token, "nova-sessao");
+  assert.equal(sessao.getState().casaAtiva.id, "nova");
+  assert.equal(casaSalva, "nova");
 });
