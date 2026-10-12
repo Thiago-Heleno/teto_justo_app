@@ -13,7 +13,7 @@ Na **raiz do repositório**, execute no PowerShell:
 ```
 
 O script verifica as dependências, solicita a instalação do que faltar,
-orienta a configuração do Supabase de teste no `.env`, inicia backend e Redis
+orienta a configuração do Supabase de teste no `.env`, inicia o backend
 e abre o Expo com a URL local da API configurada. No celular, use o Expo Go
 compatível com o SDK 57 e a mesma rede do computador para ler o QR code.
 
@@ -32,7 +32,7 @@ As opções de IP, diagnóstico, encerramento e solução de problemas estão no
 
 Para iniciar os serviços separadamente, siga a
 [configuração manual no README principal](../../README.md#como-rodar-localmente),
-incluindo backend, Redis e `EXPO_PUBLIC_API_URL`. No celular, essa URL precisa
+incluindo backend e `EXPO_PUBLIC_API_URL`. No celular, essa URL precisa
 usar um endereço acessível do computador, e não `localhost`.
 
 Com o backend configurado e iniciado, execute em `src/frontend/`:

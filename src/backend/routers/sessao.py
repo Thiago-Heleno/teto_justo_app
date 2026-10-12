@@ -26,7 +26,6 @@ router = APIRouter(prefix="/sessoes", tags=["Sessões"])
                 }
             },
         },
-        503: {"description": "Serviço de limitação de login indisponível."},
     },
 )
 def login(

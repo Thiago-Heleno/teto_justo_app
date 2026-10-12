@@ -207,17 +207,14 @@ function Start-Dev {
             Invoke-DevCommand npm.cmd @('ci') 'npm ci falhou. Confira a conexao e a compatibilidade do package-lock.json.'
             [IO.File]::WriteAllText($stamp, $fingerprint)
         }
-        Write-Host 'Iniciando Redis e backend (o agendador de penalidades nao sera iniciado)...'
-        Invoke-DevCommand docker.exe ($compose + @('up', '-d', '--build', 'redis', 'backend')) `
+        Write-Host 'Iniciando backend (o agendador de penalidades nao sera iniciado)...'
+        Invoke-DevCommand docker.exe ($compose + @('up', '-d', '--build', 'backend')) `
             'Falha ao subir os containers. Consulte o erro do Docker acima; o Expo nao foi iniciado.'
         Wait-DevBackend
-        Invoke-DevCommand docker.exe ($compose + @('exec', '-T', 'backend', 'python', '-c',
-            "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], socket_connect_timeout=3, socket_timeout=3).ping()")) `
-            'Backend respondeu, mas nao conseguiu acessar o Redis. O Expo nao foi iniciado.' -Capture | Out-Null
         $env:EXPO_PUBLIC_API_URL = "http://${lanIp}:8000"
         $env:REACT_NATIVE_PACKAGER_HOSTNAME = $lanIp
         $env:EXPO_NO_DOTENV = '1'
-        Write-Host "Backend e Redis prontos. No celular, confira http://${lanIp}:8000/health."
+        Write-Host "Backend pronto. No celular, confira http://${lanIp}:8000/health."
         Write-Host 'Supabase configurado; conexao, credenciais e migrations ainda dependem da validacao dos fluxos do app.'
         Write-Host 'Use o mesmo Wi-Fi. Instale o Expo Go compativel com SDK 57: https://expo.dev/go'
         Write-Host 'Se o Expo solicitar login, siga a orientacao exibida. Leia o QR code no Expo Go.'
@@ -226,7 +223,7 @@ function Start-Dev {
     } finally {
         foreach ($name in $variables) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
         Pop-Location
-        Write-Host 'Se algum container foi iniciado, ele continua disponivel. Para parar, na raiz: docker compose stop backend redis'
+        Write-Host 'Se algum container foi iniciado, ele continua disponivel. Para parar, na raiz: docker compose stop backend'
     }
 }
 
