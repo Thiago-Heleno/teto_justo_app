@@ -13,7 +13,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
-import { carregarPlacar, type Placar } from "@/services/tarefas-api";
+import {
+  carregarExtrato,
+  carregarPlacar,
+  carregarRanking,
+  type Extrato,
+  type Placar,
+  type Ranking,
+} from "@/services/tarefas-api";
 import {
   periodosPlacar,
   resumirPlacar,
@@ -21,9 +28,15 @@ import {
 } from "@/utils/placar";
 
 const numero = new Intl.NumberFormat("pt-BR");
+const dataHora = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short",
+});
 
 export default function PontuacaoScreen() {
   const [placar, setPlacar] = useState<Placar>();
+  const [ranking, setRanking] = useState<Ranking>();
+  const [extrato, setExtrato] = useState<Extrato>();
   const [periodo, setPeriodo] = useState<PeriodoPlacar>("semanal");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string>();
@@ -37,9 +50,18 @@ export default function PontuacaoScreen() {
       setErro(undefined);
       // Promise.resolve também captura erro síncrono de configuração da API.
       Promise.resolve()
-        .then(() => carregarPlacar(controlador.signal))
-        .then((dados) => {
-          if (!controlador.signal.aborted) setPlacar(dados);
+        .then(() =>
+          Promise.all([
+            carregarPlacar(controlador.signal),
+            carregarRanking(controlador.signal),
+            carregarExtrato(controlador.signal),
+          ]),
+        )
+        .then(([dadosPlacar, dadosRanking, dadosExtrato]) => {
+          if (controlador.signal.aborted) return;
+          setPlacar(dadosPlacar);
+          setRanking(dadosRanking);
+          setExtrato(dadosExtrato);
         })
         .catch((falha: unknown) => {
           if (!controlador.signal.aborted) {
@@ -216,6 +238,72 @@ export default function PontuacaoScreen() {
               )}
             </View>
           )}
+
+          {ranking && (
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                RANKING GERAL
+              </Text>
+              <Text style={styles.caption}>
+                Pontos de todo o histórico da casa, já descontadas as tarefas
+                reabertas.
+              </Text>
+              {ranking.moradores.map((morador) => (
+                <View key={morador.usuario_id} style={styles.eventRow}>
+                  <Text style={styles.name}>
+                    {morador.posicao}º {morador.nome}
+                  </Text>
+                  <Text style={styles.name}>
+                    {numero.format(morador.pontos)} pts
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {extrato && (
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                EXTRATO
+              </Text>
+              {extrato.eventos.length === 0 ? (
+                <Text style={styles.body}>
+                  Ainda não há movimentações de pontos nesta casa.
+                </Text>
+              ) : (
+                extrato.eventos.map((evento) => {
+                  const nome = placar?.moradores.find(
+                    (morador) => morador.usuario_id === evento.fk_usuario_id,
+                  )?.nome;
+                  return (
+                    <View key={evento.id} style={styles.eventRow}>
+                      <View style={styles.residentCopy}>
+                        <Text style={styles.name}>
+                          {evento.tipo === "reversal"
+                            ? "Estorno por reabertura"
+                            : "Tarefa concluída"}
+                          {nome ? ` · ${nome}` : ""}
+                        </Text>
+                        <Text style={styles.caption}>
+                          {dataHora.format(new Date(evento.criado_em))}
+                        </Text>
+                      </View>
+                      <Text style={styles.name}>
+                        {evento.pontuacao > 0 ? "+" : ""}
+                        {numero.format(evento.pontuacao)} pts
+                      </Text>
+                    </View>
+                  );
+                })
+              )}
+              {extrato.total > extrato.eventos.length && (
+                <Text style={styles.caption}>
+                  Mostrando as {extrato.eventos.length} movimentações mais
+                  recentes de {extrato.total}.
+                </Text>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -346,6 +434,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 26,
     fontWeight: "500",
+  },
+  eventRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.three,
+    backgroundColor: Caldera.pumice,
+    borderRadius: 24,
+    padding: Spacing.three,
   },
   pointsBlock: { gap: 4 },
   points: {
