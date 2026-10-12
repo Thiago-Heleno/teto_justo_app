@@ -739,7 +739,12 @@ const styles = StyleSheet.create({
   },
   sectionTitleSmall: { fontSize: 32, lineHeight: 36, letterSpacing: 0.64 },
   resultCount: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
-  taskGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
+  taskGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    gap: Spacing.four,
+  },
   taskCardSlot: {
     minWidth: 0,
     flexGrow: 1,
@@ -747,8 +752,6 @@ const styles = StyleSheet.create({
     flexBasis: 320,
   },
   taskCard: {
-    flex: 1,
-    minHeight: 330,
     backgroundColor: Caldera.limestone,
     borderRadius: 40,
     padding: Spacing.five,
@@ -787,7 +790,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   taskMeta: {
-    marginTop: "auto",
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",

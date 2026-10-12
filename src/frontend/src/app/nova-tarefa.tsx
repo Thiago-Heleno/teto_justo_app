@@ -92,6 +92,7 @@ export default function NovaTarefaScreen() {
   const descricaoRef = useRef<TextInput>(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [alturaDescricao, setAlturaDescricao] = useState(56);
   const [peso, setPeso] = useState<PesoTarefa | null>(null);
   const [dias, setDias] = useState<PrazoDias | null>(null);
   const [atrasoMaximo, setAtrasoMaximo] = useState<PrazoDias | null>(null);
@@ -107,6 +108,14 @@ export default function NovaTarefaScreen() {
   const [salvando, setSalvando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string>();
   const cardStyle = [styles.card, width < 600 && styles.compactCard];
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const campo = descricaoRef.current as unknown as HTMLTextAreaElement | null;
+    if (!campo) return;
+    campo.style.height = "auto";
+    campo.style.height = `${Math.max(56, campo.scrollHeight)}px`;
+  }, [descricao, width, contexto, tarefa]);
 
   async function criarTarefa() {
     const resultado = prepararTarefa(
@@ -442,11 +451,30 @@ export default function NovaTarefaScreen() {
                     <TextInput
                       ref={descricaoRef}
                       accessibilityLabel="Descrição, opcional"
-                      style={[styles.input, styles.description]}
+                      style={[
+                        styles.input,
+                        styles.description,
+                        Platform.OS !== "web" && { height: alturaDescricao },
+                      ]}
                       placeholder="O que precisa ser feito?"
                       placeholderTextColor={Caldera.obsidian}
                       selectionColor={Caldera.ember}
                       multiline
+                      numberOfLines={1}
+                      scrollEnabled={false}
+                      onContentSizeChange={
+                        Platform.OS === "web"
+                          ? undefined
+                          : (event) =>
+                              setAlturaDescricao(
+                                Math.max(
+                                  56,
+                                  Math.ceil(
+                                    event.nativeEvent.contentSize.height,
+                                  ),
+                                ),
+                              )
+                      }
                       textAlignVertical="top"
                       value={descricao}
                       onChangeText={setDescricao}
@@ -1007,7 +1035,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
-  description: { minHeight: 128, borderRadius: 40 },
+  description: { borderRadius: 28, lineHeight: 24 },
   options: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   option: {
     flexGrow: 1,
