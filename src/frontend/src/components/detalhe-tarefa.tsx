@@ -30,6 +30,7 @@ type Props = {
   onVoltar: () => void;
   onEditar?: () => void;
   onFinalizar: () => Promise<ResultadoFinalizacao>;
+  onReabrir?: () => Promise<void>;
   onContinuar: () => void;
 };
 
@@ -56,12 +57,15 @@ export function DetalheTarefa({
   onVoltar,
   onEditar,
   onFinalizar,
+  onReabrir,
   onContinuar,
 }: Props) {
   const { width } = useWindowDimensions();
   const telaPequena = width < 600;
   const [finalizando, setFinalizando] = useState(false);
   const [erroFinalizacao, setErroFinalizacao] = useState<string>();
+  const [reabrindo, setReabrindo] = useState(false);
+  const [erroReabertura, setErroReabertura] = useState<string>();
   const [resultado, setResultado] = useState<ResultadoFinalizacao>();
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
@@ -98,6 +102,23 @@ export function DetalheTarefa({
       );
     } finally {
       setFinalizando(false);
+    }
+  }
+  async function reabrirTarefa() {
+    if (!onReabrir) return;
+    setReabrindo(true);
+    setErroReabertura(undefined);
+
+    try {
+      await onReabrir();
+    } catch (erro: unknown) {
+      setErroReabertura(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível reabrir a tarefa.",
+      );
+    } finally {
+      setReabrindo(false);
     }
   }
   const voltarComArraste = Gesture.Pan()
@@ -200,7 +221,7 @@ export function DetalheTarefa({
             </View>
           </View>
 
-          {(onEditar || podeFinalizar) && (
+          {(onEditar || podeFinalizar || (finalizada && onReabrir)) && (
             <View style={styles.completionSection}>
               {onEditar && (
                 <MotionPressable
@@ -231,9 +252,34 @@ export function DetalheTarefa({
                   </Text>
                 </MotionPressable>
               )}
+              {finalizada && onReabrir && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    busy: reabrindo,
+                    disabled: reabrindo,
+                  }}
+                  disabled={reabrindo}
+                  onPress={reabrirTarefa}
+                  style={[
+                    styles.editButton,
+                    telaPequena && styles.buttonSmall,
+                    reabrindo && styles.finishButtonDisabled,
+                  ]}
+                >
+                  <Text style={styles.editButtonText}>
+                    {reabrindo ? "Reabrindo..." : "Reabrir tarefa"}
+                  </Text>
+                </MotionPressable>
+              )}
               {erroFinalizacao && (
                 <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                   {erroFinalizacao}
+                </Text>
+              )}
+              {erroReabertura && (
+                <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                  {erroReabertura}
                 </Text>
               )}
             </View>

@@ -35,6 +35,7 @@ import {
   carregarUsuarioAtual,
   editarTarefa,
   finalizarTarefa,
+  reabrirTarefa,
   type Casa,
   type Morador,
   type Placar,
@@ -47,6 +48,7 @@ import {
   type FiltrosTarefa,
   type FiltroPrazo,
 } from "@/utils/filtros-tarefa";
+import { podeReabrirTarefa } from "@/utils/reabertura";
 
 type FilterPillProps = {
   label: string;
@@ -256,6 +258,18 @@ export default function TarefasScreen() {
     };
   }
 
+  async function reabrirTarefaSelecionada() {
+    if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
+    const tarefaReaberta = await reabrirTarefa(tarefaSelecionada.id);
+    setTarefas((atuais) =>
+      atuais?.map((tarefa) =>
+        tarefa.id === tarefaReaberta.id ? tarefaReaberta : tarefa,
+      ),
+    );
+    // Recarrega saldo, placar e contagem de tarefas em aberto.
+    setTentativa((atual) => atual + 1);
+  }
+
   function continuarAposFinalizacao() {
     setTarefaSelecionadaId(undefined);
     setTentativa((atual) => atual + 1);
@@ -329,6 +343,15 @@ export default function TarefasScreen() {
                 : undefined
             }
             onFinalizar={concluirTarefaSelecionada}
+            onReabrir={
+              podeReabrirTarefa(
+                tarefaSelecionada,
+                usuarioAtual.id,
+                casa.fk_usuario_id,
+              )
+                ? reabrirTarefaSelecionada
+                : undefined
+            }
             onContinuar={continuarAposFinalizacao}
           />
         ) : (

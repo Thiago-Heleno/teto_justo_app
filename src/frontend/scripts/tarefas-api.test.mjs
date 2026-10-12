@@ -33,6 +33,9 @@ const {
   criarTarefa,
   editarTarefa,
   finalizarTarefa,
+  carregarExtrato,
+  carregarRanking,
+  reabrirTarefa,
   temConfiguracaoTarefas,
 } = await import("../src/services/tarefas-api.ts");
 
@@ -400,4 +403,29 @@ test("configuração ausente é capturada pelos handlers da tela, sem erro sínc
       }
     });
   }
+});
+
+test("consulta ranking, extrato e reabertura da casa selecionada", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  sessao.setState({ token: "sessao-valida", pronta: true });
+  const original = globalThis.fetch;
+  const chamadas = [];
+  globalThis.fetch = async (url, opcoes) => {
+    chamadas.push({ url, metodo: opcoes.method });
+    return { ok: true, json: async () => ({}) };
+  };
+
+  try {
+    await carregarRanking();
+    await carregarExtrato();
+    await reabrirTarefa("tarefa-123");
+  } finally {
+    globalThis.fetch = original;
+  }
+
+  assert.deepEqual(chamadas, [
+    { url: "http://api.test/casas/casa-123/ranking", metodo: "GET" },
+    { url: "http://api.test/casas/casa-123/extrato", metodo: "GET" },
+    { url: "http://api.test/tarefas/tarefa-123/reaberturas", metodo: "POST" },
+  ]);
 });

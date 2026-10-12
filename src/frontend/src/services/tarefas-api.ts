@@ -81,6 +81,32 @@ export type Placar = {
   }[];
 };
 
+export type EventoExtrato = {
+  id: string;
+  fk_usuario_id: string;
+  fk_tarefa_id: string;
+  pontuacao: number;
+  tipo: "credito" | "reversal";
+  criado_em: string;
+};
+
+export type Extrato = {
+  casa_id: string;
+  fuso_horario: string;
+  total: number;
+  eventos: EventoExtrato[];
+};
+
+export type Ranking = {
+  casa_id: string;
+  moradores: {
+    posicao: number;
+    usuario_id: string;
+    nome: string;
+    pontos: number;
+  }[];
+};
+
 export function temConfiguracaoTarefas() {
   return Boolean(process.env.EXPO_PUBLIC_API_URL);
 }
@@ -110,6 +136,16 @@ export function carregarUsuarioAtual(signal?: AbortSignal) {
 export function carregarPlacar(signal?: AbortSignal) {
   const { casaId } = configuracao();
   return requisitar<Placar>(`/casas/${casaId}/placar`, signal);
+}
+
+export function carregarExtrato(signal?: AbortSignal) {
+  const { casaId } = configuracao();
+  return requisitar<Extrato>(`/casas/${casaId}/extrato`, signal);
+}
+
+export function carregarRanking(signal?: AbortSignal) {
+  const { casaId } = configuracao();
+  return requisitar<Ranking>(`/casas/${casaId}/ranking`, signal);
 }
 
 export function criarTarefa(dados: TarefaCriar, signal?: AbortSignal) {
@@ -151,6 +187,12 @@ export async function carregarTarefas(
 
 export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
   return requisitar<Tarefa>(`/tarefas/${idTarefa}/conclusoes`, signal, {
+    method: "POST",
+  });
+}
+
+export function reabrirTarefa(idTarefa: string, signal?: AbortSignal) {
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}/reaberturas`, signal, {
     method: "POST",
   });
 }
