@@ -73,8 +73,10 @@ export default function PontuacaoScreen() {
         ]}
       >
         <View style={styles.content}>
-          <View style={styles.hero}>
-            <View style={styles.heroCopy}>
+          <View style={[styles.hero, width < 600 && styles.heroSmall]}>
+            <View
+              style={[styles.heroCopy, width < 600 && styles.heroItemSmall]}
+            >
               <Text style={styles.eyebrow}>CADA TAREFA CONTA</Text>
               <Text
                 accessibilityRole="header"
@@ -88,7 +90,9 @@ export default function PontuacaoScreen() {
               </Text>
             </View>
             {resumo && (
-              <View style={styles.statCard}>
+              <View
+                style={[styles.statCard, width < 600 && styles.heroItemSmall]}
+              >
                 <Text style={styles.statLabel}>
                   TOTAL DA CASA · {rotulo.toUpperCase()}
                 </Text>
@@ -233,6 +237,8 @@ const styles = StyleSheet.create({
   pageSmallWeb: { paddingTop: 160, paddingHorizontal: Spacing.three },
   content: { width: "100%", maxWidth: 1280, alignSelf: "center", gap: 32 },
   hero: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
+  heroSmall: { flexDirection: "column", flexWrap: "nowrap" },
+  heroItemSmall: { flexBasis: "auto", flexGrow: 0, flexShrink: 0 },
   heroCopy: {
     flexGrow: 1,
     flexShrink: 1,
