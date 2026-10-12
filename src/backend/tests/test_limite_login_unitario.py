@@ -79,6 +79,7 @@ def test_rota_bloqueia_antes_da_sexta_verificacao_de_senha(monkeypatch):
     from services.sessao import ServicoSessao
 
     chamadas = []
+    limitador = LimitadorLogin()
 
     def senha_incorreta(_self, _dados, antes_de_emitir_token=None):
         chamadas.append(1)
@@ -86,7 +87,7 @@ def test_rota_bloqueia_antes_da_sexta_verificacao_de_senha(monkeypatch):
 
     monkeypatch.setattr(ServicoSessao, "login", senha_incorreta)
     app.dependency_overrides[get_supabase] = object
-    app.dependency_overrides[get_limitador_login] = LimitadorLogin
+    app.dependency_overrides[get_limitador_login] = lambda: limitador
     try:
         with TestClient(app) as cliente:
             codigos = [

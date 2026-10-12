@@ -26,6 +26,7 @@ router = APIRouter(prefix="/sessoes", tags=["Sessões"])
                 }
             },
         },
+        503: {"description": "Não foi possível determinar o IP do cliente."},
     },
 )
 def login(
