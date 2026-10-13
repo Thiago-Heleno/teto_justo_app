@@ -10,7 +10,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
-import AppTabs from "@/components/app-tabs";
 import { CriarCasa } from "@/components/criar-casa";
 import { EntrarCasa } from "@/components/entrar-casa";
 import { Caldera, CompactFont } from "@/constants/theme";
@@ -19,18 +18,15 @@ import { casaInicial, listarCasas, type Casa } from "@/services/casas-api";
 import { selecionarCasa, sessao } from "@/services/sessao-store";
 
 export function FluxoCasa() {
-  const casaAtiva = useStore(sessao, (estado) => estado.casaAtiva);
-  const [restaurar, setRestaurar] = useState(true);
+  const restaurar = useStore(sessao, (estado) => estado.restaurarCasa);
   const [formulario, setFormulario] = useState<"criar" | "entrar" | null>(null);
 
   const selecionar = useCallback(async (casa: Casa, signal?: AbortSignal) => {
     if (await selecionarCasa(casa, signal)) {
-      setRestaurar(false);
       setFormulario(null);
     }
   }, []);
 
-  if (casaAtiva) return <AppTabs key={casaAtiva.id} />;
   if (formulario === "criar") {
     return (
       <CriarCasa onVoltar={() => setFormulario(null)} onCriada={selecionar} />
@@ -46,11 +42,11 @@ export function FluxoCasa() {
       restaurar={restaurar}
       selecionar={selecionar}
       onCriar={() => {
-        setRestaurar(false);
+        sessao.setState({ restaurarCasa: false });
         setFormulario("criar");
       }}
       onEntrar={() => {
-        setRestaurar(false);
+        sessao.setState({ restaurarCasa: false });
         setFormulario("entrar");
       }}
     />

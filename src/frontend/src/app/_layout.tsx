@@ -1,27 +1,21 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { useEffect, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
-import { ActivityIndicator, useColorScheme, View } from "react-native";
+import { ActivityIndicator, Text, useColorScheme, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useStore } from "zustand";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import { CadastroScreen } from "@/components/cadastro";
-import { LoginScreen } from "@/components/login";
-import { FluxoCasa } from "@/components/selecao-casa";
 import { Caldera } from "@/constants/theme";
 import { iniciarAutenticacao } from "@/services/autenticacao-api";
 import { sessao } from "@/services/sessao-store";
 
-SplashScreen.preventAutoHideAsync();
+void SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { token, pronta } = useStore(sessao);
+  const { token, pronta, casaAtiva } = useStore(sessao);
   const [aviso, setAviso] = useState<string>();
-  const [cadastroAberto, setCadastroAberto] = useState(false);
-  const [emailLogin, setEmailLogin] = useState("");
-  const [mensagemCadastro, setMensagemCadastro] = useState<string>();
 
   useEffect(() => {
     void iniciarAutenticacao().catch(() => {
@@ -43,36 +37,28 @@ export default function TabLayout() {
           >
             <ActivityIndicator accessibilityLabel="Carregando sessão" />
           </View>
-        ) : token ? (
-          <FluxoCasa key={token} />
-        ) : cadastroAberto ? (
-          <CadastroScreen
-            emailInicial={emailLogin}
-            onVoltar={(email) => {
-              setEmailLogin(email);
-              setCadastroAberto(false);
-            }}
-            onCadastrado={(email) => {
-              setEmailLogin(email);
-              setMensagemCadastro(
-                "Conta criada. Entre com seu e-mail e senha.",
-              );
-              setAviso(undefined);
-              setCadastroAberto(false);
-            }}
-          />
         ) : (
-          <LoginScreen
-            aviso={aviso}
-            emailInicial={emailLogin}
-            mensagemCadastro={mensagemCadastro}
-            onIniciarLogin={() => setMensagemCadastro(undefined)}
-            onCriarConta={(email) => {
-              setEmailLogin(email);
-              setMensagemCadastro(undefined);
-              setCadastroAberto(true);
-            }}
-          />
+          <>
+            {!token && aviso && (
+              <Text
+                accessibilityRole="alert"
+                style={{ padding: 16, color: "#a32316" }}
+              >
+                {aviso}
+              </Text>
+            )}
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Protected guard={!token}>
+                <Stack.Screen name="login" />
+              </Stack.Protected>
+              <Stack.Protected guard={Boolean(token) && !casaAtiva}>
+                <Stack.Screen name="casas" />
+              </Stack.Protected>
+              <Stack.Protected guard={Boolean(token) && Boolean(casaAtiva)}>
+                <Stack.Screen name="(app)" />
+              </Stack.Protected>
+            </Stack>
+          </>
         )}
       </ThemeProvider>
     </GestureHandlerRootView>

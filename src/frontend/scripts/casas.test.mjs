@@ -74,6 +74,7 @@ beforeEach(() => {
     pronta: true,
     casaAtiva: null,
     casaPreferidaId: null,
+    restaurarCasa: true,
   });
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";
   process.env.EXPO_PUBLIC_CASA_ID = "casa-legada";
@@ -502,7 +503,9 @@ test("409 na saída mantém casa e preferência para permitir corrigir tarefas",
   globalThis.fetch = async () => ({
     ok: false,
     status: 409,
-    json: async () => ({ detail: "O morador possui tarefas abertas nesta casa." }),
+    json: async () => ({
+      detail: "O morador possui tarefas abertas nesta casa.",
+    }),
   });
   await assert.rejects(sairDaCasa("compartilhada"), (erro) => {
     assert.ok(erro instanceof ErroApi);
@@ -522,7 +525,10 @@ test("404 na saída permite limpar um acesso que já não existe", async () => {
     status: 404,
     json: async () => ({ detail: "Vínculo não encontrado ou já deletado." }),
   });
-  await assert.rejects(sairDaCasa("compartilhada"), (erro) => erro.status === 404);
+  await assert.rejects(
+    sairDaCasa("compartilhada"),
+    (erro) => erro.status === 404,
+  );
   await limparCasaAposSaida("compartilhada", "sessao-teste");
   assert.equal(sessao.getState().casaAtiva, null);
   assert.equal(casaSalva, null);
@@ -551,4 +557,24 @@ test("saída atrasada não limpa a casa de outra sessão", async () => {
   assert.equal(sessao.getState().token, "nova-sessao");
   assert.equal(sessao.getState().casaAtiva.id, "nova");
   assert.equal(casaSalva, "nova");
+});
+
+test("trocar de casa mantém a lista aberta mesmo com preferência salva", async () => {
+  await selecionarCasa(casa("a"));
+  trocarCasa();
+  assert.equal(sessao.getState().casaAtiva, null);
+  assert.equal(sessao.getState().restaurarCasa, false);
+  assert.equal(sessao.getState().casaPreferidaId, "a");
+  await salvarSessao("nova-sessao");
+  assert.equal(sessao.getState().restaurarCasa, true);
+  assert.equal(sessao.getState().casaPreferidaId, null);
+});
+
+test("reabrir a sessão permite restaurar a preferência após consultar as casas", async () => {
+  await selecionarCasa(casa("a"));
+  trocarCasa();
+  await restaurarSessao();
+  assert.equal(sessao.getState().restaurarCasa, true);
+  assert.equal(sessao.getState().casaAtiva, null);
+  assert.equal(sessao.getState().casaPreferidaId, "a");
 });

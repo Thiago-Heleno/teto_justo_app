@@ -13,11 +13,13 @@ export const sessao = createStore<{
   pronta: boolean;
   casaAtiva: Casa | null;
   casaPreferidaId: string | null;
+  restaurarCasa: boolean;
 }>(() => ({
   token: null,
   pronta: false,
   casaAtiva: null,
   casaPreferidaId: null,
+  restaurarCasa: true,
 }));
 
 let encerrando: Promise<void> | null = null;
@@ -36,7 +38,13 @@ export async function restaurarSessao() {
     const casaPreferidaId = token
       ? await lerCasaSelecionada().catch(() => null)
       : null;
-    sessao.setState({ token, casaPreferidaId, casaAtiva: null });
+
+    sessao.setState({
+      token,
+      casaPreferidaId,
+      casaAtiva: null,
+      restaurarCasa: true,
+    });
   });
 }
 
@@ -44,32 +52,51 @@ export async function salvarSessao(token: string) {
   await gravar(async () => {
     await removerCasaSelecionada();
     await salvarToken(token);
-    sessao.setState({ token, casaAtiva: null, casaPreferidaId: null });
+
+    sessao.setState({
+      token,
+      casaAtiva: null,
+      casaPreferidaId: null,
+      restaurarCasa: true,
+    });
   });
 }
 
 export async function selecionarCasa(casa: Casa, signal?: AbortSignal) {
   const token = sessao.getState().token;
   let selecionada = false;
+
   await gravar(async () => {
     if (!token || token !== sessao.getState().token || signal?.aborted) return;
+
     await salvarCasaSelecionada(casa.id);
     if (signal?.aborted) return;
-    sessao.setState({ casaAtiva: casa, casaPreferidaId: casa.id });
+
+    sessao.setState({
+      casaAtiva: casa,
+      casaPreferidaId: casa.id,
+      restaurarCasa: false,
+    });
     selecionada = true;
   });
+
   return selecionada;
 }
 
 export function trocarCasa() {
-  sessao.setState({ casaAtiva: null });
+  sessao.setState({ casaAtiva: null, restaurarCasa: false });
 }
 
 export async function limparCasaAposSaida(casaId: string, token: string) {
   await gravar(async () => {
     const estado = sessao.getState();
     if (estado.token !== token || estado.casaAtiva?.id !== casaId) return;
-    sessao.setState({ casaAtiva: null, casaPreferidaId: null });
+
+    sessao.setState({
+      casaAtiva: null,
+      casaPreferidaId: null,
+      restaurarCasa: false,
+    });
     await removerCasaSelecionada().catch(() => {});
   });
 }
@@ -84,11 +111,13 @@ export function encerrarSessao() {
           token: null,
           casaAtiva: null,
           casaPreferidaId: null,
+          restaurarCasa: true,
         });
       }
     }).finally(() => {
       encerrando = null;
     });
   }
+
   return encerrando;
 }
