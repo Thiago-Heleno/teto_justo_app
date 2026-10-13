@@ -3,14 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
-import { Caldera } from "@/constants/theme";
+import { MotionPressable } from "@/components/motion-pressable";
+import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import {
   criarConviteCasa,
@@ -125,13 +125,13 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
   if (!aberto) {
     if (semPermissao) return null;
     return (
-      <Pressable
+      <MotionPressable
         accessibilityRole="button"
         onPress={() => void gerar()}
         style={[styles.button, styles.primaryButton]}
       >
         <Text style={styles.buttonText}>Convidar morador</Text>
-      </Pressable>
+      </MotionPressable>
     );
   }
 
@@ -171,7 +171,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
             />
           )}
           {!expirado && (
-            <Pressable
+            <MotionPressable
               accessibilityRole="button"
               accessibilityState={{ disabled: copiando, busy: copiando }}
               disabled={copiando}
@@ -181,7 +181,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
               <Text style={styles.buttonText}>
                 {copiando ? "Copiando…" : "Copiar convite"}
               </Text>
-            </Pressable>
+            </MotionPressable>
           )}
           {copiado && !expirado && (
             <Text accessibilityLiveRegion="polite" style={styles.description}>
@@ -197,7 +197,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
       )}
       <View style={styles.actions}>
         {!gerando && !semPermissao && (!convite || expirado) && (
-          <Pressable
+          <MotionPressable
             accessibilityRole="button"
             onPress={() => void gerar()}
             style={styles.button}
@@ -205,15 +205,15 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
             <Text style={styles.buttonText}>
               {expirado ? "Gerar novo convite" : "Tentar novamente"}
             </Text>
-          </Pressable>
+          </MotionPressable>
         )}
-        <Pressable
+        <MotionPressable
           accessibilityRole="button"
           onPress={fechar}
           style={styles.button}
         >
           <Text style={styles.buttonText}>Fechar convite</Text>
-        </Pressable>
+        </MotionPressable>
       </View>
     </View>
   );
@@ -221,33 +221,45 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
 
 const styles = StyleSheet.create({
   card: {
-    padding: 24,
-    borderRadius: 24,
+    width: "100%",
+    padding: Spacing.four,
+    borderRadius: 40,
     backgroundColor: Caldera.pumice,
-    gap: 16,
+    gap: Spacing.three,
   },
-  title: { color: Caldera.obsidian, fontSize: 23, fontWeight: "700" },
-  description: { color: "#555", fontSize: 16, lineHeight: 24 },
+  title: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 32,
+    lineHeight: 36,
+  },
+  description: {
+    color: Caldera.obsidian,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "500",
+  },
   invitation: {
     color: Caldera.obsidian,
     backgroundColor: Caldera.limestone,
     borderColor: Caldera.obsidian,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 24,
+    padding: Spacing.three,
     fontSize: 14,
     minHeight: 120,
     textAlignVertical: "top",
   },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   button: {
     alignSelf: "flex-start",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Caldera.obsidian,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
   },
   primaryButton: { backgroundColor: Caldera.ember, borderColor: Caldera.ember },
-  buttonText: { color: Caldera.obsidian, fontWeight: "600" },
+  buttonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   error: { color: "#a32316", lineHeight: 22 },
 });

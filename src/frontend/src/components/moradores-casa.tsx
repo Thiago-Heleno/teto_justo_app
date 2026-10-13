@@ -1,15 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
 
-import { Caldera } from "@/constants/theme";
+import { MotionPressable } from "@/components/motion-pressable";
+import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import {
   listarMoradoresCasa,
@@ -110,7 +104,7 @@ export function MoradoresCasa({
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.title}>
-        Moradores da casa
+        MORADORES DA CASA
       </Text>
       {!moradores && !erro && (
         <ActivityIndicator
@@ -137,7 +131,7 @@ export function MoradoresCasa({
             </Text>
           </View>
           {administrador && morador.id !== casa.fk_usuario_id && (
-            <Pressable
+            <MotionPressable
               accessibilityRole="button"
               accessibilityLabel={`Remover ${morador.nome}`}
               accessibilityState={{ disabled: removendo }}
@@ -146,12 +140,12 @@ export function MoradoresCasa({
               style={styles.button}
             >
               <Text style={styles.error}>Remover</Text>
-            </Pressable>
+            </MotionPressable>
           )}
         </View>
       ))}
       {(moradores || erro) && (
-        <Pressable
+        <MotionPressable
           accessibilityRole="button"
           accessibilityState={{ disabled: removendo }}
           disabled={removendo}
@@ -161,7 +155,7 @@ export function MoradoresCasa({
           <Text style={styles.buttonText}>
             {moradores ? "Atualizar moradores" : "Tentar novamente"}
           </Text>
-        </Pressable>
+        </MotionPressable>
       )}
       <Modal
         transparent
@@ -181,7 +175,7 @@ export function MoradoresCasa({
               precisará de um novo convite.
             </Text>
             <View style={styles.actions}>
-              <Pressable
+              <MotionPressable
                 accessibilityRole="button"
                 disabled={removendo}
                 accessibilityState={{ disabled: removendo }}
@@ -189,8 +183,8 @@ export function MoradoresCasa({
                 style={styles.button}
               >
                 <Text style={styles.buttonText}>Cancelar</Text>
-              </Pressable>
-              <Pressable
+              </MotionPressable>
+              <MotionPressable
                 accessibilityRole="button"
                 disabled={removendo}
                 accessibilityState={{ disabled: removendo, busy: removendo }}
@@ -200,7 +194,7 @@ export function MoradoresCasa({
                 <Text style={styles.error}>
                   {removendo ? "Removendo…" : "Confirmar remoção"}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
         </View>
@@ -212,44 +206,59 @@ export function MoradoresCasa({
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    padding: 24,
-    gap: 20,
-    borderRadius: 20,
-    backgroundColor: Caldera.pumice,
+    padding: Spacing.four,
+    gap: Spacing.three,
+    borderRadius: 40,
+    backgroundColor: Caldera.limestone,
   },
-  title: { color: Caldera.obsidian, fontSize: 24, fontWeight: "800" },
+  title: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 32,
+    lineHeight: 36,
+    letterSpacing: 0.64,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 12,
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: 24,
+    backgroundColor: Caldera.pumice,
   },
   identity: { flex: 1, minWidth: 140, gap: 4 },
-  name: { color: Caldera.obsidian, fontSize: 18 },
-  role: { color: "#555", fontSize: 14 },
+  name: {
+    color: Caldera.obsidian,
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: "500",
+  },
+  role: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   button: {
     alignSelf: "flex-start",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Caldera.obsidian,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
   },
-  buttonText: { color: Caldera.obsidian, fontWeight: "600" },
-  error: { color: "#a32316" },
+  buttonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  error: { color: "#a32316", lineHeight: 22 },
   backdrop: {
     flex: 1,
     justifyContent: "center",
-    padding: 24,
+    padding: Spacing.four,
     backgroundColor: "#0008",
   },
   modalCard: {
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    gap: 20,
-    padding: 24,
-    borderRadius: 20,
+    gap: Spacing.four,
+    padding: Spacing.five,
+    borderRadius: 40,
     backgroundColor: Caldera.limestone,
   },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
 });
