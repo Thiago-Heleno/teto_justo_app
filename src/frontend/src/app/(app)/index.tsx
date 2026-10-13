@@ -161,7 +161,10 @@ export default function HomeScreen() {
               <Link href="/tarefas" asChild>
                 <MotionPressable
                   accessibilityRole="button"
-                  style={[styles.button, styles.primaryButton]}
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    styles.primaryButton,
+                  ])}
                 >
                   <Text style={styles.buttonText}>Ver tarefas →</Text>
                 </MotionPressable>
