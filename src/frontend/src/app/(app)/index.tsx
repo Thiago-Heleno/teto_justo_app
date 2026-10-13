@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
 import { ConvidarMorador } from "@/components/convidar-morador";
+import { DetalhesCasa } from "@/components/detalhes-casa";
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { sair } from "@/services/autenticacao-api";
@@ -33,6 +34,7 @@ export default function HomeScreen() {
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
   const [saindo, setSaindo] = useState(false);
   const [saindoDaCasa, setSaindoDaCasa] = useState(false);
+  const [detalhesAbertos, setDetalhesAbertos] = useState(false);
   const envioEmAndamento = useRef(false);
   const ocupado = saindo || saindoDaCasa;
   const podeSairDaCasa = Boolean(
@@ -123,6 +125,22 @@ export default function HomeScreen() {
           <Link href="/tarefas" style={styles.link}>
             Ver tarefas
           </Link>
+          {casa && !detalhesAbertos && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setDetalhesAbertos(true)}
+              style={styles.button}
+            >
+              <Text style={styles.buttonText}>Detalhes da casa</Text>
+            </Pressable>
+          )}
+          {casa && detalhesAbertos && (
+            <DetalhesCasa
+              key={casa.id}
+              casaId={casa.id}
+              onFechar={() => setDetalhesAbertos(false)}
+            />
+          )}
           {erroIdentidade && (
             <View style={styles.verificacao}>
               <Text accessibilityRole="alert" style={styles.error}>

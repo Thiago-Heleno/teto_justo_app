@@ -34,6 +34,7 @@ const {
   entrarCasa,
   criarConviteCasa,
   sairDaCasa,
+  carregarDetalhesCasa,
 } = await import("../src/services/casas-api.ts");
 const {
   sessao,
@@ -149,6 +150,81 @@ test("falha de rede permite emitir convite novamente", async () => {
   };
   globalThis.fetch = async () => resposta(convite);
   assert.deepEqual(await criarConviteCasa("a"), convite);
+});
+
+test("consulta detalhes da casa e associa o nome do proprietário pelo ID", async () => {
+  const sinal = new AbortController().signal;
+  const detalhes = {
+    ...casa("a"),
+    fk_usuario_id: "proprietario",
+    foto: "iVBORw0KGgo",
+  };
+  const chamadas = [];
+  globalThis.fetch = async (url, opcoes) => {
+    chamadas.push(url);
+    assert.equal(opcoes.headers.Authorization, "Bearer sessao-teste");
+    assert.equal(opcoes.signal, sinal);
+    if (url === "http://api.test/casas/a") return resposta(detalhes);
+    if (url === "http://api.test/casas/a/moradores") {
+      return resposta([
+        { id: "outra-pessoa", nome: "Bruno" },
+        { id: "proprietario", nome: "Ana" },
+      ]);
+    }
+    assert.fail(`Consulta inesperada: ${url}`);
+  };
+
+  assert.deepEqual(await carregarDetalhesCasa("a", sinal), {
+    casa: detalhes,
+    nomeProprietario: "Ana",
+  });
+  assert.deepEqual(chamadas.sort(), [
+    "http://api.test/casas/a",
+    "http://api.test/casas/a/moradores",
+  ]);
+});
+
+test("mantém os detalhes e o ID quando não consegue obter o nome do proprietário", async () => {
+  let moradoresFalham = false;
+  globalThis.fetch = async (url) => {
+    if (url === "http://api.test/casas/a") return resposta(casa("a"));
+    if (moradoresFalham) throw new TypeError("Sem conexão");
+    return resposta([{ id: "outra-pessoa", nome: "Bruno" }]);
+  };
+
+  assert.deepEqual(await carregarDetalhesCasa("a"), {
+    casa: casa("a"),
+    nomeProprietario: null,
+  });
+  moradoresFalham = true;
+  assert.deepEqual(await carregarDetalhesCasa("a"), {
+    casa: casa("a"),
+    nomeProprietario: null,
+  });
+});
+
+test("erro de acesso aos detalhes permite tentar novamente", async () => {
+  let acesso = false;
+  globalThis.fetch = async (url) => {
+    if (url === "http://api.test/casas/a/moradores") return resposta([]);
+    if (acesso) return resposta(casa("a"));
+    return {
+      ok: false,
+      status: 403,
+      json: async () => ({ detail: "Acesso negado." }),
+    };
+  };
+
+  await assert.rejects(carregarDetalhesCasa("a"), (erro) => {
+    assert.ok(erro instanceof ErroApi);
+    assert.equal(erro.status, 403);
+    return true;
+  });
+  acesso = true;
+  assert.deepEqual(await carregarDetalhesCasa("a"), {
+    casa: casa("a"),
+    nomeProprietario: null,
+  });
 });
 
 test("zero casas mantém a escolha vazia; uma casa permite entrada automática", async () => {

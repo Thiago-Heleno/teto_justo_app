@@ -11,6 +11,10 @@ export type Casa = {
 
 export type CasaCriar = Pick<Casa, "nome" | "endereco">;
 
+export type DetalhesCasa = { casa: Casa; nomeProprietario: string | null };
+
+type MoradorCasa = { id: string; nome: string };
+
 export type ConviteCasa = { convite: string; expira_em: string };
 
 export function criarConviteCasa(casaId: string, signal?: AbortSignal) {
@@ -37,6 +41,28 @@ export function sairDaCasa(casaId: string, signal?: AbortSignal) {
   return requisitar<void>(`/casas/${casaId}/sair`, signal, {
     method: "DELETE",
   });
+}
+
+export async function carregarDetalhesCasa(
+  casaId: string,
+  signal?: AbortSignal,
+): Promise<DetalhesCasa> {
+  const [respostaCasa, respostaMoradores] = await Promise.allSettled([
+    requisitar<Casa>(`/casas/${casaId}`, signal),
+    requisitar<MoradorCasa[]>(`/casas/${casaId}/moradores`, signal),
+  ]);
+
+  if (respostaCasa.status === "rejected") throw respostaCasa.reason;
+
+  const casa = respostaCasa.value;
+  const nomeProprietario =
+    respostaMoradores.status === "fulfilled"
+      ? (respostaMoradores.value.find(
+          (morador) => morador.id === casa.fk_usuario_id,
+        )?.nome ?? null)
+      : null;
+
+  return { casa, nomeProprietario };
 }
 
 export async function listarCasas(signal?: AbortSignal): Promise<Casa[]> {
