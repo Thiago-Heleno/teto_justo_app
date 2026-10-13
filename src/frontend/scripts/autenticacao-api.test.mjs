@@ -26,6 +26,8 @@ mock.module("../src/services/token-storage.ts", {
 
 const { cadastrar, entrar, sair, iniciarAutenticacao } =
   await import("../src/services/autenticacao-api.ts");
+const { atualizarPerfil, excluirConta } =
+  await import("../src/services/perfil-api.ts");
 const { requisitar } = await import("../src/services/api.ts");
 const { sessao } = await import("../src/services/sessao-store.ts");
 const { validarCadastro } = await import("../src/utils/cadastro.ts");
@@ -330,4 +332,52 @@ test("401 de uma requisição antiga não apaga uma sessão nova", async () => {
   await assert.rejects(requisitar("/tarefas/"), /Não autenticado/);
   assert.equal(tokenSalvo, tokenNovo);
   assert.equal(sessao.getState().token, tokenNovo);
+});
+
+test("exclusão da conta encerra a sessão local só depois do 204", async () => {
+  tokenSalvo = novoToken();
+  const token = tokenSalvo;
+  sessao.setState({ token, pronta: true });
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/usuarios/morador");
+    assert.equal(opcoes.method, "DELETE");
+    assert.equal(opcoes.headers.Authorization, `Bearer ${token}`);
+    assert.equal(sessao.getState().token, token);
+    return { ok: true, status: 204 };
+  };
+  await excluirConta("morador");
+  assert.equal(tokenSalvo, null);
+  assert.equal(sessao.getState().token, null);
+});
+
+test("proprietário recebe o 409 da API e continua com a sessão", async () => {
+  tokenSalvo = novoToken();
+  const token = tokenSalvo;
+  sessao.setState({ token, pronta: true });
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 409,
+    json: async () => ({ detail: "Você é proprietário de uma casa." }),
+  });
+  await assert.rejects(
+    excluirConta("morador"),
+    (erro) => erro.status === 409 && /proprietário/.test(erro.message),
+  );
+  assert.equal(tokenSalvo, token);
+  assert.equal(sessao.getState().token, token);
+});
+
+test("edição do perfil envia só os campos alterados e devolve os dados novos", async () => {
+  sessao.setState({ token: novoToken(), pronta: true });
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/usuarios/morador");
+    assert.equal(opcoes.method, "PATCH");
+    assert.deepEqual(JSON.parse(opcoes.body), { nome: "Nova" });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "morador", nome: "Nova", email: "a@b.co" }),
+    };
+  };
+  assert.equal((await atualizarPerfil("morador", { nome: "Nova" })).nome, "Nova");
 });
