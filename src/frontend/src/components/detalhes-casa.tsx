@@ -1,14 +1,9 @@
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { Caldera } from "@/constants/theme";
+import { MotionPressable } from "@/components/motion-pressable";
+import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import {
   carregarDetalhesCasa,
@@ -69,15 +64,15 @@ export function DetalhesCasa({
     <View style={styles.card}>
       <View style={styles.header}>
         <Text accessibilityRole="header" style={styles.title}>
-          Detalhes da casa
+          DETALHES DA CASA
         </Text>
-        <Pressable
+        <MotionPressable
           accessibilityRole="button"
           onPress={onFechar}
           style={styles.button}
         >
           <Text style={styles.buttonText}>Fechar</Text>
-        </Pressable>
+        </MotionPressable>
       </View>
 
       {!dados && !erro && (
@@ -92,7 +87,7 @@ export function DetalhesCasa({
           <Text accessibilityRole="alert" style={styles.error}>
             {erro}
           </Text>
-          <Pressable
+          <MotionPressable
             accessibilityRole="button"
             onPress={() => {
               setDados(null);
@@ -103,7 +98,7 @@ export function DetalhesCasa({
             style={styles.button}
           >
             <Text style={styles.buttonText}>Tentar novamente</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       )}
 
@@ -125,31 +120,22 @@ export function DetalhesCasa({
             </Text>
           )}
 
-          <View>
+          <View style={styles.field}>
             <Text style={styles.label}>Nome</Text>
             <Text style={styles.value}>{casa.nome}</Text>
           </View>
-          <View>
+          <View style={styles.field}>
             <Text style={styles.label}>Endereço</Text>
             <Text style={styles.value}>{casa.endereco}</Text>
           </View>
-          <View>
+          <View style={styles.field}>
             <Text style={styles.label}>Fuso horário</Text>
             <Text style={styles.value}>{casa.timezone}</Text>
           </View>
-          <View>
+          <View style={styles.field}>
             <Text style={styles.label}>Proprietário</Text>
             <Text style={styles.value}>
               {dados.nomeProprietario ?? "Nome indisponível"}
-            </Text>
-            <Text selectable style={styles.identifier}>
-              ID: {casa.fk_usuario_id}
-            </Text>
-          </View>
-          <View>
-            <Text style={styles.label}>ID da casa</Text>
-            <Text selectable style={styles.identifier}>
-              {casa.id}
             </Text>
           </View>
         </View>
@@ -161,33 +147,50 @@ export function DetalhesCasa({
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    padding: 24,
-    gap: 20,
-    borderRadius: 20,
-    backgroundColor: Caldera.pumice,
+    padding: Spacing.four,
+    gap: Spacing.four,
+    borderRadius: 40,
+    backgroundColor: Caldera.limestone,
   },
   header: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: Spacing.three,
   },
-  title: { color: Caldera.obsidian, fontSize: 24, fontWeight: "800" },
+  title: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 32,
+    lineHeight: 36,
+    letterSpacing: 0.64,
+  },
   button: {
     alignSelf: "flex-start",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Caldera.obsidian,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
   },
-  buttonText: { color: Caldera.obsidian, fontWeight: "600" },
-  details: { gap: 16 },
-  photo: { width: "100%", height: 220, borderRadius: 12 },
-  label: { color: "#555", fontSize: 14, fontWeight: "700" },
-  value: { color: Caldera.obsidian, fontSize: 18 },
-  identifier: { color: Caldera.obsidian, fontSize: 14 },
-  notice: { color: "#555" },
-  feedback: { gap: 12 },
-  error: { color: "#a32316" },
+  buttonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  details: { gap: Spacing.three },
+  photo: { width: "100%", height: 220, borderRadius: 24 },
+  field: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: 24,
+    backgroundColor: Caldera.pumice,
+  },
+  label: { color: Caldera.obsidian, fontSize: 12, fontWeight: "500" },
+  value: {
+    color: Caldera.obsidian,
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: "500",
+  },
+  notice: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  feedback: { gap: Spacing.three },
+  error: { color: "#a32316", lineHeight: 22 },
 });

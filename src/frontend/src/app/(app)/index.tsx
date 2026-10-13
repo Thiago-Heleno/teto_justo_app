@@ -3,19 +3,20 @@ import { useCallback, useRef, useState } from "react";
 import {
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
 import { ConvidarMorador } from "@/components/convidar-morador";
 import { DetalhesCasa } from "@/components/detalhes-casa";
+import { MotionPressable } from "@/components/motion-pressable";
 import { MoradoresCasa } from "@/components/moradores-casa";
-import { Caldera } from "@/constants/theme";
+import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { sair } from "@/services/autenticacao-api";
 import { sairDaCasa } from "@/services/casas-api";
@@ -27,6 +28,8 @@ import {
 import { carregarUsuarioAtual } from "@/services/tarefas-api";
 
 export default function HomeScreen() {
+  const { width } = useWindowDimensions();
+  const telaPequena = width < 600;
   const casa = useStore(sessao, (estado) => estado.casaAtiva);
   const [erro, setErro] = useState<string>();
   const [usuarioId, setUsuarioId] = useState<string>();
@@ -113,28 +116,71 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.page}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <ScrollView
+        contentContainerStyle={[styles.page, telaPequena && styles.pageSmall]}
+      >
         <View style={styles.content}>
-          <Text style={styles.brand}>TETO JUSTO</Text>
-          <Text accessibilityRole="header" style={styles.title}>
-            {casa?.nome ?? "Sua casa, em dia."}
-          </Text>
-          <Text style={styles.description}>
-            Acompanhe as tarefas da casa e a contribuição de cada morador.
-          </Text>
-          <Link href="/tarefas" style={styles.link}>
-            Ver tarefas
-          </Link>
-          {casa && !detalhesAbertos && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setDetalhesAbertos(true)}
-              style={styles.button}
-            >
-              <Text style={styles.buttonText}>Detalhes da casa</Text>
-            </Pressable>
-          )}
+          <View style={[styles.hero, telaPequena && styles.heroSmall]}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.eyebrow}>TETO JUSTO · CASA ATIVA</Text>
+              <Text
+                accessibilityRole="header"
+                style={[styles.title, telaPequena && styles.titleSmall]}
+              >
+                SUA CASA
+              </Text>
+              <Text style={styles.description}>
+                Acompanhe as tarefas da casa e a contribuição de cada morador.
+              </Text>
+            </View>
+            {casa && (
+              <View style={[styles.houseCard, telaPequena && styles.cardSmall]}>
+                <Text style={styles.houseLabel}>VOCÊ ESTÁ EM</Text>
+                <Text
+                  style={[
+                    styles.houseName,
+                    telaPequena && styles.houseNameSmall,
+                  ]}
+                >
+                  {casa.nome}
+                </Text>
+                <Text style={styles.houseAddress}>{casa.endereco}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={[styles.card, telaPequena && styles.cardSmall]}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>
+              DIA A DIA DA CASA
+            </Text>
+            <Text style={styles.body}>
+              Veja o que precisa ser feito e consulte as informações da casa.
+            </Text>
+            <View style={styles.actions}>
+              <Link href="/tarefas" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  style={[styles.button, styles.primaryButton]}
+                >
+                  <Text style={styles.buttonText}>Ver tarefas →</Text>
+                </MotionPressable>
+              </Link>
+              {casa && !detalhesAbertos && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  onPress={() => setDetalhesAbertos(true)}
+                  style={styles.button}
+                >
+                  <Text style={styles.buttonText}>Detalhes da casa</Text>
+                </MotionPressable>
+              )}
+              {casa && usuarioId && !ocupado && (
+                <ConvidarMorador casa={casa} usuarioId={usuarioId} />
+              )}
+            </View>
+          </View>
+
           {casa && detalhesAbertos && (
             <DetalhesCasa
               key={`detalhes-${casa.id}`}
@@ -143,11 +189,11 @@ export default function HomeScreen() {
             />
           )}
           {erroIdentidade && (
-            <View style={styles.verificacao}>
+            <View style={[styles.card, telaPequena && styles.cardSmall]}>
               <Text accessibilityRole="alert" style={styles.error}>
                 Não foi possível verificar seu acesso às ações da casa.
               </Text>
-              <Pressable
+              <MotionPressable
                 accessibilityRole="button"
                 onPress={() => setTentativaIdentidade((valor) => valor + 1)}
                 style={styles.button}
@@ -155,11 +201,8 @@ export default function HomeScreen() {
                 <Text style={styles.buttonText}>
                   Verificar acesso novamente
                 </Text>
-              </Pressable>
+              </MotionPressable>
             </View>
-          )}
-          {casa && usuarioId && !ocupado && (
-            <ConvidarMorador casa={casa} usuarioId={usuarioId} />
           )}
           {casa && (
             <MoradoresCasa
@@ -168,42 +211,53 @@ export default function HomeScreen() {
               usuarioId={usuarioId}
             />
           )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: ocupado }}
-            disabled={ocupado}
-            onPress={trocarCasa}
-            style={styles.button}
-          >
-            <Text style={styles.buttonText}>Trocar de casa</Text>
-          </Pressable>
-          {podeSairDaCasa && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: ocupado, busy: saindoDaCasa }}
-              disabled={ocupado}
-              onPress={() => setConfirmacaoAberta(true)}
-              style={styles.button}
-            >
-              <Text style={styles.buttonText}>Sair desta casa</Text>
-            </Pressable>
-          )}
-          {erro && (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {erro}
+
+          <View style={[styles.card, telaPequena && styles.cardSmall]}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>
+              ACESSO
             </Text>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: ocupado, busy: saindo }}
-            onPress={() => void fazerLogout()}
-            disabled={ocupado}
-            style={styles.button}
-          >
-            <Text style={styles.buttonText}>
-              {saindo ? "Saindo…" : "Sair da conta"}
+            <Text style={styles.body}>
+              Escolha outra casa ou encerre seu acesso quando precisar.
             </Text>
-          </Pressable>
+            {erro && (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {erro}
+              </Text>
+            )}
+            <View style={styles.actions}>
+              <MotionPressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: ocupado }}
+                disabled={ocupado}
+                onPress={trocarCasa}
+                style={[styles.button, ocupado && styles.disabled]}
+              >
+                <Text style={styles.buttonText}>Trocar de casa</Text>
+              </MotionPressable>
+              {podeSairDaCasa && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: ocupado, busy: saindoDaCasa }}
+                  disabled={ocupado}
+                  onPress={() => setConfirmacaoAberta(true)}
+                  style={[styles.button, ocupado && styles.disabled]}
+                >
+                  <Text style={styles.buttonText}>Sair desta casa</Text>
+                </MotionPressable>
+              )}
+              <MotionPressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: ocupado, busy: saindo }}
+                onPress={() => void fazerLogout()}
+                disabled={ocupado}
+                style={[styles.button, ocupado && styles.disabled]}
+              >
+                <Text style={styles.buttonText}>
+                  {saindo ? "Saindo…" : "Sair da conta"}
+                </Text>
+              </MotionPressable>
+            </View>
+          </View>
         </View>
       </ScrollView>
       <Modal
@@ -217,33 +271,37 @@ export default function HomeScreen() {
         <View style={styles.modalBackdrop}>
           <View accessibilityViewIsModal style={styles.modalCard}>
             <Text accessibilityRole="header" style={styles.modalTitle}>
-              Sair desta casa?
+              SAIR DESTA CASA?
             </Text>
-            <Text style={styles.description}>
+            <Text style={styles.body}>
               Você perderá o acesso às tarefas desta casa. Para voltar, será
               necessário receber um novo convite.
             </Text>
             <View style={styles.modalActions}>
-              <Pressable
+              <MotionPressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: ocupado }}
                 disabled={ocupado}
                 onPress={() => setConfirmacaoAberta(false)}
-                style={styles.button}
+                style={[styles.button, ocupado && styles.disabled]}
               >
                 <Text style={styles.buttonText}>Cancelar</Text>
-              </Pressable>
-              <Pressable
+              </MotionPressable>
+              <MotionPressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: ocupado, busy: saindoDaCasa }}
                 disabled={ocupado}
                 onPress={() => void confirmarSaidaDaCasa()}
-                style={styles.button}
+                style={[
+                  styles.button,
+                  styles.primaryButton,
+                  ocupado && styles.disabled,
+                ]}
               >
                 <Text style={styles.buttonText}>
                   {saindoDaCasa ? "Saindo…" : "Sair desta casa"}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
         </View>
@@ -253,43 +311,125 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Caldera.limestone },
+  container: { flex: 1, backgroundColor: Caldera.pumice },
   page: {
     flexGrow: 1,
-    justifyContent: "center",
-    padding: 32,
-    paddingTop: Platform.OS === "web" ? 128 : 32,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Platform.OS === "web" ? 112 : Spacing.four,
+    paddingBottom: Spacing.six,
   },
-  content: { width: "100%", maxWidth: 760, alignSelf: "center", gap: 24 },
-  brand: { color: Caldera.ember, fontWeight: "800", letterSpacing: 2 },
-  title: { color: Caldera.obsidian, fontSize: 36, fontWeight: "800" },
-  description: { color: "#555", fontSize: 18, lineHeight: 28 },
-  link: { color: Caldera.plasmaViolet, fontWeight: "700", fontSize: 18 },
+  pageSmall: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Platform.OS === "web" ? 160 : Spacing.three,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 1280,
+    alignSelf: "center",
+    gap: Spacing.four,
+  },
+  hero: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
+  heroSmall: { flexDirection: "column", flexWrap: "nowrap" },
+  heroCopy: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 320,
+    justifyContent: "center",
+    gap: Spacing.three,
+  },
+  eyebrow: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
+  title: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 64,
+    lineHeight: 64,
+    letterSpacing: 1.28,
+  },
+  titleSmall: { fontSize: 48, lineHeight: 50, letterSpacing: 0.96 },
+  description: {
+    color: Caldera.obsidian,
+    fontSize: 18,
+    lineHeight: 28,
+    fontWeight: "500",
+    maxWidth: 620,
+  },
+  houseCard: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 280,
+    minWidth: 0,
+    borderRadius: 40,
+    backgroundColor: Caldera.ember,
+    padding: Spacing.five,
+    gap: Spacing.three,
+  },
+  houseLabel: { color: Caldera.chalk, fontSize: 14, fontWeight: "500" },
+  houseName: {
+    color: Caldera.chalk,
+    fontFamily: CompactFont,
+    fontSize: 48,
+    lineHeight: 52,
+  },
+  houseNameSmall: { fontSize: 40, lineHeight: 44 },
+  houseAddress: {
+    color: Caldera.chalk,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "500",
+  },
+  card: {
+    backgroundColor: Caldera.limestone,
+    borderRadius: 40,
+    padding: Spacing.five,
+    gap: Spacing.three,
+  },
+  cardSmall: { padding: Spacing.three, borderRadius: 24 },
+  sectionTitle: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 32,
+    lineHeight: 36,
+    letterSpacing: 0.64,
+  },
+  body: {
+    color: Caldera.obsidian,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "500",
+  },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   button: {
     alignSelf: "flex-start",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Caldera.obsidian,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
   },
-  buttonText: { color: Caldera.obsidian, fontWeight: "600" },
-  verificacao: { gap: 12 },
-  error: { color: "#a32316" },
+  primaryButton: { backgroundColor: Caldera.ember, borderColor: Caldera.ember },
+  buttonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  disabled: { opacity: 0.6 },
+  error: { color: "#a32316", lineHeight: 22 },
   modalBackdrop: {
     flex: 1,
     justifyContent: "center",
-    padding: 24,
+    padding: Spacing.four,
     backgroundColor: "#0008",
   },
   modalCard: {
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    gap: 20,
-    padding: 24,
-    borderRadius: 20,
+    gap: Spacing.four,
+    padding: Spacing.five,
+    borderRadius: 40,
     backgroundColor: Caldera.limestone,
   },
-  modalTitle: { color: Caldera.obsidian, fontSize: 24, fontWeight: "800" },
-  modalActions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  modalTitle: {
+    color: Caldera.obsidian,
+    fontFamily: CompactFont,
+    fontSize: 32,
+    lineHeight: 36,
+  },
+  modalActions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
 });
