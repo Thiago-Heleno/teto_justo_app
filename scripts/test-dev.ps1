@@ -138,9 +138,8 @@ exit 37
         elseif ($Arguments -contains 'up') {
             $stage = 'up'
             Assert-DevTest (($Arguments[0..4] -join ' ') -eq 'compose --ansi never --progress plain') 'Compose precisa usar progresso sem console interativo.'
-            Assert-DevTest (($Arguments[-5..-1] -join ' ') -eq 'up -d --build redis backend') 'Servicos inesperados; nao iniciar agendador.'
+            Assert-DevTest (($Arguments[-4..-1] -join ' ') -eq 'up -d --build backend') 'Servicos inesperados; nao iniciar agendador.'
         }
-        elseif ($Arguments -contains 'exec') { $stage = 'redis' }
         else { $stage = 'compose-version' }
         $script:calls.Add($stage)
         if ($script:failAt -eq $stage) { throw "$stage falhou" }
@@ -148,7 +147,7 @@ exit 37
     $env:EXPO_PUBLIC_API_URL = 'http://original.invalid'
     $originalDirectory = (Get-Location).Path
     Start-Dev $work
-    Assert-DevTest (($script:calls -join ',') -eq 'compose-version,docker-ready,npm,up,health,redis,expo') 'Ordem de inicializacao incorreta.'
+    Assert-DevTest (($script:calls -join ',') -eq 'compose-version,docker-ready,npm,up,health,expo') 'Ordem de inicializacao incorreta.'
     Assert-DevTest ($env:EXPO_PUBLIC_API_URL -eq 'http://original.invalid') 'Ambiente nao restaurado.'
     Assert-DevTest ((Get-Location).Path -eq $originalDirectory) 'Diretorio nao restaurado.'
     $script:calls.Clear()
@@ -160,7 +159,7 @@ exit 37
     Assert-DevTest ($script:calls.Contains('npm')) 'Mudanca no lockfile nao disparou npm ci.'
     Write-Host 'PASS: ordem, argumentos, ambiente temporario e reinstalacao somente quando necessaria.'
 
-    foreach ($stage in @('npm', 'up', 'health', 'redis', 'expo')) {
+    foreach ($stage in @('npm', 'up', 'health', 'expo')) {
         if ($stage -eq 'npm') { Remove-Item -LiteralPath "$work/src/frontend/node_modules/.dev-install" }
         $script:failAt = $stage
         $script:calls.Clear()
@@ -169,7 +168,7 @@ exit 37
         Assert-DevTest ($env:EXPO_PUBLIC_API_URL -eq 'http://original.invalid') 'Ambiente nao restaurado apos falha.'
         Assert-DevTest ((Get-Location).Path -eq $originalDirectory) 'Diretorio nao restaurado apos falha.'
     }
-    Write-Host 'PASS: falhas de containers, health, Redis e Expo interrompem o fluxo e restauram o ambiente.'
+    Write-Host 'PASS: falhas de containers, health e Expo interrompem o fluxo e restauram o ambiente.'
     Write-Host 'Todos os testes do script passaram (servicos simulados; sem banco ou instalacoes).'
 } finally {
     [Environment]::SetEnvironmentVariable('EXPO_PUBLIC_API_URL', $oldApi, 'Process')

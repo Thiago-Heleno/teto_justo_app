@@ -1,21 +1,12 @@
 services:
   backend:
     build: ./src/backend
-    depends_on:
-      - redis
     ports:
       - "8000:8000"
     volumes:
       - ./src/backend:/app
     env_file:
       - .env
-    environment:
-      REDIS_URL: redis://redis:6379/0
-  redis:
-    image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis_login_data:/data
   agendador:
     image: alpine:3.20
     depends_on:
@@ -25,6 +16,3 @@ services:
     volumes:
       - ./src/agendador/crontab:/etc/crontabs/root:ro
     command: sh -c "apk add --no-cache curl && crond -f -l 8"
-
-volumes:
-  redis_login_data:

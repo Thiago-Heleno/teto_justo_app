@@ -40,7 +40,7 @@ válida e a casa permanecer acessível. **Trocar de casa**, no Início, volta à
 seleção; sair da conta apaga a preferência.
 
 No Windows, use o [comando de inicialização](#iniciar-tudo-com-um-comando-no-windows)
-para iniciar backend, Redis e Expo juntos. As instruções manuais abaixo são
+para iniciar backend e Expo juntos. As instruções manuais abaixo são
 uma alternativa para executar os serviços separadamente.
 
 Na tela de login,
@@ -69,9 +69,8 @@ para uso direto pela API.
 
 - Para o frontend: Node.js e npm; o projeto utiliza Expo SDK 57;
 - Para o backend: Python 3 e um projeto Supabase com as variáveis de acesso;
-- Para o login: Redis compartilhado entre as instâncias do backend;
 - Docker Desktop com Docker Compose para usar o script de inicialização;
-  na execução manual sem containers, Python e Redis precisam estar disponíveis.
+  na execução manual sem containers, Python precisa estar disponível.
 
 ### Iniciar tudo com um comando no Windows
 
@@ -100,7 +99,7 @@ Se faltar Node ou Docker, pede confirmação para instalar pelo WinGet. Sem
 WinGet, informa o site oficial para instalação manual. O instalador pode pedir
 permissão de administrador; Docker/WSL ou virtualização podem exigir uma
 configuração adicional e reinício. Nesses casos, conclua a preparação e rode
-o mesmo comando novamente. Python e Redis são executados nos containers.
+o mesmo comando novamente. Python é executado no container do backend.
 
 Na primeira execução, o script cria `.env` a partir de `.env.example`, caso
 ele não exista. Preencha nesse arquivo `SUPABASE_URL` e `SUPABASE_KEY` (ou
@@ -109,9 +108,9 @@ no terminal para continuar. Credenciais existentes são preservadas; um segredo
 de convites é gerado localmente somente quando estiver ausente. Nenhum valor
 privado é mostrado pelo script.
 
-Depois, o script instala as dependências com `npm ci`, inicia backend e Redis,
-aguarda `/health`, verifica o acesso do backend ao Redis e abre o Expo com QR
-code. As próximas execuções reutilizam a instalação do frontend enquanto
+Depois, o script instala as dependências com `npm ci`, inicia o backend,
+aguarda `/health` e abre o Expo com QR code. As próximas execuções reutilizam a
+instalação do frontend enquanto
 `package.json`, `package-lock.json` e a versão do Node não mudarem. A URL da API
 e o IP anunciado pelo Expo são definidos apenas para essa execução; arquivos
 de configuração do frontend não são alterados.
@@ -132,7 +131,7 @@ Antes de ler o QR, confira no navegador do celular o endereço `/health` mostrad
 no terminal. Um túnel do Expo, sozinho, não torna o backend local acessível.
 
 O script **não cria banco, não aplica migrations e não inicia o agendador de
-penalidades/rotatividade**. A validação de `/health` e do Redis não comprova as
+penalidades/rotatividade**. A validação de `/health` não comprova as
 credenciais, a conectividade ou o esquema do Supabase; cadastro e login devem
 ser conferidos no ambiente de teste preparado pela equipe. O comando usa
 HTTP na rede local e não substitui hospedagem HTTPS para um APK distribuído.
@@ -148,7 +147,7 @@ Ao encerrar o Expo com Ctrl+C, os containers continuam disponíveis. Para
 pará-los sem apagar volumes, execute na raiz:
 
 ```powershell
-docker compose stop backend redis
+docker compose stop backend
 ```
 
 Os testes do script podem ser executados na raiz com
@@ -163,19 +162,16 @@ Supabase:
 ```env
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-chave-do-supabase
-REDIS_URL=redis://localhost:6379/0
 ```
 
 Não versione esse arquivo nem exponha as credenciais.
 
-No Docker Compose, o backend recebe automaticamente `REDIS_URL` apontando
-para o serviço `redis` local, independentemente do valor no `.env`. O Redis não
-publica porta no host. Fora do Compose, use uma instância Redis protegida
-e a respectiva URL; `rediss://` habilita TLS. Sem Redis disponível, o login
-responde `503` em vez de aceitar tentativas sem limite. Cinco falhas por e-mail
-ou vinte por IP em quinze minutos respondem `429` com `Retry-After`. O backend
-usa o IP da conexão; se houver proxy, configure somente os endereços de proxy
-confiáveis no Uvicorn para que cabeçalhos encaminhados não possam ser forjados.
+O login mantém contadores em memória no processo do backend. Cinco tentativas
+por e-mail ou vinte por IP em quinze minutos respondem `429` com `Retry-After`.
+Os contadores reiniciam quando o backend reinicia e não são compartilhados entre
+várias instâncias. O backend usa o IP da conexão; se houver proxy, configure
+somente os endereços de proxy confiáveis no Uvicorn para que cabeçalhos
+encaminhados não possam ser forjados.
 Consulte o [roteiro de implantação da ECH-205](./contexto/sprint_3/seguranca_pos_login.md)
 antes de distribuir o app.
 

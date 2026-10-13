@@ -2,13 +2,14 @@
 
 ## Comportamento
 
-- O login usa Redis compartilhado para contar falhas por e-mail normalizado e
-  pelo IP da conexão. As chaves contêm somente hashes; cinco falhas por e-mail
+- O login mantém contadores em memória no processo do backend para o e-mail
+  normalizado e o IP da conexão. As chaves contêm somente hashes; cinco falhas por e-mail
   ou vinte por IP em quinze minutos bloqueiam novas tentativas com `429` e
   `Retry-After`. A tentativa é reservada atomicamente antes de conferir a senha,
   evitando que chamadas simultâneas ultrapassem o limite. Uma autenticação
   bem-sucedida limpa as falhas daquele e-mail e retira a própria reserva do IP,
-  preservando as falhas dos demais. Redis indisponível resulta em `503`, sem token.
+  preservando as falhas dos demais. Os contadores reiniciam com o backend e não
+  são compartilhados entre várias instâncias.
 - Cada login válido emite um token opaco aleatório e armazena seu SHA-256. A
   restrição única em `sessao.token` não limita o número de dispositivos do
   mesmo usuário. Tokens legados em texto puro continuam inválidos.
@@ -24,8 +25,7 @@
 
 1. Confirme que `docs/migrations/27.sql` já foi aplicada ao Supabase de destino,
    pois as verificações de moradia usam `pertencer.ativo`.
-2. Configure `REDIS_URL` em todas as instâncias do backend e confirme a
-   conectividade. Se houver proxy, configure no Uvicorn somente os IPs de
+2. Se houver proxy, configure no Uvicorn somente os IPs de
    proxies confiáveis; nunca confie em `X-Forwarded-For` enviado diretamente
    pelo cliente.
 3. Antes da migration 28, audite a tabela em um banco de teste e depois no
@@ -56,13 +56,14 @@
 ## Verificação local
 
 A suíte do backend sem integração passou com 343 testes; Ruff e Bandit passaram. Os testes
-unitários exercitam limites, expiração, Redis indisponível, paginação e acesso
+unitários exercitam limites, expiração, paginação e acesso
 entre casas. TypeScript e 64 testes do frontend passaram. Os dois arquivos
 TypeScript alterados passaram no ESLint com a regra de fim de linha ajustada
 ao checkout Windows; o lint global falhou em milhares de erros CRLF preexistentes
 da `main`. A migration 28 passou pelo parser PostgreSQL e foi executada em
 PostgreSQL descartável (PGlite) com sessões legadas,
 expiradas e duplicadas: a limpeza, `UNIQUE`, `NOT NULL` e duas sessões do mesmo
-usuário passaram. O teste de integração do limitador passou com Redis 7 local.
+usuário passaram. A integração do limitador com Redis deixou de ser necessária
+após a adoção dos contadores locais em memória.
 Os testes de integração com o Supabase de teste não foram executados, pois este
 checkout não possui suas credenciais nem confirmação da migration 28 aplicada.
