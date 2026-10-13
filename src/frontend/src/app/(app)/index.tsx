@@ -137,7 +137,7 @@ export default function HomeScreen() {
           )}
           {casa && detalhesAbertos && (
             <DetalhesCasa
-              key={casa.id}
+              key={`detalhes-${casa.id}`}
               casaId={casa.id}
               onFechar={() => setDetalhesAbertos(false)}
             />
@@ -162,7 +162,11 @@ export default function HomeScreen() {
             <ConvidarMorador casa={casa} usuarioId={usuarioId} />
           )}
           {casa && (
-            <MoradoresCasa key={casa.id} casa={casa} usuarioId={usuarioId} />
+            <MoradoresCasa
+              key={`moradores-${casa.id}`}
+              casa={casa}
+              usuarioId={usuarioId}
+            />
           )}
           <Pressable
             accessibilityRole="button"
