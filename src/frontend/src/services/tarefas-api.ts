@@ -1,4 +1,5 @@
 import { requisitar } from "./api.ts";
+import { listarMoradoresCasa, type MoradorCasa } from "./casas-api.ts";
 import { sessao } from "./sessao-store.ts";
 
 import type { EstadoTarefa, PesoTarefa, PrazoDias } from "@/constants/tarefa";
@@ -6,7 +7,7 @@ import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
 export type Casa = { id: string; nome: string; fk_usuario_id: string };
 
-export type Morador = { id: string; nome: string; score: number };
+export type Morador = MoradorCasa;
 
 export type UsuarioAtual = { id: string };
 
@@ -125,7 +126,7 @@ export async function carregarContextoTarefas(signal?: AbortSignal) {
   const { casaId } = configuracao();
   return Promise.all([
     requisitar<Casa>(`/casas/${casaId}`, signal),
-    requisitar<Morador[]>(`/casas/${casaId}/moradores`, signal),
+    listarMoradoresCasa(casaId, signal),
   ]);
 }
 

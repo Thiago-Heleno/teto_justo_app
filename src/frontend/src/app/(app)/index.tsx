@@ -14,6 +14,7 @@ import { useStore } from "zustand";
 
 import { ConvidarMorador } from "@/components/convidar-morador";
 import { DetalhesCasa } from "@/components/detalhes-casa";
+import { MoradoresCasa } from "@/components/moradores-casa";
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { sair } from "@/services/autenticacao-api";
@@ -159,6 +160,9 @@ export default function HomeScreen() {
           )}
           {casa && usuarioId && !ocupado && (
             <ConvidarMorador casa={casa} usuarioId={usuarioId} />
+          )}
+          {casa && (
+            <MoradoresCasa key={casa.id} casa={casa} usuarioId={usuarioId} />
           )}
           <Pressable
             accessibilityRole="button"
