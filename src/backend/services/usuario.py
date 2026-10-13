@@ -1,8 +1,10 @@
 from uuid import UUID
 import bcrypt
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 from schemas.usuario import UsuarioCriar, UsuarioAtualizar
 from services.autorizacao import ServicoAutorizacaoCasa
+from services.pertencer import ServicoPertencer
 
 
 class ServicoUsuario:
@@ -56,6 +58,13 @@ class ServicoUsuario:
             raise HTTPException(
                 status_code=400, detail="Nenhum dado para atualização.")
 
+        if "email" in dados_limpos:
+            duplicado = self.supabase.table("usuario").select("id").eq(
+                "email", dados_limpos["email"]).neq("id", str(id_usuario)).execute()
+            if duplicado.data:
+                raise HTTPException(
+                    status_code=400, detail="E-mail já cadastrado.")
+
         atualizacao = self.supabase.table("usuario").update(
             dados_limpos).eq("id", str(id_usuario)).execute()  # Uso de str()
 
@@ -65,10 +74,60 @@ class ServicoUsuario:
         return atualizacao.data[0]
 
     def deletar_usuario(self, id_usuario: UUID):  # Voltou UUID
-        delecao = self.supabase.table("usuario").delete().eq(
-            "id", str(id_usuario)).execute()  # Uso de str()
+        casa_propria = self.supabase.table("casa").select("id").eq(
+            "fk_usuario_id", str(id_usuario)).limit(1).execute()
+        if casa_propria.data:
+            raise HTTPException(
+                status_code=409,
+                detail="Você é proprietário de uma casa e não pode excluir a conta. "
+                       "Exclua a casa antes de excluir a conta.")
+
+        try:
+            delecao = self.supabase.table("usuario").delete().eq(
+                "id", str(id_usuario)).execute()  # Uso de str()
+        except APIError as erro:
+            if erro.code != "23503":
+                raise
+            return self._anonimizar_usuario(id_usuario)
 
         if not delecao.data:
+            raise HTTPException(
+                status_code=404, detail="Usuário não encontrado ou já deletado.")
+        return True
+
+    # shortcut: as FKs para usuario são RESTRICT; quem tem histórico não é apagado,
+    # só anonimizado. Apagar de verdade exige migration (ou transferir o histórico).
+    def _anonimizar_usuario(self, id_usuario: UUID):
+        id_str = str(id_usuario)
+        ids_tarefas = [
+            r["fk_tarefa_id"] for r in self.supabase.table("atribuida")
+            .select("fk_tarefa_id").eq("fk_usuario_id", id_str).execute().data
+        ]
+        if ids_tarefas and self.supabase.table("tarefa").select("id").in_(
+                "id", ids_tarefas).in_(
+                "estado_atual", ["pendente", "atrasada"]).execute().data:
+            raise HTTPException(
+                status_code=409,
+                detail="Você possui tarefas abertas. Conclua ou reatribua "
+                       "as tarefas antes de excluir a conta.")
+
+        vinculos = self.supabase.table("pertencer").select("fk_casa_id").eq(
+            "fk_usuario_id", id_str).eq("ativo", True).execute().data
+        for vinculo in vinculos:
+            ServicoPertencer(self.supabase).deletar_pertencer(
+                id_usuario, vinculo["fk_casa_id"])
+
+        # Antes do update: se ele falhar, o usuário refaz o login e tenta de novo.
+        self.supabase.table("sessao").delete().eq(
+            "fk_usuario_id", id_str).execute()
+        anonimizado = self.supabase.table("usuario").update({
+            "nome": "Usuário removido",
+            "email": f"removido-{id_str}@example.com",
+            "telefone": None,
+            "foto": None,
+            "senha_hash": None,  # o login recusa conta sem hash
+        }).eq("id", id_str).execute()
+        if not anonimizado.data:
             raise HTTPException(
                 status_code=404, detail="Usuário não encontrado ou já deletado.")
         return True

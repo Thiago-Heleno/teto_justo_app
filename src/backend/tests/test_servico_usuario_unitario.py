@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import bcrypt
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -16,18 +17,25 @@ from services.usuario import ServicoUsuario
 class BancoMemoria:
     def __init__(self):
         self.usuarios = {}  # dict: id -> dict com os campos do usuário
+        self.casas = {}  # dict: id -> dict com os campos da casa
+        self.outras = {}  # tabela -> {id: registro} (pertencer, tarefa, ...)
+        self.com_historico = False  # simula as FKs RESTRICT ao apagar usuário
 
     def table(self, nome):
-        if nome != "usuario":
-            raise AssertionError(f"Tabela inesperada: {nome}")
-        return Consulta(self)
+        if nome == "usuario":
+            return Consulta(self, self.usuarios, bloqueia_delete=self.com_historico)
+        if nome == "casa":
+            return Consulta(self, self.casas)
+        return Consulta(self, self.outras.setdefault(nome, {}))
 
 
 # Imita a interface fluente do client do Supabase (table().select().eq().execute()),
 # armazenando a operação e os filtros pedidos até o execute() ser chamado.
 class Consulta:
-    def __init__(self, banco):
+    def __init__(self, banco, registros, bloqueia_delete=False):
         self.banco = banco
+        self.registros = registros
+        self.bloqueia_delete = bloqueia_delete
         self.operacao = "select"
         self.filtros = []
         self.dados = None
@@ -37,7 +45,18 @@ class Consulta:
         return self
 
     def eq(self, campo, valor):
-        self.filtros.append((campo, valor))
+        self.filtros.append((campo, valor, True))
+        return self
+
+    def neq(self, campo, valor):
+        self.filtros.append((campo, valor, False))
+        return self
+
+    def in_(self, campo, valores):
+        self.filtros.append((campo, valores, "in"))
+        return self
+
+    def limit(self, _quantidade):
         return self
 
     def insert(self, dados):
@@ -62,12 +81,15 @@ class Consulta:
         from uuid import uuid4
 
         encontrados = [
-            u for u in self.banco.usuarios.values()
-            if all(u.get(c) == v for c, v in self.filtros)
+            u for u in self.registros.values()
+            if all(
+                (u.get(c) in v) if igual == "in" else (u.get(c) == v) == igual
+                for c, v, igual in self.filtros
+            )
         ]
         if self.operacao == "insert":
             registro = {"id": str(uuid4()), **self.dados}
-            self.banco.usuarios[registro["id"]] = registro
+            self.registros[registro["id"]] = registro
             return SimpleNamespace(data=[dict(registro)])
         if self.operacao == "select":
             return SimpleNamespace(data=[dict(u) for u in encontrados])
@@ -76,8 +98,10 @@ class Consulta:
                 u.update(self.dados)
             return SimpleNamespace(data=[dict(u) for u in encontrados])
         # delete
+        if self.bloqueia_delete:
+            raise APIError({"code": "23503", "message": "foreign key violation"})
         for u in encontrados:
-            del self.banco.usuarios[u["id"]]
+            del self.registros[u["id"]]
         return SimpleNamespace(data=[dict(u) for u in encontrados])
 
 
@@ -192,6 +216,24 @@ class TesteAtualizarUsuarioUnitario(unittest.TestCase):
 
         self.assertEqual(contexto.exception.status_code, 400)
 
+    # Trocar para o e-mail de outra conta é recusado; manter o próprio e-mail é aceito.
+    def test_atualizacao_rejeita_email_de_outra_conta(self):
+        banco = BancoMemoria()
+        id_usuario, id_outro = str(uuid4()), str(uuid4())
+        banco.usuarios[id_usuario] = {"id": id_usuario, "email": "ana@example.com"}
+        banco.usuarios[id_outro] = {"id": id_outro, "email": "bia@example.com"}
+        servico = ServicoUsuario(banco)
+
+        with self.assertRaises(HTTPException) as contexto:
+            servico.atualizar_usuario(id_usuario, UsuarioAtualizar(email="bia@example.com"))
+
+        self.assertEqual(contexto.exception.status_code, 400)
+        self.assertEqual(banco.usuarios[id_usuario]["email"], "ana@example.com")
+        atualizado = servico.atualizar_usuario(
+            id_usuario, UsuarioAtualizar(email="ana@example.com")
+        )
+        self.assertEqual(atualizado["email"], "ana@example.com")
+
     # Tenta atualizar um id que não está no banco: deve levantar 404.
     def test_atualizacao_usuario_inexistente_gera_erro_404(self):
         banco = BancoMemoria()
@@ -228,6 +270,71 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
             servico.deletar_usuario(uuid4())
 
         self.assertEqual(contexto.exception.status_code, 404)
+
+    # Proprietário de casa recebe 409 com mensagem clara e a conta é preservada.
+    def test_delecao_de_proprietario_gera_erro_409(self):
+        banco = BancoMemoria()
+        id_usuario, id_casa = str(uuid4()), str(uuid4())
+        banco.usuarios[id_usuario] = {"id": id_usuario, "nome": "Ana"}
+        banco.casas[id_casa] = {"id": id_casa, "fk_usuario_id": id_usuario}
+        servico = ServicoUsuario(banco)
+
+        with self.assertRaises(HTTPException) as contexto:
+            servico.deletar_usuario(id_usuario)
+
+        self.assertEqual(contexto.exception.status_code, 409)
+        self.assertIn("proprietário de uma casa", contexto.exception.detail)
+        self.assertIn(id_usuario, banco.usuarios)
+
+    def _banco_com_historico(self):
+        banco = BancoMemoria()
+        banco.com_historico = True
+        self.id_usuario, self.id_casa = str(uuid4()), str(uuid4())
+        banco.usuarios[self.id_usuario] = {
+            "id": self.id_usuario, "nome": "Ana", "email": "ana@example.com",
+            "telefone": 1199, "foto": "abc", "senha_hash": "hash",
+        }
+        banco.casas[self.id_casa] = {
+            "id": self.id_casa, "fk_usuario_id": str(uuid4()), "rotacao_versao": 0,
+        }
+        banco.outras["pertencer"] = {"v": {
+            "id": "v", "fk_usuario_id": self.id_usuario,
+            "fk_casa_id": self.id_casa, "ativo": True,
+        }}
+        banco.outras["sessao"] = {"s": {"id": "s", "fk_usuario_id": self.id_usuario}}
+        return banco
+
+    # Conta com histórico (FK RESTRICT) é anonimizada: sai da casa, perde as
+    # sessões e as credenciais, e o registro continua para preservar o histórico.
+    def test_delecao_com_historico_anonimiza_a_conta(self):
+        banco = self._banco_com_historico()
+
+        self.assertTrue(ServicoUsuario(banco).deletar_usuario(self.id_usuario))
+
+        usuario = banco.usuarios[self.id_usuario]
+        self.assertEqual(usuario["nome"], "Usuário removido")
+        self.assertNotEqual(usuario["email"], "ana@example.com")
+        self.assertIsNone(usuario["senha_hash"])
+        self.assertIsNone(usuario["telefone"])
+        self.assertIsNone(usuario["foto"])
+        self.assertFalse(banco.outras["pertencer"]["v"]["ativo"])
+        self.assertEqual(banco.outras["sessao"], {})
+
+    # Tarefa aberta impede a exclusão e nada é alterado.
+    def test_delecao_com_tarefa_aberta_gera_erro_409(self):
+        banco = self._banco_com_historico()
+        banco.outras["atribuida"] = {"a": {
+            "id": "a", "fk_usuario_id": self.id_usuario, "fk_tarefa_id": "t1",
+        }}
+        banco.outras["tarefa"] = {"t1": {"id": "t1", "estado_atual": "pendente"}}
+
+        with self.assertRaises(HTTPException) as contexto:
+            ServicoUsuario(banco).deletar_usuario(self.id_usuario)
+
+        self.assertEqual(contexto.exception.status_code, 409)
+        self.assertEqual(banco.usuarios[self.id_usuario]["nome"], "Ana")
+        self.assertTrue(banco.outras["pertencer"]["v"]["ativo"])
+        self.assertIn("s", banco.outras["sessao"])
 
 
 if __name__ == "__main__":
