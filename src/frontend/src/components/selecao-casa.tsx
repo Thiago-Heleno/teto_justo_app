@@ -12,6 +12,7 @@ import { useStore } from "zustand";
 
 import { CriarCasa } from "@/components/criar-casa";
 import { EntrarCasa } from "@/components/entrar-casa";
+import { PerfilUsuario } from "@/components/perfil";
 import { Caldera, CompactFont } from "@/constants/theme";
 import { sair } from "@/services/autenticacao-api";
 import { casaInicial, listarCasas, type Casa } from "@/services/casas-api";
@@ -19,7 +20,9 @@ import { selecionarCasa, sessao } from "@/services/sessao-store";
 
 export function FluxoCasa() {
   const restaurar = useStore(sessao, (estado) => estado.restaurarCasa);
-  const [formulario, setFormulario] = useState<"criar" | "entrar" | null>(null);
+  const [formulario, setFormulario] = useState<
+    "criar" | "entrar" | "perfil" | null
+  >(null);
 
   const selecionar = useCallback(async (casa: Casa, signal?: AbortSignal) => {
     if (await selecionarCasa(casa, signal)) {
@@ -37,10 +40,17 @@ export function FluxoCasa() {
       <EntrarCasa onVoltar={() => setFormulario(null)} onEntrada={selecionar} />
     );
   }
+  if (formulario === "perfil") {
+    return <PerfilUsuario onVoltar={() => setFormulario(null)} />;
+  }
   return (
     <SelecaoCasa
       restaurar={restaurar}
       selecionar={selecionar}
+      onPerfil={() => {
+        sessao.setState({ restaurarCasa: false });
+        setFormulario("perfil");
+      }}
       onCriar={() => {
         sessao.setState({ restaurarCasa: false });
         setFormulario("criar");
@@ -58,11 +68,13 @@ function SelecaoCasa({
   selecionar,
   onCriar,
   onEntrar,
+  onPerfil,
 }: {
   restaurar: boolean;
   selecionar: (casa: Casa, signal?: AbortSignal) => Promise<void>;
   onCriar: () => void;
   onEntrar: () => void;
+  onPerfil: () => void;
 }) {
   const [casas, setCasas] = useState<Casa[] | null>(null);
   const [erro, setErro] = useState<string>();
@@ -223,6 +235,15 @@ function SelecaoCasa({
                 </Text>
               </Pressable>
             )}
+            <Pressable
+              accessibilityRole="button"
+              disabled={ocupado}
+              accessibilityState={{ disabled: ocupado }}
+              onPress={onPerfil}
+              style={[styles.button, ocupado && styles.dimmed]}
+            >
+              <Text style={styles.buttonText}>Meu perfil</Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               disabled={ocupado}

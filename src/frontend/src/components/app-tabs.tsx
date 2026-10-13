@@ -30,6 +30,10 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Pontuação</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="trophy.fill" md="emoji_events" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="perfil">
+        <NativeTabs.Trigger.Label>Perfil</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.fill" md="person" />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
