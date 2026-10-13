@@ -41,6 +41,7 @@ beforeEach(() => {
     pronta: false,
     casaAtiva: null,
     casaPreferidaId: null,
+    restaurarCasa: true,
   });
   process.env.EXPO_PUBLIC_API_URL = "http://api.test/";
 });
@@ -229,6 +230,7 @@ test("restauração sem token termina sem consultar a API", async () => {
     pronta: true,
     casaAtiva: null,
     casaPreferidaId: null,
+    restaurarCasa: true,
   });
 });
 
@@ -246,6 +248,7 @@ test("sessão expirada é removida ao restaurar", async () => {
     pronta: true,
     casaAtiva: null,
     casaPreferidaId: null,
+    restaurarCasa: true,
   });
 });
 
@@ -262,6 +265,7 @@ test("falha de rede ao restaurar preserva o token para nova tentativa", async ()
     pronta: true,
     casaAtiva: null,
     casaPreferidaId: null,
+    restaurarCasa: true,
   });
 });
 
