@@ -13,7 +13,21 @@ export type CasaCriar = Pick<Casa, "nome" | "endereco">;
 
 export type DetalhesCasa = { casa: Casa; nomeProprietario: string | null };
 
-type MoradorCasa = { id: string; nome: string };
+export type MoradorCasa = { id: string; nome: string; score: number };
+
+export function listarMoradoresCasa(casaId: string, signal?: AbortSignal) {
+  return requisitar<MoradorCasa[]>(`/casas/${casaId}/moradores`, signal);
+}
+
+export function removerMoradorCasa(
+  casaId: string,
+  usuarioId: string,
+  signal?: AbortSignal,
+) {
+  return requisitar<void>(`/pertencer/${usuarioId}/${casaId}`, signal, {
+    method: "DELETE",
+  });
+}
 
 export type ConviteCasa = { convite: string; expira_em: string };
 
@@ -49,7 +63,7 @@ export async function carregarDetalhesCasa(
 ): Promise<DetalhesCasa> {
   const [respostaCasa, respostaMoradores] = await Promise.allSettled([
     requisitar<Casa>(`/casas/${casaId}`, signal),
-    requisitar<MoradorCasa[]>(`/casas/${casaId}/moradores`, signal),
+    listarMoradoresCasa(casaId, signal),
   ]);
 
   if (respostaCasa.status === "rejected") throw respostaCasa.reason;

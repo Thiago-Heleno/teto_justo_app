@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -27,15 +28,9 @@ import {
 } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
-  casaDemonstracao,
-  moradoresDemonstracao,
-  usuarioDemonstracaoId,
-} from "@/data/tarefa-demonstracao";
-import {
   carregarContextoTarefas,
   criarRotatividade as salvarRotatividade,
   criarTarefa as salvarTarefa,
-  temConfiguracaoTarefas,
   type Casa,
 } from "@/services/tarefas-api";
 import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
@@ -59,34 +54,14 @@ function IndicadorSelecao({ selecionado }: { selecionado: boolean }) {
 
 export default function NovaTarefaScreen() {
   const { width } = useWindowDimensions();
-  const [usarApi, setUsarApi] = useState(temConfiguracaoTarefas);
   const [contexto, setContexto] = useState<
     [Casa, { id: string; nome: string }[]] | null
-  >(usarApi ? null : [casaDemonstracao, moradoresDemonstracao]);
+  >(null);
   const [erroContexto, setErroContexto] = useState<string>();
   const [tentativa, setTentativa] = useState(0);
   const casa = contexto?.[0];
   const moradores = contexto?.[1] ?? [];
 
-  useEffect(() => {
-    if (!usarApi) return;
-    const controlador = new AbortController();
-    async function carregar() {
-      try {
-        const dados = await carregarContextoTarefas(controlador.signal);
-        if (!controlador.signal.aborted) setContexto(dados);
-      } catch (erro: unknown) {
-        if (!controlador.signal.aborted)
-          setErroContexto(
-            erro instanceof Error
-              ? erro.message
-              : "Não foi possível carregar os moradores.",
-          );
-      }
-    }
-    void carregar();
-    return () => controlador.abort();
-  }, [usarApi, tentativa]);
   const scrollRef = useRef<ScrollView>(null);
   const envioEmAndamento = useRef(false);
   const descricaoRef = useRef<TextInput>(null);
@@ -108,6 +83,36 @@ export default function NovaTarefaScreen() {
   const [salvando, setSalvando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string>();
   const cardStyle = [styles.card, width < 600 && styles.compactCard];
+
+  useFocusEffect(
+    useCallback(() => {
+      const controlador = new AbortController();
+      setContexto(null);
+      setErroContexto(undefined);
+      async function carregar() {
+        try {
+          const dados = await carregarContextoTarefas(controlador.signal);
+          if (!controlador.signal.aborted) {
+            setContexto(dados);
+            const ids = new Set(dados[1].map((morador) => morador.id));
+            setResponsavel((atual) => (atual && ids.has(atual) ? atual : null));
+            setParticipantes((atuais) => atuais.filter((id) => ids.has(id)));
+          }
+        } catch (erro: unknown) {
+          if (!controlador.signal.aborted)
+            setErroContexto(
+              erro instanceof Error
+                ? erro.message
+                : "Não foi possível carregar os moradores.",
+            );
+        }
+      }
+      void carregar();
+      return () => controlador.abort();
+      // A tentativa refaz a consulta sem precisar mudar de aba.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tentativa]),
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -138,9 +143,7 @@ export default function NovaTarefaScreen() {
     setErros(resultado.erros);
     Keyboard.dismiss();
     if (resultado.tarefa) {
-      if (!usarApi) {
-        setTarefa(resultado.tarefa);
-      } else if (casa) {
+      if (casa) {
         if (envioEmAndamento.current) return;
         envioEmAndamento.current = true;
         setSalvando(true);
@@ -238,12 +241,8 @@ export default function NovaTarefaScreen() {
               <Text accessibilityRole="header" style={styles.title}>
                 {tarefa
                   ? tarefa.rotatividade
-                    ? usarApi
-                      ? "RODÍZIO CADASTRADO!"
-                      : "PRÉVIA DO RODÍZIO"
-                    : usarApi
-                      ? "TAREFA CRIADA!"
-                      : "TUDO PRONTO!"
+                    ? "RODÍZIO CADASTRADO!"
+                    : "TAREFA CRIADA!"
                   : "NOVA TAREFA"}
               </Text>
               <Text style={styles.body}>
@@ -252,20 +251,14 @@ export default function NovaTarefaScreen() {
                   : "Organize o que precisa ser feito na casa."}
               </Text>
               <View style={styles.badge}>
-                <Text style={styles.help}>
-                  {usarApi
-                    ? "Tarefas da sua casa"
-                    : "Demonstração · dados fictícios"}
-                </Text>
+                <Text style={styles.help}>Tarefas da sua casa</Text>
               </View>
-              {(!usarApi || (rotativa && tarefa === null)) && (
+              {rotativa && tarefa === null && (
                 <Text style={styles.help}>
-                  {usarApi
-                    ? "Configure o rodízio e distribua ocorrências automaticamente."
-                    : "Esta demonstração não salva tarefas nem inicia o rodízio."}
+                  Configure o rodízio e distribua ocorrências automaticamente.
                 </Text>
               )}
-              {usarApi && tarefa?.rotatividade && (
+              {tarefa?.rotatividade && (
                 <Text style={styles.help}>
                   Rodízio salvo. As ocorrências serão criadas nos dias
                   programados e atribuídas automaticamente pelo balanceamento.
@@ -290,19 +283,6 @@ export default function NovaTarefaScreen() {
                     <Text style={styles.body}>Tentar novamente</Text>
                   </MotionPressable>
                 )}
-                {erroContexto && (
-                  <MotionPressable
-                    accessibilityRole="button"
-                    style={styles.demoButton}
-                    onPress={() => {
-                      setUsarApi(false);
-                      setContexto([casaDemonstracao, moradoresDemonstracao]);
-                      setErroContexto(undefined);
-                    }}
-                  >
-                    <Text style={styles.body}>Usar dados de demonstração</Text>
-                  </MotionPressable>
-                )}
               </View>
             ) : tarefa ? (
               <>
@@ -312,11 +292,7 @@ export default function NovaTarefaScreen() {
                     accessibilityLiveRegion="polite"
                     style={styles.sectionTitle}
                   >
-                    {usarApi
-                      ? tarefa.rotatividade
-                        ? "Rodízio salvo"
-                        : "Detalhes salvos"
-                      : "Prévia da tarefa"}
+                    {tarefa.rotatividade ? "Rodízio salvo" : "Detalhes salvos"}
                   </Text>
                   <View style={styles.section}>
                     <Text style={styles.help}>Nome</Text>
@@ -735,7 +711,7 @@ export default function NovaTarefaScreen() {
                       const selecionado = rotativa
                         ? participantes.includes(morador.id)
                         : responsavel === morador.id;
-                      const nomeExibido = `${morador.nome}${!usarApi && morador.id === usuarioDemonstracaoId ? " (você)" : ""}`;
+                      const nomeExibido = morador.nome;
                       return (
                         <MotionPressable
                           key={morador.id}
@@ -955,9 +931,7 @@ export default function NovaTarefaScreen() {
                       ? "Criando..."
                       : rotativa
                         ? "Conferir rodízio"
-                        : usarApi
-                          ? "Criar tarefa"
-                          : "Conferir tarefa"}
+                        : "Criar tarefa"}
                   </Text>
                 </MotionPressable>
               </>
@@ -1101,15 +1075,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   residentName: { flex: 1 },
-  demoButton: {
-    minHeight: 56,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing.three,
-    borderRadius: 800,
-    borderWidth: 1.5,
-    borderColor: Caldera.obsidian,
-  },
   button: {
     minHeight: 56,
     paddingVertical: 12,

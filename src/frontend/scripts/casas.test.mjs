@@ -35,6 +35,8 @@ const {
   criarConviteCasa,
   sairDaCasa,
   carregarDetalhesCasa,
+  listarMoradoresCasa,
+  removerMoradorCasa,
 } = await import("../src/services/casas-api.ts");
 const {
   sessao,
@@ -62,6 +64,70 @@ const resposta = (dados) => ({
   ok: true,
   status: 200,
   json: async () => dados,
+});
+
+test("lista moradores autenticados da casa e encaminha o cancelamento", async () => {
+  const sinal = new AbortController().signal;
+  const moradores = [{ id: "proprietario", nome: "Ana", score: 10 }];
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/casas/a/moradores");
+    assert.equal(opcoes.method, "GET");
+    assert.equal(opcoes.headers.Authorization, "Bearer sessao-teste");
+    assert.equal(opcoes.signal, sinal);
+    return resposta(moradores);
+  };
+  assert.deepEqual(await listarMoradoresCasa("a", sinal), moradores);
+});
+
+test("remoção envia usuário e casa na ordem do contrato, sem corpo, e aceita 204", async () => {
+  const sinal = new AbortController().signal;
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/pertencer/morador-alvo/a");
+    assert.equal(opcoes.method, "DELETE");
+    assert.equal(opcoes.headers.Authorization, "Bearer sessao-teste");
+    assert.equal(opcoes.signal, sinal);
+    assert.equal(opcoes.body, undefined);
+    return { ok: true, status: 204 };
+  };
+  assert.equal(await removerMoradorCasa("a", "morador-alvo", sinal), undefined);
+});
+
+for (const [status, mensagem] of [
+  [403, "Apenas o administrador pode realizar esta ação."],
+  [409, "O proprietário não pode sair da própria casa."],
+  [409, "O morador possui tarefas abertas nesta casa."],
+]) {
+  test(`remoção preserva o erro ${status}: ${mensagem}`, async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status,
+      json: async () => ({ detail: mensagem }),
+    });
+    await assert.rejects(removerMoradorCasa("a", "morador-alvo"), (erro) => {
+      assert.ok(erro instanceof ErroApi);
+      assert.equal(erro.status, status);
+      assert.equal(erro.message, mensagem);
+      return true;
+    });
+  });
+}
+
+test("nova consulta de tarefas usa a lista atual após a remoção", async () => {
+  await selecionarCasa(casa("a"));
+  let moradores = [
+    { id: "proprietario", nome: "Ana", score: 0 },
+    { id: "morador-alvo", nome: "Bruno", score: 0 },
+  ];
+  globalThis.fetch = async (url, opcoes) => {
+    if (opcoes.method === "DELETE") {
+      moradores = moradores.filter((morador) => morador.id !== "morador-alvo");
+      return { ok: true, status: 204 };
+    }
+    return resposta(url.endsWith("/moradores") ? moradores : casa("a"));
+  };
+  assert.equal((await carregarContextoTarefas())[1].length, 2);
+  await removerMoradorCasa("a", "morador-alvo");
+  assert.deepEqual((await carregarContextoTarefas())[1], [moradores[0]]);
 });
 
 beforeEach(() => {
