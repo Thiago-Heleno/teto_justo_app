@@ -207,7 +207,7 @@ function Start-Dev {
             Invoke-DevCommand npm.cmd @('ci') 'npm ci falhou. Confira a conexao e a compatibilidade do package-lock.json.'
             [IO.File]::WriteAllText($stamp, $fingerprint)
         }
-        Write-Host 'Iniciando backend (o agendador de penalidades nao sera iniciado)...'
+        Write-Host 'Iniciando backend local (jobs automaticos executam na Vercel)...'
         Invoke-DevCommand docker.exe ($compose + @('up', '-d', '--build', 'backend')) `
             'Falha ao subir os containers. Consulte o erro do Docker acima; o Expo nao foi iniciado.'
         Wait-DevBackend
