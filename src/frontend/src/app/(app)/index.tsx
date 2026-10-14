@@ -169,6 +169,32 @@ export default function HomeScreen() {
                   <Text style={styles.buttonText}>Ver tarefas →</Text>
                 </MotionPressable>
               </Link>
+              <Link href="/gerenciar-casa" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  disabled={ocupado}
+                  accessibilityState={{ disabled: ocupado }}
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    ocupado && styles.disabled,
+                  ])}
+                >
+                  <Text style={styles.buttonText}>Gerenciar casa</Text>
+                </MotionPressable>
+              </Link>
+              <Link href="/rotatividades" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  disabled={ocupado}
+                  accessibilityState={{ disabled: ocupado }}
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    ocupado && styles.disabled,
+                  ])}
+                >
+                  <Text style={styles.buttonText}>Regras de rodízio</Text>
+                </MotionPressable>
+              </Link>
               {casa && !detalhesAbertos && (
                 <MotionPressable
                   accessibilityRole="button"

@@ -130,8 +130,8 @@ portas TCP 8000 e 8081 somente na rede privada utilizada para desenvolvimento.
 Antes de ler o QR, confira no navegador do celular o endereço `/health` mostrado
 no terminal. Um túnel do Expo, sozinho, não torna o backend local acessível.
 
-O script **não cria banco, não aplica migrations e não inicia o agendador de
-penalidades/rotatividade**. A validação de `/health` não comprova as
+O script **não cria banco, não aplica migrations e não executa automaticamente
+os jobs de penalidades/rotatividade**. A validação de `/health` não comprova as
 credenciais, a conectividade ou o esquema do Supabase; cadastro e login devem
 ser conferidos no ambiente de teste preparado pela equipe. O comando usa
 HTTP na rede local e não substitui hospedagem HTTPS para um APK distribuído.
@@ -226,48 +226,54 @@ com as origens separadas por vírgula (por exemplo,
 
 #### Rotina agendada de penalidades
 
-Um agendador externo pode chamar `POST /jobs/penalidades`. Configure
-`PENALIDADE_JOB_TOKEN` no ambiente do backend e envie o mesmo valor no
-cabeçalho `X-Penalidade-Job-Token`. Sem o segredo, o endpoint fica desativado;
-não use o token em logs nem o exponha ao frontend.
+O Vercel Cron chama `GET /jobs/penalidades`, autenticado por
+`Authorization: Bearer <CRON_SECRET>`. Configure `CRON_SECRET` no ambiente do
+backend; sem o segredo, a rota GET retorna `503`, e com autenticação ausente ou
+inválida retorna `401`. A autenticação acontece antes de obter o cliente do
+banco. Respostas de sucesso usam `Cache-Control: no-store`.
 
-Para desenvolvimento local, cada pessoa cria seu próprio token no `.env` local
-da raiz do repositório; não é necessário compartilhar tokens entre
-desenvolvedores. Gere um valor aleatório com Python:
+Para desenvolvimento local, cada pessoa cria seu próprio segredo no `.env`
+local da raiz do repositório; não é necessário compartilhá-lo entre
+desenvolvedores. A partir da raiz do repositório, gere um valor aleatório:
 
 ```powershell
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Copie o resultado para `PENALIDADE_JOB_TOKEN` no `.env` local e reinicie o
-backend. `.env.example` documenta a variável, mas seu valor real não deve ser
-preenchido nem commitado. Para um ambiente compartilhado, o responsável pela
-implantação deve cadastrar o mesmo segredo no armazenamento seguro de variáveis
-do backend e do agendador; compartilhe o acesso pelo gerenciador de segredos da
-equipe, nunca por commits, mensagens ou logs.
+Copie o resultado para `CRON_SECRET` no `.env` local e reinicie o backend.
+Na Vercel, configure o segredo nas variáveis de Production do projeto do
+backend. `.env.example` mantém o valor vazio; não versione nem exponha o
+segredo ao frontend, em mensagens ou logs.
 
 Um teste manual em PowerShell pode usar uma variável de ambiente já configurada
 na sessão, sem gravar o valor no comando:
 
 ```powershell
-Invoke-RestMethod -Method Post `
+Invoke-RestMethod -Method Get `
   -Uri "http://127.0.0.1:8000/jobs/penalidades" `
-  -Headers @{ "X-Penalidade-Job-Token" = $env:PENALIDADE_JOB_TOKEN }
+  -Headers @{ Authorization = "Bearer $env:CRON_SECRET" }
 ```
 
 A rotina marca tarefas vencidas como `atrasada` e, após ultrapassar o atraso
 máximo, como `nao_feito`. Chamadas repetidas são seguras: a atualização compara
 o estado e as regras atuais da tarefa, e não gera `score_event` nem altera o
 saldo. O desconto de `100 / (atraso_maximo + 1)` por dia é calculado no momento
-da conclusão, onde o crédito é registrado uma única vez. O agendamento em si
-deve ser configurado no serviço externo que fará a chamada HTTP.
+da conclusão, onde o crédito é registrado uma única vez.
+
+A chamada manual `POST /jobs/penalidades` continua disponível com
+`PENALIDADE_JOB_TOKEN` e o cabeçalho `X-Penalidade-Job-Token`. Esse segredo é
+opcional e independente de `CRON_SECRET`; o GET não aceita o token do POST.
 
 #### Rotatividade automática
 
-O endpoint `POST /jobs/rotatividades` processa as ocorrências vencidas das
-configurações ativas e é destinado a um agendador externo. Configure
-`ROTATIVIDADE_JOB_TOKEN` no backend; o agendador deve enviar o mesmo segredo no
-cabeçalho `X-Rotatividade-Job-Token`. Não exponha nem registre esse token.
+O Vercel Cron chama `GET /jobs/rotatividades` para processar as ocorrências
+vencidas das configurações ativas. Essa rota usa a mesma autenticação
+`CRON_SECRET` e os mesmos códigos `503`/`401` e controle de cache do GET de
+penalidades. O job também pode reparar uma ocorrência criada sem atribuição.
+
+A chamada manual `POST /jobs/rotatividades` continua disponível com
+`ROTATIVIDADE_JOB_TOKEN` e o cabeçalho `X-Rotatividade-Job-Token`, sem depender
+de `CRON_SECRET`. Não exponha nem registre os segredos.
 
 Para testar a integração com o banco, configure `SUPABASE_URL` e
 `SUPABASE_KEY` no `.env` da raiz, aplique as migrations necessárias (incluindo
@@ -291,24 +297,44 @@ Docker:
 docker compose up --build backend
 ```
 
-#### Agendador dos jobs (Docker)
+#### Agendador dos jobs (Vercel)
 
-O serviço `agendador` do `docker-compose.yml` chama os dois jobs uma vez por dia,
-às 03:05 UTC (00:05 em Brasília): `POST /jobs/rotatividades` e
-`POST /jobs/penalidades`. Os horários ficam em `src/agendador/crontab`. Ele lê
-`ROTATIVIDADE_JOB_TOKEN` e `PENALIDADE_JOB_TOKEN` do mesmo `.env` do backend, e
-os dois precisam ter valor, senão o backend responde `503` e o erro aparece no
-log do agendador.
+Os dois horários ficam em `src/backend/vercel.json`, junto ao código do
+backend. A expressão `5 3 * * *` agenda cada job diariamente às 03:05 UTC
+(00:05 em Brasília). A Vercel faz as chamadas GET; o processamento permanece
+nos serviços Python existentes. O contêiner `agendador` e seu crontab foram
+removidos; o Docker Compose inicia apenas o backend local.
 
-```powershell
-docker compose up --build
-```
+Para ativar na Vercel:
 
-Como o banco é compartilhado e o bloqueio contra execução simultânea existe só
-dentro de um backend, deixe o agendador ligado em **uma única máquina**. Quem
-não deve rodar o agendador sobe somente o backend, com
-`docker compose up --build backend`. Para acompanhar as chamadas, use
-`docker compose logs agendador`.
+1. Confira se o projeto do backend usa **Root Directory: `src/backend`** e
+   o framework FastAPI, com `main.py` como entrada. Assim a implantação lê o
+   `vercel.json` dessa pasta.
+2. Cadastre `CRON_SECRET` nas variáveis de ambiente de **Production** do
+   projeto. A Vercel envia `Authorization: Bearer <CRON_SECRET>` automaticamente;
+   as rotas validam esse cabeçalho. Os tokens dos POSTs não são necessários
+   para o agendamento.
+3. Faça um novo deploy de produção para aplicar os horários e o segredo.
+4. Confira os dois jobs em **Settings > Cron Jobs** e acompanhe seus logs.
+
+Cron Jobs executam somente em produção, sem disparos automáticos em previews,
+no Docker Compose ou no FastAPI local. Para testar localmente, chame os GETs
+manualmente com o segredo configurado.
+
+No plano Hobby, cada job pode executar no máximo uma vez por dia e a chamada
+pode acontecer dentro da hora configurada, sem precisão de minuto. Nos planos
+Pro/Enterprise, a precisão é por minuto. A Vercel não repete automaticamente
+um job que falha, e o processamento está sujeito ao tempo máximo da função.
+Fontes: [configuração e produção](https://vercel.com/docs/cron-jobs/quickstart),
+[autenticação e execução](https://vercel.com/docs/cron-jobs/manage-cron-jobs),
+[limites por plano](https://vercel.com/docs/cron-jobs/usage-and-pricing).
+
+O bloqueio de rotatividade continua local ao processo: ele não coordena
+instâncias diferentes da Vercel. A unicidade existente evita duas tarefas
+para a mesma ocorrência, mas não garante um único responsável se duas
+instâncias calcularem atribuições diferentes simultaneamente. Evite outros
+agendadores e chamadas manuais concorrentes; a proteção completa entre
+instâncias exige um bloqueio distribuído e permanece uma limitação real.
 
 ### 3. Inicie o frontend
 

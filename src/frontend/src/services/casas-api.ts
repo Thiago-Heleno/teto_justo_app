@@ -98,3 +98,28 @@ export function casaInicial(casas: Casa[], preferidaId: string | null) {
     (casas.length === 1 ? casas[0] : null)
   );
 }
+
+export type CasaAtualizar = Pick<Casa, "nome" | "endereco" | "timezone">;
+
+export function carregarCasa(casaId: string, signal?: AbortSignal) {
+  return requisitar<Casa>(`/casas/${casaId}`, signal);
+}
+
+export function atualizarCasa(
+  casaId: string,
+  dados: CasaAtualizar,
+  signal?: AbortSignal,
+) {
+  return requisitar<Casa>(`/casas/${casaId}`, signal, {
+    method: "PATCH",
+    body: {
+      nome: dados.nome.trim(),
+      endereco: dados.endereco.trim(),
+      timezone: dados.timezone.trim(),
+    },
+  });
+}
+
+export function excluirCasa(casaId: string, signal?: AbortSignal) {
+  return requisitar<boolean>(`/casas/${casaId}`, signal, { method: "DELETE" });
+}

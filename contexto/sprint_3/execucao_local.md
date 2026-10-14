@@ -55,8 +55,10 @@
   não valida Supabase, cadastro ou login.
 - Preparação do Supabase de teste, Expo Go no celular, configuração inicial do
   Docker/WSL, eventuais reinícios e acesso pela rede/firewall exigem a equipe.
-- O agendador não é iniciado pelo script; serviços já em execução não são
-  interrompidos automaticamente.
+- Os jobs automáticos são configurados em `src/backend/vercel.json` e
+  executados em produção pela Vercel. Localmente, o script inicia só o backend;
+  as rotas dos jobs podem ser chamadas manualmente. Serviços já em execução
+  não são interrompidos automaticamente.
 
 ## Referências
 
