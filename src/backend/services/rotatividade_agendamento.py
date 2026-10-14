@@ -147,7 +147,7 @@ class ServicoAgendamentoRotatividade:
         return resposta.data[0]
 
     def listar_rotatividades(self, id_casa: UUID, id_usuario_atual: UUID) -> list[dict]:
-        ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+        ServicoAutorizacaoCasa(self.supabase).garantir_acesso(
             id_casa,
             id_usuario_atual,
         )
