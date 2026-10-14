@@ -175,7 +175,7 @@ class BancoFalso:
         raise AssertionError("O serviço não deve chamar funções do banco.")
 
 
-def test_registra_ocorrencia_com_responsavel_escolhido_pelo_balanceador():
+def test_ocorrencia_atribui_sem_duplicar_e_repara_responsavel_ausente():
     banco = BancoFalso()
     servico = ServicoAgendamentoRotatividade(banco)
     membros = (uuid4(), uuid4())
@@ -202,3 +202,16 @@ def test_registra_ocorrencia_com_responsavel_escolhido_pelo_balanceador():
     assert tarefa["data_inicio"] == "2026-10-01T00:00:00+00:00"
     assert atribuicao["fk_tarefa_id"] == tarefa["id"]
     assert UUID(atribuicao["fk_usuario_id"]) == membros[0]
+
+    servico._registrar_ocorrencia(configuracao, date(2026, 10, 1), membros)
+
+    assert len(banco.registros["tarefa"]) == 1
+    assert len(banco.registros["atribuida"]) == 1
+
+    banco.registros["atribuida"].clear()
+    servico._registrar_ocorrencia(configuracao, date(2026, 10, 1), membros)
+
+    assert len(banco.registros["tarefa"]) == 1
+    assert len(banco.registros["atribuida"]) == 1
+    assert banco.registros["atribuida"][0]["fk_tarefa_id"] == tarefa["id"]
+    assert UUID(banco.registros["atribuida"][0]["fk_usuario_id"]) == membros[0]

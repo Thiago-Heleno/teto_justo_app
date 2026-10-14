@@ -1,7 +1,7 @@
 import hmac
 import os
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 
 from core.database import get_supabase
 from schemas.penalidade import ProcessamentoPenalidadesResposta
@@ -10,6 +10,38 @@ from services.penalidade import ServicoPenalidade
 from services.rotatividade_agendamento import ServicoAgendamentoRotatividade
 
 router = APIRouter(prefix="/jobs", tags=["Jobs internos"])
+
+
+def validar_cron(
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> None:
+    segredo = os.getenv("CRON_SECRET")
+    if not segredo:
+        raise HTTPException(status_code=503, detail="O agendamento da Vercel não está configurado.")
+    if authorization is None or not hmac.compare_digest(
+        authorization.encode(), f"Bearer {segredo}".encode()
+    ):
+        raise HTTPException(status_code=401, detail="Token de job inválido.")
+    response.headers["Cache-Control"] = "no-store"
+
+
+@router.get(
+    "/penalidades",
+    response_model=ProcessamentoPenalidadesResposta,
+    dependencies=[Depends(validar_cron)],
+)
+def processar_penalidades_cron(supabase=Depends(get_supabase)):
+    return ServicoPenalidade(supabase).processar_tarefas()
+
+
+@router.get(
+    "/rotatividades",
+    response_model=ResultadoJobRotatividade,
+    dependencies=[Depends(validar_cron)],
+)
+def processar_rotatividades_cron(supabase=Depends(get_supabase)):
+    return ServicoAgendamentoRotatividade(supabase).processar_ocorrencias()
 
 
 @router.post(
@@ -26,9 +58,7 @@ def processar_penalidades(
             status_code=503,
             detail="O processamento agendado de penalidades não está configurado.",
         )
-    if token is None or not hmac.compare_digest(
-        token_configurado.encode(), token.encode()
-    ):
+    if token is None or not hmac.compare_digest(token_configurado.encode(), token.encode()):
         raise HTTPException(status_code=401, detail="Token de job inválido.")
 
     return ServicoPenalidade(supabase).processar_tarefas()
@@ -45,9 +75,7 @@ def processar_rotatividades(
             status_code=503,
             detail="O processamento agendado de rodízios não está configurado.",
         )
-    if token is None or not hmac.compare_digest(
-        token_configurado.encode(), token.encode()
-    ):
+    if token is None or not hmac.compare_digest(token_configurado.encode(), token.encode()):
         raise HTTPException(status_code=401, detail="Token de job inválido.")
 
     return ServicoAgendamentoRotatividade(supabase).processar_ocorrencias()
