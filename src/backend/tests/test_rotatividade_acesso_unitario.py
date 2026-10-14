@@ -53,7 +53,11 @@ def test_morador_nao_consegue_alterar_regras(acao):
     servico = ServicoAgendamentoRotatividade(banco)
     with pytest.raises(HTTPException) as erro:
         if acao == "editar":
-            servico.atualizar_rotatividade(regra_id, RotatividadeAtualizar(nome="Novo nome"), usuario)
+            servico.atualizar_rotatividade(
+                regra_id, 
+                RotatividadeAtualizar(nome="Novo nome"), 
+                usuario,
+            )
         else:
             servico.excluir_rotatividade(regra_id, usuario)
     assert erro.value.status_code == 403
