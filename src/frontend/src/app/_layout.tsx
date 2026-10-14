@@ -56,6 +56,8 @@ export default function RootLayout() {
               </Stack.Protected>
               <Stack.Protected guard={Boolean(token) && Boolean(casaAtiva)}>
                 <Stack.Screen name="(app)" />
+                <Stack.Screen name="gerenciar-casa" />
+                <Stack.Screen name="rotatividades" />
               </Stack.Protected>
             </Stack>
           </>
