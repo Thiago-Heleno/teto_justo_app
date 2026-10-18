@@ -1,4 +1,4 @@
-"""Integração do agendamento automático de rodízios com o Supabase de teste."""
+"""Integração de rodízios restrita aos registros criados pelo próprio teste."""
 
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from core.database import get_supabase
 from main import app
+from services.rotatividade_agendamento import ServicoAgendamentoRotatividade
 
 
 @pytest.fixture
@@ -16,19 +17,6 @@ def ambiente_rotatividade(
     criar_autenticacao_temporaria,
 ):
     supabase = get_supabase()
-    configuracoes_ativas = (
-        supabase.table("rotatividade")
-        .select("id")
-        .eq("ativa", True)
-        .limit(1)
-        .execute()
-        .data
-    )
-    assert not configuracoes_ativas, (
-        "Este teste processa todos os rodízios ativos. "
-        "Use um Supabase de teste sem rodízios ativos."
-    )
-
     marcador = uuid4().hex
     proprietario_id = autenticacao_temporaria["usuario_id"]
     participante = criar_autenticacao_temporaria()
@@ -130,8 +118,14 @@ def test_criar_e_processar_rotatividade_no_supabase(
     supabase = get_supabase()
     proprietario_id = ambiente_rotatividade["proprietario_id"]
     participante_id = ambiente_rotatividade["participante_id"]
-    token_job = uuid4().hex
-    monkeypatch.setenv("ROTATIVIDADE_JOB_TOKEN", token_job)
+    instante = datetime.now(timezone.utc)
+
+    class RelogioFixo(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instante.astimezone(tz) if tz else instante.replace(tzinfo=None)
+
+    monkeypatch.setattr("services.rotatividade_agendamento.datetime", RelogioFixo)
 
     with TestClient(
         app,
@@ -147,9 +141,7 @@ def test_criar_e_processar_rotatividade_no_supabase(
                 "prazo_dias": 2,
                 "atraso_maximo": 2,
                 "participantes": [proprietario_id, participante_id],
-                "dias_semana": [
-                    datetime.now(timezone.utc).isoweekday()
-                ],
+                "dias_semana": [instante.isoweekday()],
                 "intervalo_semanas": 1,
             },
         )
@@ -169,7 +161,6 @@ def test_criar_e_processar_rotatividade_no_supabase(
             participante_id,
         ]
 
-        # A criação já gera a ocorrência de hoje; o job só repara o que faltar.
         tarefas_apos_criar = (
             supabase.table("tarefa")
             .select("id")
@@ -179,15 +170,16 @@ def test_criar_e_processar_rotatividade_no_supabase(
         )
         assert len(tarefas_apos_criar) == 1
 
-        processamento = cliente.post(
-            "/jobs/rotatividades",
-            headers={"X-Rotatividade-Job-Token": token_job},
+        configuracao = (
+            supabase.table("rotatividade")
+            .select("*")
+            .eq("id", rotatividade["id"])
+            .execute()
+            .data[0]
         )
-        assert processamento.status_code == 200, processamento.text
-        assert processamento.json() == {
-            "rotatividades_analisadas": 1,
-            "ocorrencias_processadas": 0,
-        }
+        # O job global também processaria rodízios reais fora deste teste.
+        servico = ServicoAgendamentoRotatividade(supabase)
+        assert servico._processar_configuracao(configuracao, instante) == 0
 
     tarefas = (
         supabase.table("tarefa")
