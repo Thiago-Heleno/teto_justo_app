@@ -189,22 +189,19 @@ class ServicoAgendamentoRotatividade:
         )
         conflito = HTTPException(
             status_code=409,
-            detail="Rodízio com tarefas geradas não pode ser excluído. Pause-o.",
+            detail="Rodízio com tarefas já pontuadas não pode ser excluído. Pause-o.",
         )
-        tarefas = (
-            self.supabase.table("tarefa")
-            .select("id")
-            .eq("rotatividade_id", str(id_rotatividade))
-            .limit(1)
-            .execute()
-        ).data
-        if tarefas:
-            raise conflito
         # Pausa antes de apagar: se algo falhar no meio, o job ignora o rodízio.
         self.supabase.table("rotatividade").update({"ativa": False}).eq(
             "id", str(id_rotatividade)
         ).execute()
         try:
+            (
+                self.supabase.table("tarefa")
+                .delete()
+                .eq("rotatividade_id", str(id_rotatividade))
+                .execute()
+            )
             (
                 self.supabase.table("rotatividade_participante")
                 .delete()
