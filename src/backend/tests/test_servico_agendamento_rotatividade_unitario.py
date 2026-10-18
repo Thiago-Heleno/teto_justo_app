@@ -1,8 +1,11 @@
-from datetime import date
+from copy import deepcopy
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
+
+import pytest
 
 from schemas.rotatividade import RotatividadeCriar
 from services.rotatividade_agendamento import (
@@ -215,3 +218,75 @@ def test_ocorrencia_atribui_sem_duplicar_e_repara_responsavel_ausente():
     assert len(banco.registros["atribuida"]) == 1
     assert banco.registros["atribuida"][0]["fk_tarefa_id"] == tarefa["id"]
     assert UUID(banco.registros["atribuida"][0]["fk_usuario_id"]) == membros[0]
+
+
+@pytest.mark.parametrize(
+    "processamento_global", [False, True], ids=["configuracao-isolada", "job-global"]
+)
+def test_processamento_respeita_escopo_e_nao_duplica_ocorrencias(processamento_global):
+    banco = BancoFalso()
+    configuracoes = [
+        {
+            "id": str(uuid4()),
+            "fk_casa_id": str(uuid4()),
+            "fk_usuario_id": str(uuid4()),
+            "timezone": "UTC",
+            "nome": "Limpar cozinha",
+            "dificuldade": 2,
+            "pontuacao": 25,
+            "prazo_dias": 3,
+            "atraso_maximo": 2,
+            "modo_prazo": "intervalo",
+            "semana_ancora": "2026-10-01",
+            "dias_semana": [4],
+            "intervalo_semanas": 1,
+            "ativa": ativa,
+        }
+        for ativa in [True, True, False]
+    ]
+    banco.registros.update({
+        "rotatividade": configuracoes,
+        "rotatividade_participante": [
+            {
+                "fk_rotatividade_id": configuracao["id"],
+                "fk_usuario_id": configuracao["fk_usuario_id"],
+                "ordem": 1,
+            }
+            for configuracao in configuracoes
+        ],
+        "pertencer": [
+            {
+                "fk_casa_id": configuracao["fk_casa_id"],
+                "fk_usuario_id": configuracao["fk_usuario_id"],
+                "ativo": True,
+            }
+            for configuracao in configuracoes
+        ],
+    })
+    servico = ServicoAgendamentoRotatividade(banco)
+    instante = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+
+    if processamento_global:
+        assert servico.processar_ocorrencias(instante) == {
+            "rotatividades_analisadas": 2,
+            "ocorrencias_processadas": 2,
+        }
+    else:
+        assert servico._processar_configuracao(configuracoes[0], instante) == 1
+
+    esperadas = configuracoes[:2] if processamento_global else configuracoes[:1]
+    assert {tarefa["rotatividade_id"] for tarefa in banco.registros["tarefa"]} == {
+        configuracao["id"] for configuracao in esperadas
+    }
+    assert len(banco.registros["atribuida"]) == len(esperadas)
+    registros_antes = deepcopy(banco.registros)
+
+    if processamento_global:
+        assert servico.processar_ocorrencias(instante) == {
+            "rotatividades_analisadas": 2,
+            "ocorrencias_processadas": 0,
+        }
+    else:
+        assert servico._processar_configuracao(configuracoes[0], instante) == 0
+
+    assert banco.registros == registros_antes
