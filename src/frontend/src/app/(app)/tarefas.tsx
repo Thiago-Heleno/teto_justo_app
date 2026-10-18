@@ -1,5 +1,5 @@
-import { Link } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { Link, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -20,6 +20,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useStore } from "zustand";
 
 import {
   DetalheTarefa,
@@ -29,6 +30,7 @@ import { EditarTarefa } from "@/components/editar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
+import { sessao } from "@/services/sessao-store";
 import {
   carregarContextoTarefas,
   carregarPlacar,
@@ -106,20 +108,32 @@ function iniciais(nome: string) {
 
 export default function TarefasScreen() {
   const { width } = useWindowDimensions();
+  const casaId = useStore(sessao, (estado) => estado.casaAtiva?.id);
+  const token = useStore(sessao, (estado) => estado.token);
   const telaPequena = width < 600;
   const estiloPagina = [styles.page, telaPequena && styles.pageSmall];
   const scrollRef = useRef<ScrollView>(null);
+  const chaveSessao = `${casaId}:${token}`;
+  const [origemContexto, setOrigemContexto] = useState<string>();
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
   const [placar, setPlacar] = useState<Placar>();
+  const [origemPlacar, setOrigemPlacar] = useState<string>();
   const [erroPlacar, setErroPlacar] = useState<string>();
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual>();
-  const [tarefas, setTarefas] = useState<Tarefa[]>();
-  const [tarefasEmAberto, setTarefasEmAberto] = useState(0);
+  const [todasTarefas, setTodasTarefas] = useState<Tarefa[]>();
+  const [resultadoFiltrado, setResultadoFiltrado] = useState<{
+    chave: string;
+    tarefas: Tarefa[];
+  }>();
   const [carregandoContexto, setCarregandoContexto] = useState(true);
-  const [carregandoTarefas, setCarregandoTarefas] = useState(true);
+  const [carregandoTarefas, setCarregandoTarefas] = useState(false);
+  const [carregandoPlacar, setCarregandoPlacar] = useState(true);
   const [erroContexto, setErroContexto] = useState<string>();
-  const [erroTarefas, setErroTarefas] = useState<string>();
+  const [erroTarefas, setErroTarefas] = useState<{
+    chave: string;
+    mensagem: string;
+  }>();
   const [tentativa, setTentativa] = useState(0);
   const [filtros, setFiltros] = useState<FiltrosTarefa>({
     estado: "todos",
@@ -128,97 +142,178 @@ export default function TarefasScreen() {
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
   const [editando, setEditando] = useState(false);
+  const { estado, responsavel, prazo } = filtros;
+  const filtrosAtivos =
+    estado !== "todos" || responsavel !== "todos" || prazo !== "todos";
+  const chaveFiltro = `${chaveSessao}:${estado}:${responsavel}:${prazo}`;
+  const contextoAtual = origemContexto === chaveSessao;
+  const placarAtual = origemPlacar === chaveSessao ? placar : undefined;
+  const tarefas = !contextoAtual
+    ? undefined
+    : filtrosAtivos
+      ? resultadoFiltrado?.chave === chaveFiltro
+        ? resultadoFiltrado.tarefas
+        : undefined
+      : todasTarefas;
+  const erroFiltroAtual =
+    erroTarefas?.chave === chaveFiltro ? erroTarefas.mensagem : undefined;
+  const tarefasEmAberto =
+    (contextoAtual ? todasTarefas : undefined)?.filter(
+      (tarefa) =>
+        tarefa.estado_atual === "pendente" ||
+        tarefa.estado_atual === "atrasada",
+    ).length ?? 0;
+  const atualizando =
+    carregandoContexto ||
+    (filtrosAtivos && carregandoTarefas) ||
+    carregandoPlacar;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [tarefaSelecionadaId, editando]);
 
-  useEffect(() => {
-    const controlador = new AbortController();
-    // Reset síncrono do estado de loading/erro ao (re)disparar a busca de
-    // contexto (mount ou retry); risco de cascata é aceitável aqui.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCarregandoContexto(true);
-    setErroContexto(undefined);
+  useFocusEffect(
+    useCallback(() => {
+      if (!casaId || !token) return;
+      const controlador = new AbortController();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCarregandoContexto(true);
+      setErroContexto(undefined);
 
-    Promise.all([
-      carregarContextoTarefas(controlador.signal),
-      carregarUsuarioAtual(controlador.signal),
-      carregarTarefas(
-        { estado: "todos", responsavel: "todos", prazo: "todos" },
-        controlador.signal,
+      Promise.all([
+        carregarContextoTarefas(controlador.signal),
+        carregarUsuarioAtual(controlador.signal),
+        carregarTarefas(
+          { estado: "todos", responsavel: "todos", prazo: "todos" },
+          controlador.signal,
+        ),
+      ])
+        .then(([[casaAtual, moradoresAtuais], usuario, todasTarefas]) => {
+          if (controlador.signal.aborted) return;
+          setCasa(casaAtual);
+          setMoradores(moradoresAtuais);
+          setUsuarioAtual(usuario);
+          setTodasTarefas(todasTarefas);
+          setOrigemContexto(chaveSessao);
+        })
+        .catch((erro: unknown) => {
+          if (!controlador.signal.aborted) {
+            setErroContexto(
+              erro instanceof Error
+                ? erro.message
+                : "Não foi possível carregar a casa.",
+            );
+          }
+        })
+        .finally(() => {
+          if (!controlador.signal.aborted) setCarregandoContexto(false);
+        });
+
+      return () => controlador.abort();
+      // A tentativa também refaz a consulta sem trocar de aba.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [casaId, token, chaveSessao, tentativa]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!casaId || !token || !filtrosAtivos) return;
+      const controlador = new AbortController();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCarregandoTarefas(true);
+      setErroTarefas(undefined);
+
+      carregarTarefas({ estado, responsavel, prazo }, controlador.signal)
+        .then((dados) => {
+          if (!controlador.signal.aborted)
+            setResultadoFiltrado({ chave: chaveFiltro, tarefas: dados });
+        })
+        .catch((erro: unknown) => {
+          if (!controlador.signal.aborted) {
+            setErroTarefas({
+              chave: chaveFiltro,
+              mensagem:
+                erro instanceof Error
+                  ? erro.message
+                  : "Não foi possível carregar as tarefas.",
+            });
+          }
+        })
+        .finally(() => {
+          if (!controlador.signal.aborted) setCarregandoTarefas(false);
+        });
+
+      return () => controlador.abort();
+      // A tentativa também refaz a consulta sem trocar de aba.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+      casaId,
+      token,
+      estado,
+      responsavel,
+      prazo,
+      filtrosAtivos,
+      chaveFiltro,
+      tentativa,
+    ]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!casaId || !token) return;
+      const controlador = new AbortController();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCarregandoPlacar(true);
+      setErroPlacar(undefined);
+      Promise.resolve()
+        .then(() => carregarPlacar(controlador.signal))
+        .then((dados) => {
+          if (!controlador.signal.aborted) {
+            setPlacar(dados);
+            setOrigemPlacar(chaveSessao);
+          }
+        })
+        .catch((erro: unknown) => {
+          if (!controlador.signal.aborted)
+            setErroPlacar(
+              erro instanceof Error
+                ? erro.message
+                : "Não foi possível carregar o placar.",
+            );
+        })
+        .finally(() => {
+          if (!controlador.signal.aborted) setCarregandoPlacar(false);
+        });
+      return () => controlador.abort();
+      // A tentativa também refaz a consulta sem trocar de aba.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [casaId, token, chaveSessao, tentativa]),
+  );
+
+  useEffect(() => {
+    if (!tarefas || !tarefaSelecionadaId) return;
+    if (tarefas.some((tarefa) => tarefa.id === tarefaSelecionadaId)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTarefaSelecionadaId(undefined);
+    setEditando(false);
+  }, [tarefas, tarefaSelecionadaId]);
+
+  function atualizarTarefaLocal(atualizada: Tarefa) {
+    setTodasTarefas((atuais) =>
+      atuais?.map((tarefa) =>
+        tarefa.id === atualizada.id ? atualizada : tarefa,
       ),
-    ])
-      .then(([[casaAtual, moradoresAtuais], usuario, todasTarefas]) => {
-        setCasa(casaAtual);
-        setMoradores(moradoresAtuais);
-        setUsuarioAtual(usuario);
-        setTarefasEmAberto(
-          todasTarefas.filter((tarefa) => tarefa.estado_atual !== "finalizado")
-            .length,
-        );
-      })
-      .catch((erro: unknown) => {
-        if (!controlador.signal.aborted) {
-          setErroContexto(
-            erro instanceof Error
-              ? erro.message
-              : "Não foi possível carregar a casa.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!controlador.signal.aborted) setCarregandoContexto(false);
-      });
-
-    return () => controlador.abort();
-  }, [tentativa]);
-
-  useEffect(() => {
-    const controlador = new AbortController();
-    // Reset síncrono do estado de loading/erro ao (re)disparar a busca de
-    // tarefas (filtro ou retry); risco de cascata é aceitável aqui.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCarregandoTarefas(true);
-    setErroTarefas(undefined);
-
-    carregarTarefas(filtros, controlador.signal)
-      .then(setTarefas)
-      .catch((erro: unknown) => {
-        if (!controlador.signal.aborted) {
-          setErroTarefas(
-            erro instanceof Error
-              ? erro.message
-              : "Não foi possível carregar as tarefas.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!controlador.signal.aborted) setCarregandoTarefas(false);
-      });
-
-    return () => controlador.abort();
-  }, [filtros, tentativa]);
-
-  useEffect(() => {
-    const controlador = new AbortController();
-    carregarPlacar(controlador.signal)
-      .then((dados) => {
-        if (!controlador.signal.aborted) {
-          setPlacar(dados);
-          setErroPlacar(undefined);
-        }
-      })
-      .catch((erro: unknown) => {
-        if (!controlador.signal.aborted)
-          setErroPlacar(
-            erro instanceof Error
-              ? erro.message
-              : "Não foi possível carregar o placar.",
-          );
-      });
-    return () => controlador.abort();
-  }, [tentativa]);
+    );
+    setResultadoFiltrado(
+      (atual) =>
+        atual && {
+          ...atual,
+          tarefas: atual.tarefas.map((tarefa) =>
+            tarefa.id === atualizada.id ? atualizada : tarefa,
+          ),
+        },
+    );
+  }
 
   const tarefaSelecionada = tarefas?.find(
     (tarefa) => tarefa.id === tarefaSelecionadaId,
@@ -245,12 +340,7 @@ export default function TarefasScreen() {
           : morador,
       ),
     );
-    setTarefas((atuais) =>
-      atuais?.map((tarefa) =>
-        tarefa.id === tarefaFinalizada.id ? tarefaFinalizada : tarefa,
-      ),
-    );
-    setTarefasEmAberto((quantidade) => Math.max(0, quantidade - 1));
+    atualizarTarefaLocal(tarefaFinalizada);
 
     return {
       pontosPossiveis: pontuacao.pontos_possiveis,
@@ -262,11 +352,7 @@ export default function TarefasScreen() {
   async function reabrirTarefaSelecionada() {
     if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
     const tarefaReaberta = await reabrirTarefa(tarefaSelecionada.id);
-    setTarefas((atuais) =>
-      atuais?.map((tarefa) =>
-        tarefa.id === tarefaReaberta.id ? tarefaReaberta : tarefa,
-      ),
-    );
+    atualizarTarefaLocal(tarefaReaberta);
     // Recarrega saldo, placar e contagem de tarefas em aberto.
     setTentativa((atual) => atual + 1);
   }
@@ -279,21 +365,13 @@ export default function TarefasScreen() {
   async function salvarEdicao(dados: TarefaAtualizar) {
     if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
     const tarefaAtualizada = await editarTarefa(tarefaSelecionada.id, dados);
-    setTarefas((atuais) =>
-      atuais?.map((tarefa) =>
-        tarefa.id === tarefaAtualizada.id ? tarefaAtualizada : tarefa,
-      ),
-    );
+    atualizarTarefaLocal(tarefaAtualizada);
     setEditando(false);
+    setTentativa((atual) => atual + 1);
   }
 
-  if (
-    carregandoContexto ||
-    !casa ||
-    !usuarioAtual ||
-    (carregandoTarefas && !tarefas)
-  ) {
-    const erro = erroContexto || erroTarefas;
+  if (!contextoAtual || !casa || !usuarioAtual || !todasTarefas) {
+    const erro = erroContexto;
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <View style={[estiloPagina, styles.feedback]}>
@@ -322,6 +400,48 @@ export default function TarefasScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <ScrollView ref={scrollRef} contentContainerStyle={estiloPagina}>
+        {erroContexto && (
+          <View style={[styles.errorNotice, styles.pageNotice]}>
+            <Text style={styles.emptyText}>
+              Não foi possível atualizar os dados da aba: {erroContexto}
+            </Text>
+            <Text style={styles.emptyText}>
+              Exibindo dados da última consulta bem-sucedida.
+            </Text>
+            <MotionPressable
+              accessibilityRole="button"
+              onPress={() => setTentativa((atual) => atual + 1)}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </MotionPressable>
+          </View>
+        )}
+        {erroFiltroAtual && erroFiltroAtual !== erroContexto && (
+          <View style={[styles.errorNotice, styles.pageNotice]}>
+            <Text style={styles.emptyText}>{erroFiltroAtual}</Text>
+            {tarefas && (
+              <Text style={styles.emptyText}>
+                Exibindo tarefas da última consulta bem-sucedida.
+              </Text>
+            )}
+            <MotionPressable
+              accessibilityRole="button"
+              onPress={() => setTentativa((atual) => atual + 1)}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </MotionPressable>
+          </View>
+        )}
+        {tarefaSelecionada && atualizando && (
+          <View
+            style={[styles.errorNotice, styles.pageNotice]}
+            accessibilityLiveRegion="polite"
+          >
+            <Text style={styles.emptyText}>Atualizando dados da aba…</Text>
+          </View>
+        )}
         {tarefaSelecionada && editando ? (
           <EditarTarefa
             tarefa={tarefaSelecionada}
@@ -373,14 +493,32 @@ export default function TarefasScreen() {
                   Organize o combinado, veja quem ficou responsável e acompanhe
                   cada prazo.
                 </Text>
-                <Link href="/calendario" asChild>
+                <View style={styles.heroActions}>
+                  <Link href="/calendario" asChild>
+                    <MotionPressable
+                      accessibilityRole="link"
+                      style={styles.retryButton}
+                    >
+                      <Text style={styles.retryButtonText}>
+                        Ver calendário →
+                      </Text>
+                    </MotionPressable>
+                  </Link>
                   <MotionPressable
-                    accessibilityRole="link"
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: atualizando,
+                      busy: atualizando,
+                    }}
+                    disabled={atualizando}
+                    onPress={() => setTentativa((atual) => atual + 1)}
                     style={styles.retryButton}
                   >
-                    <Text style={styles.retryButtonText}>Ver calendário →</Text>
+                    <Text style={styles.retryButtonText}>
+                      {atualizando ? "Atualizando…" : "Atualizar"}
+                    </Text>
                   </MotionPressable>
-                </Link>
+                </View>
               </View>
               <View
                 style={[styles.statCard, telaPequena && styles.statCardSmall]}
@@ -401,13 +539,22 @@ export default function TarefasScreen() {
               >
                 PLACAR DA CASA
               </Text>
-              {placar ? (
+              {placarAtual ? (
                 <>
+                  {erroPlacar && (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={styles.emptyText}
+                    >
+                      {erroPlacar} Exibindo o placar da última consulta
+                      bem-sucedida.
+                    </Text>
+                  )}
                   <Text style={styles.filterLabel}>
-                    Períodos no fuso {placar.fuso_horario}
+                    Períodos no fuso {placarAtual.fuso_horario}
                   </Text>
                   <View style={styles.placarGrid}>
-                    {placar.moradores.map((morador) => (
+                    {placarAtual.moradores.map((morador) => (
                       <View
                         key={morador.usuario_id}
                         style={styles.placarMorador}
@@ -431,7 +578,10 @@ export default function TarefasScreen() {
                 </>
               ) : (
                 <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
-                  {erroPlacar ?? "Carregando placar..."}
+                  {erroPlacar ??
+                    (carregandoPlacar
+                      ? "Carregando placar..."
+                      : "Placar indisponível.")}
                 </Text>
               )}
             </View>
@@ -533,9 +683,11 @@ export default function TarefasScreen() {
               </Animated.Text>
             </View>
 
-            {erroTarefas && (
-              <View style={styles.errorNotice}>
-                <Text style={styles.emptyText}>{erroTarefas}</Text>
+            {!tarefas && !erroFiltroAtual && (
+              <View style={styles.errorNotice} accessibilityLiveRegion="polite">
+                <Text style={styles.emptyText}>
+                  Buscando tarefas para este filtro…
+                </Text>
               </View>
             )}
 
@@ -625,7 +777,7 @@ export default function TarefasScreen() {
                   );
                 })}
               </View>
-            ) : (
+            ) : tarefas ? (
               <Animated.View
                 entering={FadeInDown.duration(220).reduceMotion(
                   ReduceMotion.System,
@@ -640,7 +792,7 @@ export default function TarefasScreen() {
                   Ajuste os filtros para ver outras tarefas da casa.
                 </Text>
               </Animated.View>
-            )}
+            ) : null}
           </Animated.View>
         )}
       </ScrollView>
@@ -681,6 +833,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.three,
   },
+  heroActions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   houseName: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
   title: {
     color: Caldera.obsidian,
@@ -872,7 +1025,9 @@ const styles = StyleSheet.create({
     backgroundColor: Caldera.limestone,
     borderRadius: 20,
     padding: Spacing.three,
+    gap: Spacing.two,
   },
+  pageNotice: { width: "100%", maxWidth: 1280, alignSelf: "center" },
   retryButton: {
     backgroundColor: Caldera.ember,
     borderRadius: 800,

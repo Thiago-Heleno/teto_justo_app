@@ -49,7 +49,6 @@ export function prepararEdicaoTarefa(
   )
     erros.atrasoMaximo = "Selecione uma tolerância de 1 a 5 dias.";
   if (
-    tarefaOriginal.tipo === "unitaria" &&
     tarefaOriginal.modo_prazo === "dia_fixo" &&
     formulario.dataFixa !== (tarefaOriginal.data_fixa ?? "") &&
     !dataValida(formulario.dataFixa)
@@ -73,8 +72,7 @@ export function prepararEdicaoTarefa(
       ...(formulario.atrasoMaximo !== tarefaOriginal.atraso_maximo
         ? { atraso_maximo: formulario.atrasoMaximo }
         : {}),
-      ...(tarefaOriginal.tipo === "unitaria" &&
-      tarefaOriginal.modo_prazo === "dia_fixo" &&
+      ...(tarefaOriginal.modo_prazo === "dia_fixo" &&
       formulario.dataFixa !== (tarefaOriginal.data_fixa ?? "")
         ? { data_fixa: formulario.dataFixa }
         : {}),

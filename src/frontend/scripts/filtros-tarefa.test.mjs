@@ -55,6 +55,10 @@ test("combina filtros de status, responsável e prazo", () => {
 test("dia fixo mostra a data da casa sem depender do fuso do aparelho", () => {
   assert.equal(
     formatarPrazo("2026-10-03T02:59:59Z", "2026-10-02"),
-    "02/10/2026 23:59",
+    "02 out. 2026, 23:59",
   );
+});
+
+test("prazo por intervalo usa o mesmo formato de data e inclui o ano", () => {
+  assert.equal(formatarPrazo("2026-10-15T12:30:00"), "15 out. 2026, 12:30");
 });

@@ -48,15 +48,21 @@ export function filtrarTarefas<T extends TarefaFiltravel>(
 }
 
 export function formatarPrazo(data: string, dataFixa?: string | null) {
-  if (dataFixa) {
-    const [ano, mes, dia] = dataFixa.split("-");
-    return `${dia}/${mes}/${ano} 23:59`;
-  }
-  return new Date(data).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  const prazo = new Date(data);
+  const dia = dataFixa ? Number(dataFixa.slice(8, 10)) : prazo.getDate();
+  const mes = dataFixa
+    ? new Date(`${dataFixa}T00:00:00Z`).toLocaleDateString("pt-BR", {
+        month: "short",
+        timeZone: "UTC",
+      })
+    : prazo.toLocaleDateString("pt-BR", { month: "short" });
+  const ano = dataFixa ? dataFixa.slice(0, 4) : String(prazo.getFullYear());
+  const horario = dataFixa
+    ? "23:59"
+    : prazo.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+  return `${String(dia).padStart(2, "0")} ${mes} ${ano}, ${horario}`;
 }

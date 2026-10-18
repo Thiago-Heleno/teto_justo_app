@@ -44,13 +44,54 @@ test("PATCH usa duração e tolerância, nunca data_fim", () => {
 
 test("data fixa usa data local ISO somente se for alterada", () => {
   const fixa = { ...tarefa, modo_prazo: "dia_fixo", data_fixa: "2026-10-01" };
-  assert.equal(prepararEdicaoTarefa({ ...formulario, dataFixa: "2026-10-03" }, fixa, moradores).dados.data_fixa, "2026-10-03");
-  assert.equal("data_fixa" in prepararEdicaoTarefa({ ...formulario, dataFixa: "2026-10-01" }, fixa, moradores).dados, false);
-  assert.ok(prepararEdicaoTarefa({ ...formulario, dataFixa: "2026-02-30" }, fixa, moradores).erros.dataFixa);
+  assert.equal(
+    prepararEdicaoTarefa(
+      { ...formulario, dataFixa: "2026-10-03" },
+      fixa,
+      moradores,
+    ).dados.data_fixa,
+    "2026-10-03",
+  );
+  assert.equal(
+    "data_fixa" in
+      prepararEdicaoTarefa(
+        { ...formulario, dataFixa: "2026-10-01" },
+        fixa,
+        moradores,
+      ).dados,
+    false,
+  );
+  assert.ok(
+    prepararEdicaoTarefa(
+      { ...formulario, dataFixa: "2026-02-30" },
+      fixa,
+      moradores,
+    ).erros.dataFixa,
+  );
+});
+
+test("edição de ocorrência rotativa em dia fixo envia a nova data", () => {
+  const rotativa = {
+    ...tarefa,
+    tipo: "rotativa",
+    modo_prazo: "dia_fixo",
+    data_fixa: "2026-10-01",
+  };
+  const resultado = prepararEdicaoTarefa(
+    { ...formulario, dataFixa: "2026-10-03" },
+    rotativa,
+    moradores,
+  );
+  assert.deepEqual(resultado.erros, {});
+  assert.equal(resultado.dados.data_fixa, "2026-10-03");
 });
 
 test("rejeita nome vazio e responsável de outra casa", () => {
-  const resultado = prepararEdicaoTarefa({ ...formulario, nome: " ", responsavel: "externo" }, tarefa, moradores);
+  const resultado = prepararEdicaoTarefa(
+    { ...formulario, nome: " ", responsavel: "externo" },
+    tarefa,
+    moradores,
+  );
   assert.equal(resultado.dados, undefined);
   assert.match(resultado.erros.nome, /nome/);
   assert.match(resultado.erros.responsavel, /desta casa/);
