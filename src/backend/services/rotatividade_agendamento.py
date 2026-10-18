@@ -13,6 +13,7 @@ from services.score import ServicoScore
 
 _TAMANHO_PAGINA = 500
 _LOCK_PROCESSAMENTO = Lock()
+_HORIZONTE_DIAS = 60
 
 
 def datas_ocorrencias(configuracao: dict, ate: date) -> list[date]:
@@ -449,9 +450,10 @@ class ServicoAgendamentoRotatividade:
 
     def _processar_configuracao(self, configuracao: dict, instante: datetime) -> int:
         fuso = ZoneInfo(configuracao["timezone"])
+        hoje = instante.astimezone(fuso).date()
         datas_previstas = datas_ocorrencias(
             configuracao,
-            instante.astimezone(fuso).date(),
+            hoje + timedelta(days=_HORIZONTE_DIAS),
         )
         if not datas_previstas:
             return 0
