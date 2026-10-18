@@ -153,6 +153,13 @@ export function EditarTarefa({
             ))}
           </View>
           <ErroCampo mensagem={erros.prazoDias} />
+          {tarefa.modo_prazo === "intervalo" && (
+            <Text style={styles.help}>
+              O vencimento é calculado a partir do início e do prazo em dias.
+              Uma data específica só pode ser escolhida no modo dia fixo,
+              definido na criação da tarefa.
+            </Text>
+          )}
         </View>
 
         <View style={styles.field}>
@@ -178,10 +185,15 @@ export function EditarTarefa({
           <ErroCampo mensagem={erros.atrasoMaximo} />
         </View>
 
-        {tarefa.tipo === "unitaria" && tarefa.modo_prazo === "dia_fixo" && (
+        {tarefa.modo_prazo === "dia_fixo" && (
           <View style={styles.field}>
             <Text style={styles.label}>Data do vencimento</Text>
             <Text style={styles.help}>Use o formato AAAA-MM-DD.</Text>
+            {tarefa.tipo === "rotativa" && (
+              <Text style={styles.help}>
+                A alteração vale apenas para esta ocorrência do rodízio.
+              </Text>
+            )}
             <TextInput
               accessibilityLabel="Data do vencimento no formato ano, mês e dia"
               autoCapitalize="none"
