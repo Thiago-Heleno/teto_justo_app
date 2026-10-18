@@ -1,3 +1,4 @@
+import { Link } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Platform,
@@ -372,6 +373,14 @@ export default function TarefasScreen() {
                   Organize o combinado, veja quem ficou responsável e acompanhe
                   cada prazo.
                 </Text>
+                <Link href="/calendario" asChild>
+                  <MotionPressable
+                    accessibilityRole="link"
+                    style={styles.retryButton}
+                  >
+                    <Text style={styles.retryButtonText}>Ver calendário →</Text>
+                  </MotionPressable>
+                </Link>
               </View>
               <View
                 style={[styles.statCard, telaPequena && styles.statCardSmall]}

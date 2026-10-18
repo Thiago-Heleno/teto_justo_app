@@ -58,6 +58,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(app)" />
                 <Stack.Screen name="gerenciar-casa" />
                 <Stack.Screen name="rotatividades" />
+                <Stack.Screen name="calendario" />
               </Stack.Protected>
             </Stack>
           </>
