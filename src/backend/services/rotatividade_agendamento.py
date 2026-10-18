@@ -13,6 +13,7 @@ from services.score import ServicoScore
 
 _TAMANHO_PAGINA = 500
 _LOCK_PROCESSAMENTO = Lock()
+_HORIZONTE_DIAS = 60
 
 
 def datas_ocorrencias(configuracao: dict, ate: date) -> list[date]:
@@ -188,22 +189,19 @@ class ServicoAgendamentoRotatividade:
         )
         conflito = HTTPException(
             status_code=409,
-            detail="Rodízio com tarefas geradas não pode ser excluído. Pause-o.",
+            detail="Rodízio com tarefas já pontuadas não pode ser excluído. Pause-o.",
         )
-        tarefas = (
-            self.supabase.table("tarefa")
-            .select("id")
-            .eq("rotatividade_id", str(id_rotatividade))
-            .limit(1)
-            .execute()
-        ).data
-        if tarefas:
-            raise conflito
         # Pausa antes de apagar: se algo falhar no meio, o job ignora o rodízio.
         self.supabase.table("rotatividade").update({"ativa": False}).eq(
             "id", str(id_rotatividade)
         ).execute()
         try:
+            (
+                self.supabase.table("tarefa")
+                .delete()
+                .eq("rotatividade_id", str(id_rotatividade))
+                .execute()
+            )
             (
                 self.supabase.table("rotatividade_participante")
                 .delete()
@@ -449,9 +447,10 @@ class ServicoAgendamentoRotatividade:
 
     def _processar_configuracao(self, configuracao: dict, instante: datetime) -> int:
         fuso = ZoneInfo(configuracao["timezone"])
+        hoje = instante.astimezone(fuso).date()
         datas_previstas = datas_ocorrencias(
             configuracao,
-            instante.astimezone(fuso).date(),
+            hoje + timedelta(days=_HORIZONTE_DIAS),
         )
         if not datas_previstas:
             return 0

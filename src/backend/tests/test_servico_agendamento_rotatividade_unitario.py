@@ -269,16 +269,16 @@ def test_processamento_respeita_escopo_e_nao_duplica_ocorrencias(processamento_g
     if processamento_global:
         assert servico.processar_ocorrencias(instante) == {
             "rotatividades_analisadas": 2,
-            "ocorrencias_processadas": 2,
+            "ocorrencias_processadas": 18,
         }
     else:
-        assert servico._processar_configuracao(configuracoes[0], instante) == 1
+        assert servico._processar_configuracao(configuracoes[0], instante) == 9
 
     esperadas = configuracoes[:2] if processamento_global else configuracoes[:1]
     assert {tarefa["rotatividade_id"] for tarefa in banco.registros["tarefa"]} == {
         configuracao["id"] for configuracao in esperadas
     }
-    assert len(banco.registros["atribuida"]) == len(esperadas)
+    assert len(banco.registros["atribuida"]) == 9 * len(esperadas)
     registros_antes = deepcopy(banco.registros)
 
     if processamento_global:
@@ -290,3 +290,41 @@ def test_processamento_respeita_escopo_e_nao_duplica_ocorrencias(processamento_g
         assert servico._processar_configuracao(configuracoes[0], instante) == 0
 
     assert banco.registros == registros_antes
+
+
+def test_processamento_gera_ocorrencias_ate_o_horizonte():
+    banco = BancoFalso()
+    id_usuario = str(uuid4())
+    configuracao = {
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
+        "fk_usuario_id": id_usuario,
+        "timezone": "UTC",
+        "nome": "Limpar cozinha",
+        "dificuldade": 2,
+        "pontuacao": 25,
+        "prazo_dias": 3,
+        "atraso_maximo": 2,
+        "modo_prazo": "intervalo",
+        "semana_ancora": "2026-10-14",
+        "dias_semana": [3],
+        "intervalo_semanas": 1,
+        "ativa": True,
+    }
+    banco.registros.update({
+        "rotatividade_participante": [
+            {"fk_rotatividade_id": configuracao["id"], "fk_usuario_id": id_usuario, "ordem": 1}
+        ],
+        "pertencer": [
+            {"fk_casa_id": configuracao["fk_casa_id"], "fk_usuario_id": id_usuario, "ativo": True}
+        ],
+    })
+    servico = ServicoAgendamentoRotatividade(banco)
+    instante = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+
+    assert servico._processar_configuracao(configuracao, instante) == 9
+
+    ocorrencias = sorted(t["ocorrencia_em"] for t in banco.registros["tarefa"])
+    assert ocorrencias[0] == "2026-10-14T00:00:00+00:00"
+    assert ocorrencias[-1] == "2026-12-09T00:00:00+00:00"
+    assert servico._processar_configuracao(configuracao, instante) == 0
