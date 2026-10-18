@@ -98,8 +98,9 @@ def test_excluir_regra_com_tarefa_pontuada_retorna_409():
     casa, dono, regra_id = uuid4(), uuid4(), uuid4()
     banco = consulta_com_respostas([
         *respostas_exclusao(regra_id, casa, dono),
-        APIError({"code": "23503", "message": "violates foreign key", "details": None, "hint": None}),
+        APIError({"code": "23503", "message": "violates foreign key"}),
     ])
     with pytest.raises(HTTPException) as erro:
         ServicoAgendamentoRotatividade(banco).excluir_rotatividade(regra_id, dono)
     assert erro.value.status_code == 409
+
