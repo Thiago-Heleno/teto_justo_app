@@ -168,7 +168,8 @@ def test_criar_e_processar_rotatividade_no_supabase(
             .execute()
             .data
         )
-        assert len(tarefas_apos_criar) == 1
+        # Hoje e as 8 semanas seguintes: a janela de 60 dias comporta 9 ocorrências.
+        assert len(tarefas_apos_criar) == 9
 
         configuracao = (
             supabase.table("rotatividade")
@@ -190,7 +191,7 @@ def test_criar_e_processar_rotatividade_no_supabase(
         .execute()
         .data
     )
-    assert len(tarefas) == 1
+    assert len(tarefas) == 9
     tarefa = tarefas[0]
     assert tarefa["tipo"] == "rotativa"
     assert tarefa["pontuacao"] == 25
