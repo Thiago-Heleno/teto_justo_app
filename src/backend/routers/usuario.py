@@ -3,8 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioAtualizar
+from schemas.notificacao import (
+    DispositivoPushRegistrar,
+    DispositivoPushRemover,
+    DispositivoPushResposta,
+)
 from services.usuario import ServicoUsuario
 from services.autorizacao import ServicoAutorizacaoCasa
+from services.notificacao import ServicoNotificacao
 
 router = APIRouter(prefix="/usuarios", tags=["Usuários"])
 
@@ -28,6 +34,24 @@ def listar_usuarios(
 @router.get("/eu", response_model=UsuarioResposta)
 def buscar_usuario_atual(usuario_atual: UsuarioAtual):
     return usuario_atual
+
+
+@router.post("/eu/dispositivos", response_model=DispositivoPushResposta)
+def registrar_dispositivo(
+    dados: DispositivoPushRegistrar,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
+    return ServicoNotificacao(supabase).registrar_dispositivo(usuario_atual.id, dados)
+
+
+@router.delete("/eu/dispositivos", status_code=status.HTTP_204_NO_CONTENT)
+def remover_dispositivo(
+    dados: DispositivoPushRemover,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
+    ServicoNotificacao(supabase).remover_dispositivo(usuario_atual.id, dados.token)
 
 
 @router.get("/{id_usuario}", response_model=UsuarioResposta)

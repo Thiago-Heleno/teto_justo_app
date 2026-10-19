@@ -302,6 +302,10 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
             "fk_casa_id": self.id_casa, "ativo": True,
         }}
         banco.outras["sessao"] = {"s": {"id": "s", "fk_usuario_id": self.id_usuario}}
+        banco.outras["dispositivo_push"] = {
+            "d": {"id": "d", "fk_usuario_id": self.id_usuario},
+            "outro": {"id": "outro", "fk_usuario_id": str(uuid4())},
+        }
         return banco
 
     # Conta com histórico (FK RESTRICT) é anonimizada: sai da casa, perde as
@@ -319,6 +323,7 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
         self.assertIsNone(usuario["foto"])
         self.assertFalse(banco.outras["pertencer"]["v"]["ativo"])
         self.assertEqual(banco.outras["sessao"], {})
+        self.assertEqual(set(banco.outras["dispositivo_push"]), {"outro"})
 
     # Tarefa aberta impede a exclusão e nada é alterado.
     def test_delecao_com_tarefa_aberta_gera_erro_409(self):
@@ -335,6 +340,7 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
         self.assertEqual(banco.usuarios[self.id_usuario]["nome"], "Ana")
         self.assertTrue(banco.outras["pertencer"]["v"]["ativo"])
         self.assertIn("s", banco.outras["sessao"])
+        self.assertIn("d", banco.outras["dispositivo_push"])
 
 
 if __name__ == "__main__":

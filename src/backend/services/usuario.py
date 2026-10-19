@@ -118,6 +118,8 @@ class ServicoUsuario:
                 id_usuario, vinculo["fk_casa_id"])
 
         # Antes do update: se ele falhar, o usuário refaz o login e tenta de novo.
+        self.supabase.table("dispositivo_push").delete().eq(
+            "fk_usuario_id", id_str).execute()
         self.supabase.table("sessao").delete().eq(
             "fk_usuario_id", id_str).execute()
         anonimizado = self.supabase.table("usuario").update({
