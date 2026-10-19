@@ -15,17 +15,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
-import { cadastrar } from "@/services/autenticacao-api";
+import {
+  solicitarCodigoVerificacao,
+  type DadosConta,
+} from "@/services/autenticacao-api";
 import { validarCadastro, type ErrosCadastro } from "@/utils/cadastro";
 
 export function CadastroScreen({
   emailInicial,
   onVoltar,
-  onCadastrado,
+  onCodigoEnviado,
 }: {
   emailInicial: string;
   onVoltar: (email: string) => void;
-  onCadastrado: (email: string) => void;
+  onCodigoEnviado: (dados: DadosConta, tokenVerificacao: string) => void;
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState(emailInicial);
@@ -69,10 +72,11 @@ export function CadastroScreen({
     envioEmAndamento.current = true;
     setEnviando(true);
     try {
-      await cadastrar(nome, email, senha);
+      const dados = { nome: nome.trim(), email: email.trim(), senha };
+      const token = await solicitarCodigoVerificacao(dados);
       setSenha("");
       setConfirmacao("");
-      onCadastrado(email.trim());
+      onCodigoEnviado(dados, token);
     } catch (falha) {
       if (falha instanceof ErroApi && falha.status === 400) {
         setErrosCampos({
@@ -97,6 +101,12 @@ export function CadastroScreen({
             : "Confira os dados informados.",
         );
         focarPrimeiroErro(campos);
+      } else if (falha instanceof ErroApi && falha.status === 429) {
+        setErro("Muitas tentativas. Aguarde um pouco para pedir outro código.");
+      } else if (falha instanceof ErroApi && falha.status === 503) {
+        setErro(
+          "Não foi possível enviar o e-mail agora. Tente novamente em instantes.",
+        );
       } else if (falha instanceof TypeError) {
         setErro(
           "Não foi possível conectar ao servidor. Verifique sua conexão.",
@@ -135,7 +145,7 @@ export function CadastroScreen({
               Crie sua conta.
             </Text>
             <Text style={styles.subtitle}>
-              Depois do cadastro, entre para criar ou acessar sua casa.
+              Enviaremos um código de verificação para o seu e-mail.
             </Text>
 
             <Text style={styles.label}>Nome</Text>
