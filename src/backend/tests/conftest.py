@@ -84,3 +84,19 @@ def criar_autenticacao_temporaria():
 @pytest.fixture
 def autenticacao_temporaria(criar_autenticacao_temporaria):
     return criar_autenticacao_temporaria()
+
+
+@pytest.fixture
+def com_verificacao():
+    """Acrescenta ao cadastro o código e o token que o e-mail de verificação traria."""
+    from services.verificacao_email import ServicoVerificacaoEmail
+
+    def completar(payload):
+        emitido = ServicoVerificacaoEmail().emitir(payload["email"])
+        return {
+            **payload,
+            "codigo": emitido["codigo"],
+            "token_verificacao": emitido["token_verificacao"],
+        }
+
+    return completar

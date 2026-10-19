@@ -73,4 +73,5 @@ tinham `pytest`.
 - Sem templates, fila, retry ou envio em lote.
 - Enquanto não houver domínio verificado, o remetente padrão só entrega para o
   email da conta Resend.
-- Nenhuma rota usa o serviço ainda.
+- O serviço é usado pelo código de verificação do cadastro
+  (`verificacao_email.md`); recuperação de conta ainda não existe.
