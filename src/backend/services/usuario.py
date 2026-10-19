@@ -11,13 +11,16 @@ class ServicoUsuario:
     def __init__(self, supabase_client):
         self.supabase = supabase_client
 
-    def criar_usuario(self, dados: UsuarioCriar):
+    def garantir_email_disponivel(self, email: str):
         busca = self.supabase.table("usuario").select(
-            "id").eq("email", dados.email).execute()
+            "id").eq("email", email).execute()
 
         if len(busca.data) > 0:
             raise HTTPException(
                 status_code=400, detail="E-mail já cadastrado.")
+
+    def criar_usuario(self, dados: UsuarioCriar):
+        self.garantir_email_disponivel(dados.email)
 
         senha_criptografada = bcrypt.hashpw(
             dados.senha.encode("utf-8"),

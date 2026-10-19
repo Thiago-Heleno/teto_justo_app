@@ -46,6 +46,7 @@ def test_crud_usuario_no_supabase(
     usuario_payload,
     limpar_usuario,
     autenticacao_temporaria,
+    com_verificacao,
 ):
     with TestClient(
         app,
@@ -53,7 +54,7 @@ def test_crud_usuario_no_supabase(
         headers=autenticacao_temporaria["headers"],
     ) as cliente:
         # Cria o usuário e garante que a senha/hash nunca voltam na resposta.
-        criado = cliente.post("/usuarios/", json=usuario_payload)
+        criado = cliente.post("/usuarios/", json=com_verificacao(usuario_payload))
         assert criado.status_code == 201, criado.text
         usuario = criado.json()
         limpar_usuario.append(usuario["id"])
@@ -94,14 +95,14 @@ def test_crud_usuario_no_supabase(
 
 # Garante que a API rejeita a criação de um segundo usuário com o mesmo
 # e-mail de um já cadastrado no Supabase real.
-def test_email_duplicado_retorna_400(usuario_payload, limpar_usuario):
+def test_email_duplicado_retorna_400(usuario_payload, limpar_usuario, com_verificacao):
     with TestClient(app, raise_server_exceptions=False) as cliente:
-        primeiro = cliente.post("/usuarios/", json=usuario_payload)
+        primeiro = cliente.post("/usuarios/", json=com_verificacao(usuario_payload))
         assert primeiro.status_code == 201, primeiro.text
         limpar_usuario.append(primeiro.json()["id"])
 
         segundo_payload = dict(usuario_payload, nome="Outro usuário")
-        segundo = cliente.post("/usuarios/", json=segundo_payload)
+        segundo = cliente.post("/usuarios/", json=com_verificacao(segundo_payload))
         assert segundo.status_code == 400, segundo.text
 
 

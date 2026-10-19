@@ -44,9 +44,11 @@ para iniciar backend e Expo juntos. As instruções manuais abaixo são
 uma alternativa para executar os serviços separadamente.
 
 Na tela de login,
-**Criar conta** abre o formulário de cadastro; após criar a conta, entre com
-o e-mail e a senha informados. O endpoint público `POST /usuarios/` também
-está disponível na documentação interativa `/docs` do backend. Na seleção,
+**Criar conta** abre o formulário de cadastro; o backend envia um código de
+5 dígitos por e-mail (Resend) e o app abre a tela para digitá-lo. Com o código
+correto a conta é criada: entre com o e-mail e a senha informados. Os
+endpoints públicos `POST /usuarios/codigo-verificacao` e `POST /usuarios/`
+estão na documentação interativa `/docs` do backend. Na seleção,
 **Criar casa** abre o formulário de nome e
 endereço. Após a criação, a casa é aberta automaticamente e o criador vira
 administrador pela sessão autenticada. Os erros de validação aparecem junto

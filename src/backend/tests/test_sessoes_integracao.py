@@ -14,14 +14,14 @@ from services.sessao import hash_token_sessao
 
 
 @pytest.fixture
-def usuario_temporario():
+def usuario_temporario(com_verificacao):
     supabase = get_supabase()
     senha = secrets.token_urlsafe(24)
     email = f"teste-sessao-{uuid4().hex}@example.com"
     with TestClient(app) as cliente:
-        resposta = cliente.post("/usuarios/", json={
+        resposta = cliente.post("/usuarios/", json=com_verificacao({
             "nome": "Usuário teste de sessão", "email": email, "senha": senha,
-        })
+        }))
     assert resposta.status_code == 201
     usuario_id = resposta.json()["id"]
     try:

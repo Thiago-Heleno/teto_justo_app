@@ -18,7 +18,8 @@ def _chave(valor: str) -> str:
 class LimitadorLogin:
     """Contadores locais ao processo, com expiração após uma janela fixa."""
 
-    def __init__(self):
+    def __init__(self, mensagem: str = "Muitas tentativas de login. Tente novamente mais tarde."):
+        self._mensagem = mensagem
         self._contadores: dict[str, tuple[int, float]] = {}
         self._lock = threading.Lock()
         self._reservas = 0
@@ -44,8 +45,7 @@ class LimitadorLogin:
         email_normalizado = email.strip().casefold()
         return "email:" + _chave(email_normalizado), "ip:" + _chave(ip)
 
-    @staticmethod
-    def _verificar_limite(estado: tuple[int, int, int, int]) -> None:
+    def _verificar_limite(self, estado: tuple[int, int, int, int]) -> None:
         email, ttl_email, ip, ttl_ip = estado
         esperas = []
         if email >= LIMITE_EMAIL:
@@ -55,7 +55,7 @@ class LimitadorLogin:
         if esperas:
             raise HTTPException(
                 status_code=429,
-                detail="Muitas tentativas de login. Tente novamente mais tarde.",
+                detail=self._mensagem,
                 headers={"Retry-After": str(max(1, max(esperas)))},
             )
 
@@ -110,3 +110,8 @@ class LimitadorLogin:
 @lru_cache
 def get_limitador_login() -> LimitadorLogin:
     return LimitadorLogin()
+
+
+@lru_cache
+def get_limitador_verificacao() -> LimitadorLogin:
+    return LimitadorLogin("Muitas tentativas de verificação. Tente novamente mais tarde.")

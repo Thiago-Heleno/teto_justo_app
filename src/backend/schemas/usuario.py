@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -20,6 +20,16 @@ class UsuarioCriar(BaseModel):
         if len(senha.encode("utf-8")) > 72:
             raise ValueError("A senha deve ter no máximo 72 bytes.")
         return senha
+
+
+class UsuarioCadastro(UsuarioCriar):
+    codigo: str = Field(pattern=r"^\d{5}$")
+    token_verificacao: str
+
+
+class VerificacaoEmailResposta(BaseModel):
+    token_verificacao: str
+    expira_em: datetime
 
 
 class UsuarioAtualizar(BaseModel):
