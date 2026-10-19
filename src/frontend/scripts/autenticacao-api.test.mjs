@@ -24,16 +24,27 @@ mock.module("../src/services/token-storage.ts", {
   },
 });
 
-const { cadastrar, entrar, sair, iniciarAutenticacao } =
-  await import("../src/services/autenticacao-api.ts");
+const {
+  cadastrar,
+  entrar,
+  sair,
+  iniciarAutenticacao,
+  solicitarCodigoVerificacao,
+} = await import("../src/services/autenticacao-api.ts");
 const { atualizarPerfil, excluirConta } =
   await import("../src/services/perfil-api.ts");
 const { requisitar } = await import("../src/services/api.ts");
 const { sessao } = await import("../src/services/sessao-store.ts");
-const { validarCadastro } = await import("../src/utils/cadastro.ts");
+const { validarCadastro, somenteDigitosDoCodigo } =
+  await import("../src/utils/cadastro.ts");
 const fetchOriginal = globalThis.fetch;
 const ambiente = { ...process.env };
 const novoToken = () => randomBytes(32).toString("base64url");
+const conta = () => ({
+  nome: "Moradora",
+  email: "moradora@example.com",
+  senha: novoToken(),
+});
 
 beforeEach(() => {
   tokenSalvo = null;
@@ -88,7 +99,37 @@ test("login envia credenciais e salva somente o token recebido em execução", a
   assert.equal(sessao.getState().token, token);
 });
 
-test("cadastro público envia apenas nome, e-mail e senha sem iniciar sessão", async () => {
+test("pedido de código envia os dados do cadastro, sem sessão, e devolve o token", async () => {
+  const senha = novoToken();
+  let pedido;
+  globalThis.fetch = async (url, opcoes) => {
+    pedido = { url, opcoes };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ token_verificacao: "token-de-teste", expira_em: "x" }),
+    };
+  };
+
+  const token = await solicitarCodigoVerificacao({
+    nome: "  Moradora  ",
+    email: "  moradora@example.com  ",
+    senha,
+  });
+
+  assert.equal(token, "token-de-teste");
+  assert.equal(pedido.url, "http://api.test/usuarios/codigo-verificacao");
+  assert.equal(pedido.opcoes.method, "POST");
+  assert.equal(pedido.opcoes.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(pedido.opcoes.body), {
+    nome: "Moradora",
+    email: "moradora@example.com",
+    senha,
+  });
+  assert.equal(sessao.getState().token, null);
+});
+
+test("cadastro público envia os dados com código e token sem iniciar sessão", async () => {
   const senha = novoToken();
   let pedido;
   globalThis.fetch = async (url, opcoes) => {
@@ -96,7 +137,11 @@ test("cadastro público envia apenas nome, e-mail e senha sem iniciar sessão", 
     return { ok: true, status: 201, json: async () => ({ id: "novo-usuario" }) };
   };
 
-  await cadastrar("  Moradora  ", "  moradora@example.com  ", senha);
+  await cadastrar(
+    { nome: "  Moradora  ", email: "  moradora@example.com  ", senha },
+    "48213",
+    "token-de-teste",
+  );
 
   assert.equal(pedido.url, "http://api.test/usuarios/");
   assert.equal(pedido.opcoes.method, "POST");
@@ -105,9 +150,17 @@ test("cadastro público envia apenas nome, e-mail e senha sem iniciar sessão", 
     nome: "Moradora",
     email: "moradora@example.com",
     senha,
+    codigo: "48213",
+    token_verificacao: "token-de-teste",
   });
   assert.equal(tokenSalvo, null);
   assert.equal(sessao.getState().token, null);
+});
+
+test("campo do código aceita só dígitos e no máximo cinco", () => {
+  assert.equal(somenteDigitosDoCodigo("4 8-2a1b3"), "48213");
+  assert.equal(somenteDigitosDoCodigo("123456789"), "12345");
+  assert.equal(somenteDigitosDoCodigo("abc"), "");
 });
 
 test("cadastro preserva erros de e-mail duplicado e validação sem iniciar sessão", async () => {
@@ -121,7 +174,7 @@ test("cadastro preserva erros de e-mail duplicado e validação sem iniciar sess
       json: async () => ({ detail }),
     });
     await assert.rejects(
-      cadastrar("Moradora", "moradora@example.com", novoToken()),
+      cadastrar(conta(), "48213", "token-de-teste"),
       (erro) => erro.status === status,
     );
     assert.equal(tokenSalvo, null);
@@ -133,7 +186,7 @@ test("cadastro propaga falha de conexão sem iniciar sessão", async () => {
   globalThis.fetch = async () => {
     throw new TypeError("Conexão indisponível");
   };
-  await assert.rejects(cadastrar("Moradora", "moradora@example.com", novoToken()), TypeError);
+  await assert.rejects(cadastrar(conta(), "48213", "token-de-teste"), TypeError);
   assert.equal(tokenSalvo, null);
   assert.equal(sessao.getState().token, null);
 });

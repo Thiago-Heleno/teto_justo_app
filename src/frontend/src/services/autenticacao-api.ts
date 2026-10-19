@@ -1,3 +1,4 @@
+import type { DadosCadastro } from "../utils/cadastro.ts";
 import { ErroApi, requisitar } from "./api.ts";
 import {
   encerrarSessao,
@@ -29,11 +30,40 @@ export async function entrar(email: string, senha: string) {
   await salvarSessao(resposta.token);
 }
 
-export async function cadastrar(nome: string, email: string, senha: string) {
+export type DadosConta = Pick<DadosCadastro, "nome" | "email" | "senha">;
+
+export async function solicitarCodigoVerificacao(dados: DadosConta) {
+  const resposta = await requisitar<{ token_verificacao: string }>(
+    "/usuarios/codigo-verificacao",
+    undefined,
+    {
+      method: "POST",
+      publica: true,
+      body: {
+        nome: dados.nome.trim(),
+        email: dados.email.trim(),
+        senha: dados.senha,
+      },
+    },
+  );
+  return resposta.token_verificacao;
+}
+
+export async function cadastrar(
+  dados: DadosConta,
+  codigo: string,
+  tokenVerificacao: string,
+) {
   await requisitar("/usuarios/", undefined, {
     method: "POST",
     publica: true,
-    body: { nome: nome.trim(), email: email.trim(), senha },
+    body: {
+      nome: dados.nome.trim(),
+      email: dados.email.trim(),
+      senha: dados.senha,
+      codigo,
+      token_verificacao: tokenVerificacao,
+    },
   });
 }
 

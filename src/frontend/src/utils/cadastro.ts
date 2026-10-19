@@ -17,6 +17,12 @@ export function validarPerfil(dados: Pick<DadosCadastro, "nome" | "email">) {
   return erros;
 }
 
+export const TAMANHO_CODIGO = 5;
+
+export function somenteDigitosDoCodigo(valor: string) {
+  return valor.replace(/\D/g, "").slice(0, TAMANHO_CODIGO);
+}
+
 export function validarCadastro(dados: DadosCadastro): ErrosCadastro {
   const erros = validarPerfil(dados);
 
