@@ -12,6 +12,11 @@ Consultar as tarefas ativas da casa em uma visão mensal, acessível por
   cadastrada; os demais prazos e o dia atual usam o `timezone` da casa.
 - É possível navegar entre meses, voltar para hoje e selecionar um dia para
   consultar nome, descrição, responsável, horário limite e status das tarefas.
+- O filtro **Somente minhas tarefas**, desativado por padrão, restringe a grade,
+  as contagens e a agenda às tarefas atribuídas à conta logada, inclusive as
+  compartilhadas. A seleção do dia e do mês é preservada ao alternar o filtro.
+  Sem tarefas próprias ativas, a agenda informa que não há tarefas atribuídas
+  ao usuário.
 - Em telas pequenas, cada dia indica a quantidade de tarefas e a agenda fica
   abaixo do mês. Em telas largas, a agenda fica ao lado e os dias mostram até
   dois nomes, com indicação das tarefas adicionais. A agenda lista todas.
@@ -28,12 +33,16 @@ Consultar as tarefas ativas da casa em uma visão mensal, acessível por
 - `src/frontend/src/app/_layout.tsx`: registro da rota protegida.
 - `src/frontend/src/app/(app)/index.tsx` e `tarefas.tsx`: acessos ao calendário.
 - `src/frontend/scripts/calendario-tarefas.test.mjs` e
-  `src/frontend/package.json`: seis testes unitários incluídos em `test:tarefas`.
+  `src/frontend/package.json`: sete testes unitários incluídos em `test:tarefas`.
 
 A implementação reutiliza os componentes visuais e os serviços existentes:
 consulta de casa, moradores e `GET /tarefas/casa/{id}`. Os filtros da lista de
 tarefas não restringem o calendário. Não houve novas dependências, alterações
 no backend ou migrações de banco.
+
+O filtro pessoal reutiliza `carregarUsuarioAtual` (`GET /usuarios/eu`) e
+`filtrarTarefas`, aplicando o responsável antes do agrupamento por dia. Alternar
+o filtro usa os dados já carregados e não faz novas requisições.
 
 ## Validação executada
 
@@ -54,6 +63,13 @@ detalhes do dia, exclusão de tarefas encerradas, troca de casa e fuso,
 agenda vazia, recuperação de erro, preservação do mês ao atualizar e
 redirecionamento para login no acesso sem sessão. A interface foi inspecionada em tela larga
 e nas larguras de 390 e 320 pixels.
+
+Validação do filtro pessoal, a partir de `src/frontend`: `npm run test:tarefas`
+aprovou 56 testes, incluindo o caso de tarefas próprias, compartilhadas, de
+outros moradores, sem responsável e encerradas, além da restauração da visão
+completa e do resultado vazio para um morador sem tarefas. TypeScript, ESLint
+da tela e Prettier dos arquivos de código alterados foram aprovados.
+O filtro não foi validado manualmente no navegador ou em dispositivo.
 
 ## Limites
 

@@ -7,8 +7,67 @@ import {
   diasDoMes,
   mudarMes,
 } from "../src/utils/calendario-tarefas.ts";
+import { filtrarTarefas } from "../src/utils/filtros-tarefa.ts";
 
 const fuso = "America/Sao_Paulo";
+
+test("filtro pessoal inclui tarefas compartilhadas e restaura a visão da casa", () => {
+  const tarefas = [
+    {
+      id: "minha",
+      estado_atual: "pendente",
+      data_fim: "2026-10-18T10:00:00Z",
+      usuarios_atribuidos: ["ana"],
+    },
+    {
+      id: "compartilhada",
+      estado_atual: "atrasada",
+      data_fim: "2026-10-18T12:00:00Z",
+      usuarios_atribuidos: ["bruno", "ana"],
+    },
+    {
+      id: "de-outro",
+      estado_atual: "pendente",
+      data_fim: "2026-10-19T12:00:00Z",
+      usuarios_atribuidos: ["bruno"],
+    },
+    {
+      id: "sem-responsavel",
+      estado_atual: "pendente",
+      data_fim: "2026-10-20T12:00:00Z",
+      usuarios_atribuidos: [],
+    },
+    {
+      id: "minha-concluida",
+      estado_atual: "finalizado",
+      data_fim: "2026-10-18T14:00:00Z",
+      usuarios_atribuidos: ["ana"],
+    },
+  ];
+  const original = structuredClone(tarefas);
+  const filtrar = (responsavel) =>
+    agruparTarefasAtivas(
+      filtrarTarefas(tarefas, {
+        estado: "todos",
+        prazo: "todos",
+        responsavel,
+      }),
+      fuso,
+    );
+
+  const minhas = filtrar("ana");
+  assert.deepEqual([...minhas.keys()], ["2026-10-18"]);
+  assert.deepEqual(
+    minhas.get("2026-10-18").map(({ id }) => id),
+    ["minha", "compartilhada"],
+  );
+  assert.equal(filtrar("morador-sem-tarefas").size, 0);
+  assert.deepEqual(
+    [...filtrar("todos").values()].flat().map(({ id }) => id),
+    ["minha", "compartilhada", "de-outro", "sem-responsavel"],
+  );
+  assert.deepEqual(tarefas, original);
+});
 
 test("calendário alinha domingos e inclui todos os dias em meses de quatro a seis semanas", () => {
   const fevereiro = diasDoMes("2026-02");

@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
   useWindowDimensions,
@@ -21,18 +22,24 @@ import {
   type MoradorCasa,
 } from "@/services/casas-api";
 import { sessao } from "@/services/sessao-store";
-import { carregarTarefas, type Tarefa } from "@/services/tarefas-api";
+import {
+  carregarTarefas,
+  carregarUsuarioAtual,
+  type Tarefa,
+} from "@/services/tarefas-api";
 import {
   agruparTarefasAtivas,
   dataNoFuso,
   diasDoMes,
   mudarMes,
 } from "@/utils/calendario-tarefas";
+import { filtrarTarefas } from "@/utils/filtros-tarefa";
 
 type DadosCalendario = {
   casa: Casa;
   moradores: MoradorCasa[];
   tarefas: Tarefa[];
+  usuarioAtualId: string;
 };
 
 function contarTarefas(quantidade: number) {
@@ -56,14 +63,20 @@ export default function CalendarioScreen() {
         void Promise.all([
           carregarCasa(casaId, controlador.signal),
           listarMoradoresCasa(casaId, controlador.signal),
+          carregarUsuarioAtual(controlador.signal),
           carregarTarefas(
             { estado: "todos", responsavel: "todos", prazo: "todos" },
             controlador.signal,
           ),
         ])
-          .then(([casa, moradores, tarefas]) => {
+          .then(([casa, moradores, usuario, tarefas]) => {
             if (!controlador.signal.aborted)
-              setDados({ casa, moradores, tarefas });
+              setDados({
+                casa,
+                moradores,
+                tarefas,
+                usuarioAtualId: usuario.id,
+              });
           })
           .catch((falha: unknown) => {
             if (!controlador.signal.aborted) {
@@ -137,7 +150,7 @@ export default function CalendarioScreen() {
         )}
         {dados && dados.casa.id === casaId && (
           <Calendario
-            key={`${dados.casa.id}-${dados.casa.timezone}`}
+            key={`${dados.casa.id}-${dados.casa.timezone}-${dados.usuarioAtualId}`}
             {...dados}
           />
         )}
@@ -146,15 +159,29 @@ export default function CalendarioScreen() {
   );
 }
 
-function Calendario({ casa, moradores, tarefas }: DadosCalendario) {
+function Calendario({
+  casa,
+  moradores,
+  tarefas,
+  usuarioAtualId,
+}: DadosCalendario) {
   const { width } = useWindowDimensions();
   const compacto = width < 600;
   const hoje = dataNoFuso(new Date(), casa.timezone);
   const [selecionado, setSelecionado] = useState(hoje);
+  const [somenteMinhas, setSomenteMinhas] = useState(false);
   const mes = selecionado.slice(0, 7);
   const porDia = useMemo(
-    () => agruparTarefasAtivas(tarefas, casa.timezone),
-    [tarefas, casa.timezone],
+    () =>
+      agruparTarefasAtivas(
+        filtrarTarefas(tarefas, {
+          estado: "todos",
+          responsavel: somenteMinhas ? usuarioAtualId : "todos",
+          prazo: "todos",
+        }),
+        casa.timezone,
+      ),
+    [tarefas, casa.timezone, somenteMinhas, usuarioAtualId],
   );
   const dias = diasDoMes(mes);
   const tarefasDoDia = porDia.get(selecionado) ?? [];
@@ -177,6 +204,16 @@ function Calendario({ casa, moradores, tarefas }: DadosCalendario) {
   return (
     <>
       <Text style={styles.caption}>Horários da casa · {casa.timezone}</Text>
+      <View style={styles.controls}>
+        <Switch
+          accessibilityLabel="Somente minhas tarefas"
+          value={somenteMinhas}
+          onValueChange={setSomenteMinhas}
+          trackColor={{ false: Caldera.pumice, true: Caldera.ember }}
+          thumbColor={Caldera.obsidian}
+        />
+        <Text style={styles.body}>Somente minhas tarefas</Text>
+      </View>
       <View style={[styles.layout, width >= 1000 && styles.layoutWide]}>
         <View style={[styles.card, styles.calendar]}>
           <View style={styles.monthHeader}>
@@ -290,7 +327,9 @@ function Calendario({ casa, moradores, tarefas }: DadosCalendario) {
           {tarefasDoDia.length === 0 ? (
             <Text style={styles.body}>
               {porDia.size === 0
-                ? "Nenhuma tarefa ativa na casa."
+                ? somenteMinhas
+                  ? "Nenhuma tarefa ativa atribuída a você."
+                  : "Nenhuma tarefa ativa na casa."
                 : "Nenhuma tarefa ativa para este dia."}
             </Text>
           ) : (
