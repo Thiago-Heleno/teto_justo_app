@@ -1,10 +1,10 @@
-# Infraestrutura de push — Sprint 4
+# Notificações push de vencimento — Sprint 4
 
 ## Objetivo e arquivos
 
-Disponibilizar cadastro de dispositivos e envio de push para os futuros avisos
-de tarefas, mantendo as regras no backend, sem funções SQL, triggers ou novas
-dependências.
+Cadastrar dispositivos e avisar responsáveis por tarefas que vencem nas próximas
+25 horas. O app Android permite ativação no perfil e abre a tarefa ao tocar no
+aviso.
 
 - `docs/migrations/29.sql`: tabela `dispositivo_push`, UUID automático, FK para
   usuário com exclusão em cascata, token único, plataforma Android/iOS,
@@ -19,6 +19,15 @@ dependências.
 - `src/backend/tests/test_notificacao_unitario.py` e
   `src/backend/tests/test_servico_usuario_unitario.py`: cobertura unitária com
   Supabase e HTTP simulados.
+- `docs/migrations/30.sql`: marca a tentativa de aviso por tarefa.
+- `src/backend/routers/jobs.py` e `src/backend/vercel.json`: job diário
+  `GET /jobs/notificacoes`, protegido por `CRON_SECRET`, às 03:05 UTC.
+- `src/frontend/src/services/notificacoes.ts`: permissão, canal Android padrão,
+  token Expo, registro, remoção e abertura autenticada da tarefa.
+- `src/frontend/app.config.js`: aceita `GOOGLE_SERVICES_JSON` como caminho do
+  arquivo Firebase no build Android, sem guardar credenciais no Git.
+- `src/frontend/src/components/perfil.tsx` e telas de tarefas: botão de ativação
+  e abertura do detalhe a partir do push.
 
 ## Contratos e decisões
 
@@ -50,33 +59,57 @@ diferentes e respostas malformadas preservam o cadastro. A limpeza também
 confere o usuário, preservando um token reassociado a outra conta durante o
 envio.
 
+O cron consulta tarefas `pendente` ou `atrasada` cujo `data_fim` está entre o
+instante da execução e as próximas 25 horas. Busca os responsáveis em
+`atribuida`, marca `aviso_enviado_em` com comparação atômica de estado, prazo e
+marcação nula, então envia uma mensagem genérica com `tarefa_id` e `casa_id`.
+Repetir o job não duplica o aviso. Mudar o vencimento ou os responsáveis limpa a
+marcação para permitir novo aviso. A marcação é feita antes do envio: uma falha
+posterior pode perder o aviso, mas não cria duplicatas.
+
+No Android, o usuário ativa os avisos pelo perfil. O token é cadastrado em
+`POST /usuarios/eu/dispositivos` e removido em `DELETE` antes do logout. Ao
+reiniciar com sessão válida, o app atualiza o cadastro se o token mudou. Um
+toque consulta a tarefa pela API autenticada, troca para sua casa se necessário
+e abre o detalhe; se a tarefa não existir ou não for acessível, abre a lista.
+
 ## Validação executada
 
 Comandos executados a partir de `src/backend`:
 
-- `python -m pytest tests -k unitario -q`: **423 aprovados, 31 não selecionados**.
-  Os testes novos cobrem autenticação, validação, registro repetido, troca de
-  conta, remoção por proprietário, envio para 101 dispositivos, paginação,
-  limpeza de inválidos, sucesso parcial e falhas de rede/HTTP/resposta.
-- `python -m ruff check schemas/notificacao.py services/notificacao.py routers/usuario.py tests/test_notificacao_unitario.py`:
-  aprovado.
+- `python -m pytest tests -k unitario -q`: **453 aprovados, 31 não selecionados**.
+  Inclui janela de 25 horas, tarefa encerrada, destinatário, repetição e falha
+  de envio, além dos cenários anteriores de dispositivo e HTTP simulado.
+- `python -m ruff check` nos arquivos Python alterados: aprovado.
+- `npm run test:tarefas` em `src/frontend`: **62 aprovados**, incluindo ativação,
+  permissão negada, logout e toque no aviso.
+- `npx tsc --noEmit` e ESLint nos arquivos TypeScript alterados: aprovados.
+- `npx expo export --platform android --output-dir dist` e exportação web:
+  aprovados. A exportação Android valida o bundle JavaScript, não gera APK.
 - `git diff --check`: aprovado.
 
 A execução inicial dos testes HTTP ficou bloqueada no `socketpair` usado pelo
 loop de eventos do `TestClient` no sandbox. Fora desse ambiente restrito, os
 testes passaram. A suíte emitiu um aviso de depreciação da combinação atual
-Starlette/httpx. Nenhuma dependência foi alterada.
+Starlette/httpx. `expo-notifications` foi adicionado na versão compatível com o
+Expo 57.
 
 ## Limites e pendências
 
-- A migration foi escrita e revisada, mas não aplicada a um banco real. Os
-  testes simulados não comprovam as constraints ou os privilégios do SQL.
-- Não houve envio real ao Expo nem validação de recebimento em aparelho.
-- A geração/registro do token e a chamada de remoção no logout pelo aplicativo
-  ainda precisam ser conectadas no frontend.
+- As migrations `29.sql` e `30.sql` precisam ser aplicadas nessa ordem no banco
+  usado pela API. Não foram aplicadas nem validadas em banco real.
+- As credenciais Android FCM V1 do projeto Expo ainda precisam ser configuradas
+  no EAS. Também é preciso fornecer `GOOGLE_SERVICES_JSON` como variável de
+  arquivo do EAS ou caminho local para `google-services.json`; não há chave no
+  repositório. Não houve APK, envio real ao Expo ou
+  teste de recebimento/toque em aparelho. O push remoto exige build de
+  desenvolvimento ou release, não funciona no Expo Go.
+- O cron gratuito da Vercel roda no máximo uma vez ao dia e pode atrasar até
+  uma hora. Tarefas criadas pouco antes do prazo podem não receber aviso.
 - Esta etapa remove `DeviceNotRegistered` retornado nos tickets imediatos.
   A consulta posterior de recibos não foi implementada; erros que apareçam
   somente neles não são limpos por este serviço. Tickets aceitos não comprovam
   entrega no aparelho. Ver a [documentação do Expo](https://docs.expo.dev/push-notifications/sending-notifications/).
-- O job de avisos, `aviso_enviado_em` e a configuração do cron pertencem à
-  próxima etapa.
+- Os botões interativos na própria notificação não foram adicionados. As
+  categorias do Expo permitem implementá-los sem assinatura paga do Expo; iOS
+  exigirá credenciais de uma conta Apple Developer paga.

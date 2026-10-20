@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
+import {
+  ativarNotificacoes,
+  notificacoesAtivas,
+} from "@/services/notificacoes";
 import {
   atualizarPerfil,
   carregarPerfil,
@@ -40,6 +45,8 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
   const [tentativa, setTentativa] = useState(0);
   const [ocupado, setOcupado] = useState(false);
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
+  const [pushAtivo, setPushAtivo] = useState(false);
+  const [ativandoPush, setAtivandoPush] = useState(false);
   const emAndamento = useRef(false);
 
   useEffect(() => {
@@ -62,6 +69,32 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
       });
     return () => controlador.abort();
   }, [tentativa]);
+
+  useEffect(() => {
+    void notificacoesAtivas()
+      .then(setPushAtivo)
+      .catch(() => {});
+  }, []);
+
+  async function ativarPush() {
+    if (ativandoPush) return;
+    setAtivandoPush(true);
+    setErro(undefined);
+    try {
+      if (await ativarNotificacoes()) {
+        setPushAtivo(true);
+        setAviso("Notificações ativadas neste aparelho.");
+      } else {
+        setErro(
+          "Permita notificações nas configurações do Android para ativar os avisos.",
+        );
+      }
+    } catch (falha) {
+      setErro(mensagemDe(falha, "Não foi possível ativar as notificações."));
+    } finally {
+      setAtivandoPush(false);
+    }
+  }
 
   const alterado =
     perfil !== undefined &&
@@ -226,6 +259,26 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
             >
               <Text style={[styles.buttonText, styles.primaryText]}>
                 Salvar alterações
+              </Text>
+            </Pressable>
+          )}
+
+          {perfil && Platform.OS === "android" && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: pushAtivo || ativandoPush,
+                busy: ativandoPush,
+              }}
+              disabled={pushAtivo || ativandoPush}
+              onPress={() => void ativarPush()}
+              style={[
+                styles.button,
+                (pushAtivo || ativandoPush) && styles.dimmed,
+              ]}
+            >
+              <Text style={styles.buttonText}>
+                {pushAtivo ? "Notificações ativas" : "Ativar notificações"}
               </Text>
             </Pressable>
           )}

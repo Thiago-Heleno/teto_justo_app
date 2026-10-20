@@ -7,6 +7,7 @@ from core.database import get_supabase
 from schemas.penalidade import ProcessamentoPenalidadesResposta
 from schemas.rotatividade import ResultadoJobRotatividade
 from services.penalidade import ServicoPenalidade
+from services.notificacao import ServicoNotificacao
 from services.rotatividade_agendamento import ServicoAgendamentoRotatividade
 
 router = APIRouter(prefix="/jobs", tags=["Jobs internos"])
@@ -42,6 +43,11 @@ def processar_penalidades_cron(supabase=Depends(get_supabase)):
 )
 def processar_rotatividades_cron(supabase=Depends(get_supabase)):
     return ServicoAgendamentoRotatividade(supabase).processar_ocorrencias()
+
+
+@router.get("/notificacoes", dependencies=[Depends(validar_cron)])
+def processar_notificacoes_cron(supabase=Depends(get_supabase)):
+    return ServicoNotificacao(supabase).avisar_vencimentos()
 
 
 @router.post(

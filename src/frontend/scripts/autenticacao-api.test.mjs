@@ -4,6 +4,14 @@ import { afterEach, beforeEach, mock, test } from "node:test";
 
 let tokenSalvo = null;
 let falhaArmazenamento = false;
+let remocoesPush = 0;
+mock.module("../src/services/notificacoes.ts", {
+  namedExports: {
+    removerNotificacoesDoDispositivo: async () => {
+      remocoesPush += 1;
+    },
+  },
+});
 mock.module("../src/services/casa-storage.ts", {
   namedExports: {
     lerCasaSelecionada: async () => null,
@@ -49,6 +57,7 @@ const conta = () => ({
 beforeEach(() => {
   tokenSalvo = null;
   falhaArmazenamento = false;
+  remocoesPush = 0;
   sessao.setState({
     token: null,
     pronta: false,
@@ -341,6 +350,7 @@ test("logout revoga a própria sessão e aceita resposta 204 sem JSON", async ()
     };
   };
   await sair();
+  assert.equal(remocoesPush, 1);
   assert.equal(tokenSalvo, null);
   assert.equal(sessao.getState().token, null);
 });

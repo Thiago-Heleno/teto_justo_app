@@ -13,6 +13,7 @@ export type UsuarioAtual = { id: string };
 
 export type Tarefa = {
   id: string;
+  fk_casa_id: string;
   nome: string;
   descricao: string | null;
   estado_atual: EstadoTarefa;

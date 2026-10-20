@@ -2,7 +2,7 @@
 
 import os
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import uuid4
@@ -400,3 +400,128 @@ def test_limpeza_do_primeiro_lote_nao_pula_dispositivos_da_proxima_pagina(
     assert resultado["aceitos"] == [{"dispositivo_id": ultimo["id"], "ticket_id": ticket_id}]
     assert resultado["falhas"] == []
     assert banco.dispositivos == [ultimo]
+
+
+class BancoAvisos:
+    def __init__(self, tarefas, atribuicoes):
+        self.tarefas = tarefas
+        self.atribuicoes = atribuicoes
+
+    def table(self, nome):
+        return ConsultaAvisos(self, nome)
+
+
+class ConsultaAvisos:
+    def __init__(self, banco, nome):
+        self.banco, self.nome = banco, nome
+        self.filtros = []
+        self.intervalo = None
+        self.alteracao = None
+
+    def select(self, _campos):
+        return self
+
+    def update(self, dados):
+        self.alteracao = dados
+        return self
+
+    def eq(self, campo, valor):
+        self.filtros.append(lambda item: item[campo] == valor)
+        return self
+
+    def in_(self, campo, valores):
+        self.filtros.append(lambda item: item[campo] in valores)
+        return self
+
+    def is_(self, campo, _valor):
+        self.filtros.append(lambda item: item.get(campo) is None)
+        return self
+
+    def gt(self, campo, valor):
+        self.filtros.append(lambda item: item[campo] > valor)
+        return self
+
+    def lte(self, campo, valor):
+        self.filtros.append(lambda item: item[campo] <= valor)
+        return self
+
+    def order(self, _campo):
+        return self
+
+    def range(self, inicio, fim):
+        self.intervalo = (inicio, fim)
+        return self
+
+    def execute(self):
+        origem = self.banco.tarefas if self.nome == "tarefa" else self.banco.atribuicoes
+        registros = [item for item in origem if all(filtro(item) for filtro in self.filtros)]
+        if self.alteracao is not None:
+            for item in registros:
+                item.update(self.alteracao)
+        elif self.intervalo:
+            inicio, fim = self.intervalo
+            registros = registros[inicio:fim + 1]
+        return SimpleNamespace(data=deepcopy(registros))
+
+
+def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
+    agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
+    responsavel = uuid4()
+    tarefa = {
+        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "data_fim": (agora + timedelta(hours=25)).isoformat(),
+        "estado_atual": "pendente", "aviso_enviado_em": None,
+    }
+    banco = BancoAvisos([
+        tarefa,
+        {**tarefa, "id": str(uuid4()), "estado_atual": "finalizado"},
+        {**tarefa, "id": str(uuid4()), "data_fim": (agora + timedelta(hours=26)).isoformat()},
+    ], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)}])
+    envios = []
+
+    def enviar(_self, usuarios, titulo, mensagem, dados):
+        envios.append((usuarios, titulo, mensagem, dados))
+        return {
+            "aceitos": [{"dispositivo_id": "d", "ticket_id": "t"}],
+            "falhas": [],
+            "invalidos": [],
+        }
+
+    monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
+    servico = ServicoNotificacao(banco)
+
+    assert servico.avisar_vencimentos(agora) == {
+        "tarefas_elegiveis": 1, "avisos_enviados": 1, "falhas": 0,
+    }
+    assert envios[0][0] == [responsavel]
+    assert envios[0][3] == {"tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"]}
+    assert tarefa["aviso_enviado_em"] == agora.isoformat()
+    assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
+    assert len(envios) == 1
+
+
+def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
+    agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
+    tarefa = {
+        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "data_fim": (agora + timedelta(hours=1)).isoformat(),
+        "estado_atual": "atrasada", "aviso_enviado_em": None,
+    }
+    banco = BancoAvisos([tarefa], [
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
+    ])
+    chamadas = []
+
+    def falhar(*_args):
+        chamadas.append(True)
+        return {
+            "aceitos": [],
+            "falhas": [{"dispositivo_id": "d", "erro": "EnvioNaoConfirmado"}],
+            "invalidos": [],
+        }
+
+    monkeypatch.setattr(ServicoNotificacao, "enviar_push", falhar)
+    servico = ServicoNotificacao(banco)
+    assert servico.avisar_vencimentos(agora)["falhas"] == 1
+    assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
+    assert chamadas == [True]

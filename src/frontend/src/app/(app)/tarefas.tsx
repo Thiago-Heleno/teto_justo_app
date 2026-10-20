@@ -1,4 +1,9 @@
-import { Link, useFocusEffect } from "expo-router";
+import {
+  Link,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
@@ -107,6 +112,7 @@ function iniciais(nome: string) {
 }
 
 export default function TarefasScreen() {
+  const { abrir } = useLocalSearchParams<{ abrir?: string }>();
   const { width } = useWindowDimensions();
   const casaId = useStore(sessao, (estado) => estado.casaAtiva?.id);
   const token = useStore(sessao, (estado) => estado.token);
@@ -171,6 +177,22 @@ export default function TarefasScreen() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [tarefaSelecionadaId, editando]);
+
+  useEffect(() => {
+    if (!contextoAtual || !todasTarefas || typeof abrir !== "string") return;
+    if (filtrosAtivos) {
+      // A navegação por push precisa mostrar a tarefa fora dos filtros anteriores.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFiltros({ estado: "todos", responsavel: "todos", prazo: "todos" });
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTarefaSelecionadaId(
+      todasTarefas.some((tarefa) => tarefa.id === abrir) ? abrir : undefined,
+    );
+    setEditando(false);
+    router.setParams({ abrir: undefined });
+  }, [abrir, contextoAtual, filtrosAtivos, todasTarefas]);
 
   useFocusEffect(
     useCallback(() => {

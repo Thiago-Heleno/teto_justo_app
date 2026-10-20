@@ -8,6 +8,10 @@
     {
       "path": "/jobs/penalidades",
       "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/jobs/notificacoes",
+      "schedule": "5 3 * * *"
     }
   ]
 }
