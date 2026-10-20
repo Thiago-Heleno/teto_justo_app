@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE tarefa
+ADD COLUMN aviso_enviado_em TIMESTAMPTZ;
+
+COMMIT;

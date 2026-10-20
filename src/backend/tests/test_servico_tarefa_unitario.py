@@ -682,14 +682,14 @@ def test_atualizar_tarefa_aceita_dono_da_casa_como_responsavel(
     dono_id = registro_tarefa["fk_usuario_id"]
 
     # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (dono),
-    # 4. busca 'pertencer' da casa, 5. deleta atribuições antigas,
-    # 6. insere a nova atribuição, 7. busca a tarefa atualizada e
-    # 8. busca os usuários atribuídos.
+    # 4. busca 'pertencer' da casa, 5. reabre o aviso, 6. deleta atribuições,
+    # 7. insere a nova atribuição, 8. busca a tarefa e 9. os responsáveis.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
         SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
         SimpleNamespace(data=[]),
+        SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"deleted": True}]),
         SimpleNamespace(data=[{"fk_usuario_id": dono_id, "fk_tarefa_id": registro_tarefa["id"]}]),
         SimpleNamespace(data=[registro_tarefa]),
@@ -703,6 +703,7 @@ def test_atualizar_tarefa_aceita_dono_da_casa_como_responsavel(
     )
 
     assert resultado["usuarios_atribuidos"] == [dono_id]
+    consulta.update.assert_called_once_with({"aviso_enviado_em": None})
 
 
 def test_buscar_tarefa_expirada_vira_nao_feito(servico, consulta, registro_tarefa):
@@ -830,6 +831,7 @@ def test_editar_prazo_preserva_inicio_original(servico, consulta, registro_taref
         {
             "prazo_dias": 5,
             "data_fim": (inicio + timedelta(days=5)).isoformat(),
+            "aviso_enviado_em": None,
         }
     )
 

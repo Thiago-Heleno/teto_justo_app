@@ -1,5 +1,6 @@
 import type { DadosCadastro } from "../utils/cadastro.ts";
 import { ErroApi, requisitar } from "./api.ts";
+import { removerNotificacoesDoDispositivo } from "./notificacoes.ts";
 import {
   encerrarSessao,
   restaurarSessao,
@@ -69,6 +70,7 @@ export async function cadastrar(
 
 export async function sair() {
   if (sessao.getState().token) {
+    await removerNotificacoesDoDispositivo();
     await requisitar<void>("/sessoes/logout", undefined, { method: "POST" });
   }
   await encerrarSessao();

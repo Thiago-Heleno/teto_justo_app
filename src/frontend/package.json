@@ -12,6 +12,7 @@
     "expo-glass-effect": "~57.0.3",
     "expo-image": "~57.0.5",
     "expo-linking": "~57.0.10",
+    "expo-notifications": "~57.0.23",
     "expo-router": "~57.0.21",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "^57.0.9",
@@ -48,7 +49,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test:tarefas": "node --experimental-test-module-mocks --test scripts/autenticacao-api.test.mjs scripts/filtros-tarefa.test.mjs scripts/calendario-tarefas.test.mjs scripts/tarefas-api.test.mjs scripts/criacao-tarefa.test.mjs scripts/edicao-tarefa.test.mjs scripts/reabertura.test.mjs",
+    "test:tarefas": "node --experimental-test-module-mocks --test scripts/autenticacao-api.test.mjs scripts/filtros-tarefa.test.mjs scripts/calendario-tarefas.test.mjs scripts/tarefas-api.test.mjs scripts/criacao-tarefa.test.mjs scripts/edicao-tarefa.test.mjs scripts/reabertura.test.mjs scripts/notificacoes.test.mjs",
     "test:gerenciamento": "node --experimental-test-module-mocks --test scripts/gerenciamento-api.test.mjs",
     "test:casas": "node --experimental-test-module-mocks --test scripts/casas.test.mjs",
     "reset-project": "node ./scripts/reset-project.js"

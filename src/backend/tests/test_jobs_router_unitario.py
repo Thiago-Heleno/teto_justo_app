@@ -74,7 +74,7 @@ def test_endpoint_job_invoca_servico_com_token_valido(monkeypatch):
     assert chamadas == [True]
 
 
-@pytest.fixture(params=["penalidades", "rotatividades"])
+@pytest.fixture(params=["penalidades", "rotatividades", "notificacoes"])
 def job_cron(request, monkeypatch):
     nome_servico, metodo, resultado = {
         "penalidades": (
@@ -86,6 +86,11 @@ def job_cron(request, monkeypatch):
             "ServicoAgendamentoRotatividade",
             "processar_ocorrencias",
             {"rotatividades_analisadas": 2, "ocorrencias_processadas": 3},
+        ),
+        "notificacoes": (
+            "ServicoNotificacao",
+            "avisar_vencimentos",
+            {"tarefas_elegiveis": 2, "avisos_enviados": 1, "falhas": 0},
         ),
     }[request.param]
     banco = object()

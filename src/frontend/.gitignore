@@ -6,10 +6,12 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-web/
 web-build/
 expo-env.d.ts
 
 # Native
+google-services.json
 .kotlin/
 *.orig.*
 *.jks

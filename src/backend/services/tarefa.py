@@ -450,6 +450,12 @@ class ServicoTarefa:
                 tarefa_atual["fk_casa_id"], usuarios_atribuidos
             )
 
+        if (
+            dados.get("data_fim", tarefa_atual["data_fim"]) != tarefa_atual["data_fim"]
+            or usuarios_foram_informados
+        ):
+            dados["aviso_enviado_em"] = None
+
         if dados:
             resposta = (
                 self.supabase.table("tarefa").update(dados).eq("id", str(id_tarefa)).execute()

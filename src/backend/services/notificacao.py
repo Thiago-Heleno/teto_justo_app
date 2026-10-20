@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import httpx
@@ -40,6 +41,57 @@ class ServicoNotificacao:
             .eq("token", token)
             .execute()
         )
+
+    def avisar_vencimentos(self, agora: datetime | None = None) -> dict[str, int]:
+        instante = agora or datetime.now(timezone.utc)
+        limite = instante + timedelta(hours=25)
+        tarefas = []
+        while True:
+            pagina = (
+                self.supabase.table("tarefa")
+                .select("id,fk_casa_id,data_fim,estado_atual")
+                .in_("estado_atual", ["pendente", "atrasada"])
+                .is_("aviso_enviado_em", "null")
+                .gt("data_fim", instante.isoformat())
+                .lte("data_fim", limite.isoformat())
+                .order("id")
+                .range(len(tarefas), len(tarefas) + 99)
+                .execute()
+            ).data or []
+            tarefas.extend(pagina)
+            if len(pagina) < 100:
+                break
+
+        resultado = {"tarefas_elegiveis": len(tarefas), "avisos_enviados": 0, "falhas": 0}
+        for tarefa in tarefas:
+            atribuicoes = (
+                self.supabase.table("atribuida")
+                .select("fk_usuario_id")
+                .eq("fk_tarefa_id", tarefa["id"])
+                .execute()
+            ).data or []
+            if not atribuicoes:
+                continue
+            reserva = (
+                self.supabase.table("tarefa")
+                .update({"aviso_enviado_em": instante.isoformat()})
+                .eq("id", tarefa["id"])
+                .eq("data_fim", tarefa["data_fim"])
+                .in_("estado_atual", ["pendente", "atrasada"])
+                .is_("aviso_enviado_em", "null")
+                .execute()
+            )
+            if not reserva.data:
+                continue
+            envio = self.enviar_push(
+                [UUID(item["fk_usuario_id"]) for item in atribuicoes],
+                "Tarefa perto do vencimento",
+                "Você tem uma tarefa com prazo próximo.",
+                {"tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"]},
+            )
+            resultado["avisos_enviados"] += len(envio["aceitos"])
+            resultado["falhas"] += len(envio["falhas"])
+        return resultado
 
     def enviar_push(
         self,
