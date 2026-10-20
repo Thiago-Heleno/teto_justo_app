@@ -15,7 +15,7 @@ Quatro semanas significam 28 dias, aproximadamente um mês. O primeiro
 participante é o responsável inicial;
 o prazo de execução de 1 a 5 dias permanece separado da recorrência semanal.
 
-- `src/frontend/src/app/nova-tarefa.tsx`: seleção múltipla acessível, botão
+- `src/frontend/src/app/(app)/nova-tarefa.tsx`: seleção múltipla acessível, botão
   para antecipar participantes, dias da semana, mensagens de validação, resumo e
   limpeza de todos os campos ao iniciar outra tarefa.
 - `src/frontend/src/constants/tarefa.ts`: `rotatividade` guarda participantes
@@ -91,7 +91,7 @@ por data/hora. O peso possui somente três níveis.
 
 ## Arquivos e decisões técnicas
 
-- `src/frontend/src/app/nova-tarefa.tsx`: formulário e confirmação com
+- `src/frontend/src/app/(app)/nova-tarefa.tsx`: formulário e confirmação com
   paleta Caldera já existente no projeto: fundo Pumice, cartões Limestone,
   ação e seleção Ember com texto Obsidian, selo Sulfur, cartões de raio 40
   e controles arredondados, sem sombras.

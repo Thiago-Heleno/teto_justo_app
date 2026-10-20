@@ -127,7 +127,7 @@ inativar o vínculo; um novo acesso requer convite.
 - `src/frontend/src/components/convidar-morador.tsx`: emissão de convite para
   o proprietário verificado, cópia, validade, erros e descarte do painel.
 - `src/frontend/src/app/_layout.tsx`: exige seleção da casa após autenticação.
-- `src/frontend/src/app/index.tsx`: nome da casa ativa, verificação de
+- `src/frontend/src/app/(app)/index.tsx`: nome da casa ativa, verificação de
   identidade, ações de troca, convite e saída da casa, com confirmação.
 - `src/frontend/src/services/casas-api.ts`: contrato da casa, listagem paginada
   e escolha inicial conforme preferência e quantidade de casas; criação

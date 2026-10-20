@@ -53,7 +53,7 @@ ser chamado por um agendador externo diariamente.
   tarefas, casas e vínculos.
 - `src/backend/services/tarefa.py` e `placar.py`: janelas, conclusão e agregação
   do placar.
-- `src/frontend/src/app/nova-tarefa.tsx`, `tarefas.tsx` e componentes de
+- `src/frontend/src/app/(app)/nova-tarefa.tsx`, `tarefas.tsx` e componentes de
   detalhe/edição: criação, placar, conclusão e edição conectadas à API.
 
 ## Migrations e histórico

@@ -9,7 +9,7 @@ demonstração é uma das responsáveis.
 
 ## Arquivos e comportamentos
 
-- `src/frontend/src/app/tarefas.tsx`: nova rota com resumo de tarefas em aberto,
+- `src/frontend/src/app/(app)/tarefas.tsx`: nova rota com resumo de tarefas em aberto,
   filtros combináveis, cartões responsivos, estado vazio e abertura do detalhe.
 - `src/frontend/src/components/detalhe-tarefa.tsx`: detalhe da tarefa e ação local
   de conclusão; pessoas não responsáveis recebem uma mensagem sem o botão de

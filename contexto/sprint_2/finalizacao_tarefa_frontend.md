@@ -54,7 +54,7 @@ ler o resultado, principalmente quando existe um filtro de tarefas pendentes.
   `finalizarTarefa`, que usa `POST /tarefas/{id}/conclusoes`.
 - `src/frontend/src/components/detalhe-tarefa.tsx`: adiciona o botão, os estados
   de carregamento e erro e o pop-up seguindo o visual Caldera.
-- `src/frontend/src/app/tarefas.tsx`: coordena a finalização, atualiza os dados
+- `src/frontend/src/app/(app)/tarefas.tsx`: coordena a finalização, atualiza os dados
   locais e calcula os pontos creditados.
 
 ## Validações realizadas

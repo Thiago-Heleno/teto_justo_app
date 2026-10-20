@@ -160,7 +160,7 @@ deste tutorial. Referência dos comandos e pré-requisitos:
 
 Com o servidor ativo, salve o arquivo alterado. O Fast Refresh normalmente
 atualiza a tela. Para o formulário, o arquivo principal é
-`src/frontend/src/app/nova-tarefa.tsx`; as opções de peso ficam em
+`src/frontend/src/app/(app)/nova-tarefa.tsx`; as opções de peso ficam em
 `src/frontend/src/constants/tarefa.ts`.
 
 Se a mudança não aparecer, pressione `r` no terminal do Expo ou recarregue

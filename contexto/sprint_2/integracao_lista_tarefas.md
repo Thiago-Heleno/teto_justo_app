@@ -6,7 +6,7 @@ Substituir os exemplos locais da rota `/tarefas` por dados da API FastAPI.
 
 ## Alterações
 
-- `src/frontend/src/app/tarefas.tsx` carrega casa, moradores e tarefas da casa
+- `src/frontend/src/app/(app)/tarefas.tsx` carrega casa, moradores e tarefas da casa
   configurada; status, responsável e prazo são enviados para
   `GET /tarefas/casa/{id_casa}`.
 - `src/frontend/src/services/tarefas-api.ts` centraliza as chamadas autenticadas
