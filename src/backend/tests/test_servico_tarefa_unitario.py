@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from pydantic import ValidationError
 from postgrest.exceptions import APIError
 
@@ -36,7 +36,7 @@ def banco(consulta):
 
 @pytest.fixture
 def servico(banco):
-    return ServicoTarefa(banco)
+    return ServicoTarefa(banco, BackgroundTasks())
 
 
 @pytest.fixture
@@ -118,6 +118,13 @@ def test_criar_tarefa_com_atribuicoes(servico, consulta, registro_tarefa, ids_re
     assert "estrategia_penalidade" not in gravada
     TarefaResposta.model_validate(resultado)
     assert consulta.insert.call_count == 2  # Uma para tarefa, outra para a tabela relacional
+    tarefas_fundo = servico.notificacoes.tarefas_fundo.tasks
+    assert len(tarefas_fundo) == 1
+    assert tarefas_fundo[0].args[0] == "tarefa_atribuida"
+    assert tarefas_fundo[0].args[2] == resultado["usuarios_atribuidos"]
+    servico.notificacoes.enviar_push = MagicMock(side_effect=RuntimeError("falha simulada"))
+    tarefas_fundo[0].func(*tarefas_fundo[0].args)
+    assert resultado["id"] == registro_tarefa["id"]
 
 
 def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relacionados):
@@ -150,6 +157,7 @@ def test_criar_tarefa_sem_retorno_do_banco_gera_500(servico, consulta, ids_relac
 
     assert erro.value.status_code == 500
     assert erro.value.detail == "Erro ao criar tarefa no banco."
+    assert servico.notificacoes.tarefas_fundo.tasks == []
 
 
 @pytest.mark.parametrize("estado_invalido", [0, "em_andamento"])
@@ -682,12 +690,13 @@ def test_atualizar_tarefa_aceita_dono_da_casa_como_responsavel(
     dono_id = registro_tarefa["fk_usuario_id"]
 
     # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (dono),
-    # 4. busca 'pertencer' da casa, 5. reabre o aviso, 6. deleta atribuições,
-    # 7. insere a nova atribuição, 8. busca a tarefa e 9. os responsáveis.
+    # 4. busca 'pertencer', 5. lê os responsáveis anteriores, 6. reabre o aviso,
+    # 7. deleta atribuições, 8. insere a nova e 9/10. busca tarefa e responsáveis.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
         SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
+        SimpleNamespace(data=[]),
         SimpleNamespace(data=[]),
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"deleted": True}]),
@@ -819,7 +828,9 @@ def test_editar_prazo_preserva_inicio_original(servico, consulta, registro_taref
     inicio = datetime.now(timezone.utc) - timedelta(days=1)
     tarefa = {**registro_tarefa, "data_inicio": inicio.isoformat(), "prazo_dias": 3}
     servico._buscar_tarefa_bruta = MagicMock(return_value=tarefa)
-    servico.buscar_tarefa = MagicMock(return_value=tarefa)
+    servico.buscar_tarefa = MagicMock(return_value={
+        **tarefa, "usuarios_atribuidos": [tarefa["fk_usuario_id"]],
+    })
     consulta.execute.side_effect = [
         SimpleNamespace(data=[{"fk_usuario_id": tarefa["fk_usuario_id"]}]),
         SimpleNamespace(data=[tarefa]),
@@ -1051,3 +1062,95 @@ def test_excluir_tarefa_com_credito_da_409_por_fk(servico, consulta, id_tarefa, 
         servico.excluir_tarefa(id_tarefa, UUID(registro_tarefa["fk_usuario_id"]))
 
     assert erro.value.status_code == 409
+
+
+@pytest.mark.parametrize(
+    "cenario", ["mesmos_responsaveis", "nome", "prazo", "responsavel", "ambos"]
+)
+def test_edicao_notifica_apenas_mudancas_efetivas_sem_duplicar_destinatarios(
+    servico, consulta, registro_tarefa, monkeypatch, cenario
+):
+    antigo, novo = str(uuid4()), str(uuid4())
+    inicio = datetime.now(timezone.utc)
+    anterior = {
+        **registro_tarefa, "data_inicio": inicio.isoformat(), "prazo_dias": 3,
+        "data_fim": (inicio + timedelta(days=3)).isoformat(),
+        "aviso_inicio_tentado_em": inicio.isoformat(),
+    }
+    alteracoes = {}
+    if cenario == "mesmos_responsaveis":
+        alteracoes["usuarios_atribuidos"] = [UUID(antigo)]
+    elif cenario == "nome":
+        alteracoes["nome"] = "Nome atualizado"
+    if cenario in {"prazo", "ambos"}:
+        alteracoes["prazo_dias"] = 4
+    if cenario in {"responsavel", "ambos"}:
+        alteracoes["usuarios_atribuidos"] = [UUID(novo)]
+    atual = {
+        **anterior,
+        "usuarios_atribuidos": [novo if cenario in {"responsavel", "ambos"} else antigo],
+        "data_fim": (inicio + timedelta(days=4 if "prazo_dias" in alteracoes else 3)).isoformat(),
+    }
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: MagicMock())
+    servico._buscar_tarefa_bruta = MagicMock(return_value=anterior)
+    servico._buscar_usuarios_atribuidos = MagicMock(return_value=[antigo])
+    servico.buscar_tarefa = MagicMock(return_value=atual)
+    consulta.execute.return_value = SimpleNamespace(data=[atual])
+
+    assert servico.atualizar_tarefa(
+        UUID(anterior["id"]), TarefaAtualizar(**alteracoes), UUID(anterior["fk_usuario_id"])
+    ) == atual
+
+    tarefas_fundo = servico.notificacoes.tarefas_fundo.tasks
+    avisos = [
+        (t.args[0], t.args[2]) for t in tarefas_fundo
+        if t.func == servico.notificacoes._notificar_tarefa
+    ]
+    reinicios = [t for t in tarefas_fundo if t.func == servico.notificacoes._reiniciar_aviso_inicio]
+    if consulta.update.called:
+        assert "aviso_inicio_tentado_em" not in consulta.update.call_args.args[0]
+    if cenario in {"responsavel", "ambos"}:
+        assert avisos == [("tarefa_atribuida", [novo]), ("atribuicao_removida", [antigo])]
+        assert len(reinicios) == 1
+    elif cenario == "prazo":
+        assert avisos == [("prazo_alterado", [antigo])]
+        assert reinicios == []
+    else:
+        assert avisos == []
+        assert reinicios == []
+
+
+def test_edicao_com_falha_de_gravacao_nao_agenda_aviso(
+    servico, consulta, registro_tarefa, monkeypatch
+):
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: MagicMock())
+    servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
+    consulta.execute.side_effect = APIError({"code": "08006", "message": "falha simulada"})
+
+    with pytest.raises(APIError):
+        servico.atualizar_tarefa(
+            UUID(registro_tarefa["id"]), TarefaAtualizar(nome="Atualizada"),
+            UUID(registro_tarefa["fk_usuario_id"]),
+        )
+    assert servico.notificacoes.tarefas_fundo.tasks == []
+
+
+def test_encerramento_na_leitura_so_notifica_quando_esta_execucao_altera_estado(
+    servico, consulta, registro_tarefa
+):
+    expirada = {
+        **registro_tarefa,
+        "data_fim": (datetime.now(timezone.utc) - timedelta(days=10)).isoformat(),
+    }
+    encerrada = {**expirada, "estado_atual": "nao_feito"}
+    consulta.execute.return_value = SimpleNamespace(data=[encerrada])
+    assert servico._sincronizar_estado_por_atraso(expirada) == encerrada
+    assert servico._sincronizar_estado_por_atraso(encerrada) == encerrada
+    assert len(servico.notificacoes.tarefas_fundo.tasks) == 1
+    assert servico.notificacoes.tarefas_fundo.tasks[0].args[0] == "prazo_encerrado"
+
+    servico.notificacoes.tarefas_fundo.tasks.clear()
+    consulta.execute.return_value = SimpleNamespace(data=[])
+    servico._buscar_tarefa_bruta = MagicMock(return_value=encerrada)
+    assert servico._sincronizar_estado_por_atraso(expirada) == encerrada
+    assert servico.notificacoes.tarefas_fundo.tasks == []

@@ -10,6 +10,8 @@ let pedidos;
 let destinos;
 let casaAtiva;
 let tarefaDisponivel;
+let tokenDaSessao;
+let casasDisponiveis;
 
 mock.module("react-native", { namedExports: { Platform: { OS: "android" } } });
 mock.module("expo-constants", {
@@ -53,11 +55,11 @@ mock.module("../src/services/api.ts", {
   },
 });
 mock.module("../src/services/casas-api.ts", {
-  namedExports: { listarCasas: async () => [{ id: casaId, nome: "Casa" }] },
+  namedExports: { listarCasas: async () => casasDisponiveis },
 });
 mock.module("../src/services/sessao-store.ts", {
   namedExports: {
-    sessao: { getState: () => ({ token: "sessao", casaAtiva }) },
+    sessao: { getState: () => ({ token: tokenDaSessao, casaAtiva }) },
     selecionarCasa: async (casa) => {
       casaAtiva = casa;
       return true;
@@ -79,6 +81,8 @@ beforeEach(() => {
   destinos = [];
   casaAtiva = null;
   tarefaDisponivel = true;
+  tokenDaSessao = "sessao";
+  casasDisponiveis = [{ id: casaId, nome: "Casa" }];
 });
 
 test("ativação registra token e remoção acontece antes do logout", async () => {
@@ -132,4 +136,39 @@ test("tarefa removida abre só a lista e payload inválido é ignorado", async (
     "sessao",
   );
   assert.deepEqual(destinos, ["/tarefas"]);
+});
+
+test("resumo do rodízio escolhe a casa e abre a lista sem consultar tarefa", async () => {
+  await abrirTarefaNotificada(
+    { tipo: "rodizio_distribuido", casa_id: casaId },
+    "sessao",
+  );
+  assert.equal(casaAtiva.id, casaId);
+  assert.deepEqual(pedidos, []);
+  assert.deepEqual(destinos, ["/tarefas"]);
+});
+
+test("resumo não navega para casa inacessível, sessão trocada ou payload inválido", async () => {
+  casasDisponiveis = [];
+  await abrirTarefaNotificada(
+    { tipo: "rodizio_distribuido", casa_id: casaId },
+    "sessao",
+  );
+  casasDisponiveis = [{ id: casaId, nome: "Casa" }];
+  tokenDaSessao = "outra-sessao";
+  await abrirTarefaNotificada(
+    { tipo: "rodizio_distribuido", casa_id: casaId },
+    "sessao",
+  );
+  tokenDaSessao = "sessao";
+  await abrirTarefaNotificada(
+    { tipo: "rodizio_distribuido", casa_id: "invalido" },
+    "sessao",
+  );
+  await abrirTarefaNotificada(
+    { tipo: "desconhecido", casa_id: casaId },
+    "sessao",
+  );
+  assert.deepEqual(pedidos, []);
+  assert.deepEqual(destinos, []);
 });

@@ -1,14 +1,18 @@
 from datetime import datetime, timezone
 
+from fastapi import BackgroundTasks
+
 from services.score import ServicoScore
+from services.notificacao import ServicoNotificacao
 
 
 class ServicoPenalidade:
     TAMANHO_PAGINA = 500
     ESTADOS_ABERTOS = ("pendente", "atrasada")
 
-    def __init__(self, supabase):
+    def __init__(self, supabase, tarefas_fundo: BackgroundTasks | None = None):
         self.supabase = supabase
+        self.notificacoes = ServicoNotificacao(supabase, tarefas_fundo)
 
     @staticmethod
     def _instante_utc(valor: str | datetime) -> datetime:
@@ -23,7 +27,7 @@ class ServicoPenalidade:
         while True:
             pagina = (
                 self.supabase.table("tarefa")
-                .select("id,estado_atual,data_fim,atraso_maximo")
+                .select("id,fk_casa_id,estado_atual,data_fim,atraso_maximo")
                 .in_("estado_atual", self.ESTADOS_ABERTOS)
                 .order("id")
                 .range(inicio, inicio + self.TAMANHO_PAGINA - 1)
@@ -71,6 +75,7 @@ class ServicoPenalidade:
                 marcadas_atrasadas += 1
             elif estado_calculado == "nao_feito":
                 marcadas_nao_feitas += 1
+                self.notificacoes.notificar_tarefa("prazo_encerrado", tarefa)
 
         return {
             "tarefas_analisadas": len(tarefas),

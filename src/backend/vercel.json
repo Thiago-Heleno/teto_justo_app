@@ -12,6 +12,10 @@
     {
       "path": "/jobs/notificacoes",
       "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/jobs/notificacoes-avisos",
+      "schedule": "15 3 * * *"
     }
   ]
 }

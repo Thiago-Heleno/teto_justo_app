@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import BackgroundTasks
 
 from services.penalidade import ServicoPenalidade
 
@@ -96,7 +97,7 @@ def test_processa_prazo_atraso_e_limite_da_penalidade(agora):
     tolerancia_excedida = tarefa("atrasada", agora - timedelta(days=3))
     banco = Banco([no_prazo, atrasada, tolerancia_excedida])
 
-    resultado = ServicoPenalidade(banco).processar_tarefas(agora)
+    resultado = ServicoPenalidade(banco, BackgroundTasks()).processar_tarefas(agora)
 
     assert no_prazo["estado_atual"] == "pendente"
     assert atrasada["estado_atual"] == "atrasada"
@@ -112,7 +113,7 @@ def test_processa_prazo_atraso_e_limite_da_penalidade(agora):
 def test_processamento_repetido_nao_repete_transicoes_ou_eventos(agora):
     tarefa_atrasada = tarefa("pendente", agora - timedelta(days=1), atraso_maximo=5)
     banco = Banco([tarefa_atrasada])
-    servico = ServicoPenalidade(banco)
+    servico = ServicoPenalidade(banco, BackgroundTasks())
 
     primeira = servico.processar_tarefas(agora)
     segunda = servico.processar_tarefas(agora)
@@ -131,9 +132,23 @@ def test_transicao_condicional_nao_sobrescreve_tarefa_alterada(agora):
             {"estado_atual": "finalizado"}
         ),
     )
-    servico = ServicoPenalidade(banco)
+    servico = ServicoPenalidade(banco, BackgroundTasks())
 
     resultado = servico.processar_tarefas(agora)
 
     assert resultado["marcadas_atrasadas"] == 0
     assert registro["estado_atual"] == "finalizado"
+
+
+def test_encerramento_agenda_um_aviso_sem_criar_debito_ou_repetir(agora):
+    expirada = tarefa("atrasada", agora - timedelta(days=3))
+    banco = Banco([expirada])
+    tarefas_fundo = BackgroundTasks()
+    servico = ServicoPenalidade(banco, tarefas_fundo)
+
+    assert servico.processar_tarefas(agora)["marcadas_nao_feitas"] == 1
+    assert servico.processar_tarefas(agora)["marcadas_nao_feitas"] == 0
+    assert len(tarefas_fundo.tasks) == 1
+    assert tarefas_fundo.tasks[0].args[0] == "prazo_encerrado"
+    assert expirada["estado_atual"] == "nao_feito"
+    assert "score_event" not in banco.tabelas_consultadas

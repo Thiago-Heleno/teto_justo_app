@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
+import logging
 from uuid import UUID
 
 import httpx
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 
 from schemas.notificacao import DispositivoPushRegistrar
 
@@ -10,11 +11,159 @@ from schemas.notificacao import DispositivoPushRegistrar
 _URL_EXPO = "https://exp.host/--/api/v2/push/send"
 _LIMITE_LOTE = 100
 _TIMEOUT_SEGUNDOS = 10
+_LOGGER = logging.getLogger(__name__)
+_MENSAGENS_TAREFA = {
+    "tarefa_atribuida": ("Nova tarefa para você", "Uma tarefa foi atribuída a você."),
+    "prazo_alterado": ("Prazo da tarefa alterado", "O prazo de uma tarefa sua foi atualizado."),
+    "atribuicao_removida": (
+        "Responsável pela tarefa alterado", "Você deixou de ser responsável por uma tarefa."
+    ),
+    "prazo_encerrado": (
+        "Prazo de execução encerrado", "O prazo para concluir uma tarefa sua foi encerrado."
+    ),
+}
 
 
 class ServicoNotificacao:
-    def __init__(self, supabase_client):
+    def __init__(self, supabase_client, tarefas_fundo: BackgroundTasks | None = None):
         self.supabase = supabase_client
+        self.tarefas_fundo = tarefas_fundo
+
+    def notificar_tarefa(
+        self, tipo: str, tarefa: dict, ids_usuarios: list[str] | None = None
+    ) -> None:
+        if ids_usuarios == []:
+            return
+        argumentos = (tipo, dict(tarefa), list(ids_usuarios) if ids_usuarios is not None else None)
+        if self.tarefas_fundo is not None:
+            self.tarefas_fundo.add_task(self._notificar_tarefa, *argumentos)
+        else:
+            self._notificar_tarefa(*argumentos)
+
+    def _notificar_tarefa(self, tipo: str, tarefa: dict, ids_usuarios: list[str] | None) -> None:
+        try:
+            if "fk_casa_id" not in tarefa:
+                registros = (
+                    self.supabase.table("tarefa").select("id,fk_casa_id")
+                    .eq("id", str(tarefa["id"])).execute()
+                ).data or []
+                if not registros:
+                    return
+                tarefa = registros[0]
+            if ids_usuarios is None:
+                ids_usuarios = self._responsaveis(tarefa["id"])
+            titulo, mensagem = _MENSAGENS_TAREFA[tipo]
+            self._enviar_aviso_normal(
+                ids_usuarios, titulo, mensagem,
+                {
+                    "tipo": tipo, "tarefa_id": str(tarefa["id"]),
+                    "casa_id": str(tarefa["fk_casa_id"]),
+                },
+            )
+        except Exception:
+            # A notificação é secundária; não propaga erros nem detalhes que contenham tokens.
+            _LOGGER.warning("Não foi possível preparar uma notificação normal.")
+
+    def _responsaveis(self, id_tarefa: str) -> list[str]:
+        registros = (
+            self.supabase.table("atribuida").select("fk_usuario_id")
+            .eq("fk_tarefa_id", str(id_tarefa)).execute()
+        ).data or []
+        return list(dict.fromkeys(str(item["fk_usuario_id"]) for item in registros))
+
+    def reiniciar_aviso_inicio(self, tarefa: dict) -> None:
+        if self.tarefas_fundo is not None:
+            self.tarefas_fundo.add_task(self._reiniciar_aviso_inicio, dict(tarefa))
+        else:
+            self._reiniciar_aviso_inicio(tarefa)
+
+    def _reiniciar_aviso_inicio(self, tarefa: dict) -> None:
+        if not tarefa.get("data_inicio"):
+            return
+        try:
+            (
+                self.supabase.table("tarefa").update({"aviso_inicio_tentado_em": None})
+                .eq("id", str(tarefa["id"])).eq("data_inicio", tarefa["data_inicio"])
+                .eq("estado_atual", "pendente").execute()
+            )
+        except Exception:
+            _LOGGER.warning("Não foi possível reiniciar o aviso de início da tarefa.")
+
+    def _enviar_aviso_normal(
+        self, usuarios: list[str], titulo: str, mensagem: str, dados: dict
+    ) -> dict:
+        try:
+            return self.enviar_push(
+                [UUID(str(usuario)) for usuario in usuarios], titulo, mensagem, dados
+            )
+        except Exception:
+            _LOGGER.warning("Não foi possível enviar uma notificação normal.")
+            return {"aceitos": [], "invalidos": [], "falhas": [{"erro": "EnvioNaoConfirmado"}]}
+
+    def avisar_inicios(self, agora: datetime | None = None) -> dict[str, int]:
+        instante = agora or datetime.now(timezone.utc)
+        if instante.tzinfo is None or instante.utcoffset() is None:
+            raise ValueError("O instante do processamento deve conter fuso horário.")
+        instante = instante.astimezone(timezone.utc)
+        limite = instante + timedelta(hours=24)
+        tarefas = []
+        while True:
+            pagina = (
+                self.supabase.table("tarefa")
+                .select("id,fk_casa_id,data_inicio,rotatividade_id")
+                .eq("estado_atual", "pendente")
+                .is_("aviso_inicio_tentado_em", "null")
+                .gt("data_inicio", instante.isoformat())
+                .lte("data_inicio", limite.isoformat())
+                .order("id").range(len(tarefas), len(tarefas) + 99).execute()
+            ).data or []
+            tarefas.extend(pagina)
+            if len(pagina) < 100:
+                break
+
+        resultado = {"tarefas_elegiveis": len(tarefas), "avisos_enviados": 0, "falhas": 0}
+        resumos = {}
+        for tarefa in tarefas:
+            usuarios = self._responsaveis(tarefa["id"])
+            if not usuarios:
+                continue
+            reserva = (
+                self.supabase.table("tarefa")
+                .update({"aviso_inicio_tentado_em": instante.isoformat()})
+                .eq("id", tarefa["id"]).eq("data_inicio", tarefa["data_inicio"])
+                .eq("estado_atual", "pendente").is_("aviso_inicio_tentado_em", "null").execute()
+            )
+            if not reserva.data:
+                continue
+            if tarefa.get("rotatividade_id"):
+                for usuario in usuarios:
+                    chave = (usuario, str(tarefa["fk_casa_id"]))
+                    resumos[chave] = resumos.get(chave, 0) + 1
+                continue
+            envio = self._enviar_aviso_normal(
+                usuarios, "Sua tarefa começa em breve",
+                "Uma tarefa sua começa nas próximas 24 horas.",
+                {
+                    "tipo": "inicio_tarefa", "tarefa_id": tarefa["id"],
+                    "casa_id": tarefa["fk_casa_id"],
+                },
+            )
+            resultado["avisos_enviados"] += len(envio["aceitos"])
+            resultado["falhas"] += len(envio["falhas"])
+
+        for (usuario, casa), quantidade in resumos.items():
+            mensagem = (
+                "Você tem uma tarefa do rodízio começando nas próximas 24 horas."
+                if quantidade == 1 else
+                f"Você tem {quantidade} tarefas do rodízio começando nas próximas 24 horas."
+            )
+            envio = self._enviar_aviso_normal(
+                [usuario], "Novas tarefas do rodízio", mensagem,
+                {"tipo": "rodizio_distribuido", "casa_id": casa},
+            )
+            resultado["avisos_enviados"] += len(envio["aceitos"])
+            resultado["falhas"] += len(envio["falhas"])
+        return resultado
 
     def registrar_dispositivo(
         self, id_usuario: UUID, dados: DispositivoPushRegistrar

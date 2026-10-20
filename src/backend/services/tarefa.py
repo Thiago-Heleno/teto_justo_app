@@ -2,12 +2,13 @@ from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from postgrest.exceptions import APIError
 
 from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.score import ServicoScore
+from services.notificacao import ServicoNotificacao
 
 _ESTADOS_FINAIS = ("finalizado", "nao_feito")
 _FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "atrasadas")
@@ -15,8 +16,9 @@ _MAX_TENTATIVAS_CAS = 5
 
 
 class ServicoTarefa:
-    def __init__(self, cliente_supabase):
+    def __init__(self, cliente_supabase, tarefas_fundo: BackgroundTasks | None = None):
         self.supabase = cliente_supabase
+        self.notificacoes = ServicoNotificacao(cliente_supabase, tarefas_fundo)
 
     def _buscar_tarefa_bruta(self, id_tarefa: UUID):
         resposta = (
@@ -111,7 +113,10 @@ class ServicoTarefa:
             .eq("atraso_maximo", tarefa["atraso_maximo"])
             .execute()
         )
-        return resposta.data[0] if resposta.data else self._buscar_tarefa_bruta(UUID(tarefa["id"]))
+        if resposta.data:
+            self.notificacoes.notificar_tarefa("prazo_encerrado", resposta.data[0])
+            return resposta.data[0]
+        return self._buscar_tarefa_bruta(UUID(tarefa["id"]))
 
     def _montar_resposta(self, tarefa: dict) -> dict:
         tarefa = self._sincronizar_estado_por_atraso(tarefa)
@@ -195,7 +200,12 @@ class ServicoTarefa:
         tarefa = resposta.data[0]
         if usuarios_atribuidos:
             self._atribuir_usuarios(tarefa["id"], usuarios_atribuidos)
-        return self._montar_resposta(tarefa)
+        resultado = self._montar_resposta(tarefa)
+        if resultado["estado_atual"] not in _ESTADOS_FINAIS:
+            self.notificacoes.notificar_tarefa(
+                "tarefa_atribuida", resultado, resultado["usuarios_atribuidos"]
+            )
+        return resultado
 
     def buscar_tarefa(self, id_tarefa: UUID):
         return self._montar_resposta(self._buscar_tarefa_bruta(id_tarefa))
@@ -450,6 +460,20 @@ class ServicoTarefa:
                 tarefa_atual["fk_casa_id"], usuarios_atribuidos
             )
 
+        usuarios_anteriores = (
+            set(self._buscar_usuarios_atribuidos(id_tarefa)) if usuarios_foram_informados else None
+        )
+        novos_usuarios = {str(usuario) for usuario in (usuarios_atribuidos or [])}
+        mudou_responsavel = (
+            usuarios_anteriores is not None and usuarios_anteriores != novos_usuarios
+        )
+        mudou_prazo = self._data_fim_com_fuso(
+            dados.get("data_fim", tarefa_atual["data_fim"])
+        ) != self._data_fim_com_fuso(tarefa_atual["data_fim"])
+        mudou_inicio = "data_inicio" in dados and (
+            not tarefa_atual.get("data_inicio") or self._data_fim_com_fuso(dados["data_inicio"])
+            != self._data_fim_com_fuso(tarefa_atual["data_inicio"])
+        )
         if (
             dados.get("data_fim", tarefa_atual["data_fim"]) != tarefa_atual["data_fim"]
             or usuarios_foram_informados
@@ -471,7 +495,21 @@ class ServicoTarefa:
             if usuarios_atribuidos:
                 self._atribuir_usuarios(id_tarefa, usuarios_atribuidos)
 
-        return self.buscar_tarefa(id_tarefa)
+        resultado = self.buscar_tarefa(id_tarefa)
+        if mudou_inicio or mudou_responsavel:
+            self.notificacoes.reiniciar_aviso_inicio(resultado)
+        atuais = set(resultado["usuarios_atribuidos"])
+        if mudou_responsavel:
+            self.notificacoes.notificar_tarefa(
+                "tarefa_atribuida", resultado, sorted(atuais - usuarios_anteriores)
+            )
+            self.notificacoes.notificar_tarefa(
+                "atribuicao_removida", resultado, sorted(usuarios_anteriores - atuais)
+            )
+        if mudou_prazo:
+            destinatarios = atuais if usuarios_anteriores is None else atuais & usuarios_anteriores
+            self.notificacoes.notificar_tarefa("prazo_alterado", resultado, sorted(destinatarios))
+        return resultado
 
     def excluir_tarefa(self, id_tarefa: UUID, id_usuario_atual: UUID):
         tarefa_atual = self._buscar_tarefa_bruta(id_tarefa)

@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
@@ -16,20 +16,22 @@ router = APIRouter(prefix="/tarefas", tags=["Tarefas"])
 def criar_tarefa(
     tarefa: TarefaCriar,
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.criar_tarefa(tarefa, usuario_atual.id)
 
 
 @router.get("/", response_model=list[TarefaResposta])
 def listar_tarefas(
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     inicio: int = Query(0, ge=0),
     limite: int = Query(100, ge=1),
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.listar_tarefas_acessiveis(usuario_atual.id, inicio, limite)
 
 
@@ -37,13 +39,14 @@ def listar_tarefas(
 def listar_tarefas_por_casa(
     id_casa: UUID,
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     estado: EstadoTarefa | Literal["todos"] | None = None,
     responsavel: UUID | None = None,
     prazo: Literal["todos", "hoje", "sete_dias", "atrasadas"] | None = None,
     supabase=Depends(get_supabase),
 ):
     ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.listar_tarefas_por_casa(
         id_casa, estado=estado, responsavel=responsavel, prazo=prazo
     )
@@ -53,9 +56,10 @@ def listar_tarefas_por_casa(
 def buscar_tarefa(
     id_tarefa: UUID,
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.buscar_tarefa_autorizada(id_tarefa, usuario_atual.id)
 
 
@@ -63,9 +67,10 @@ def buscar_tarefa(
 def concluir_tarefa(
     id_tarefa: UUID,
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.concluir_tarefa(id_tarefa, usuario_atual.id)
 
 
@@ -73,9 +78,10 @@ def concluir_tarefa(
 def reabrir_tarefa(
     id_tarefa: UUID,
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.reabrir_tarefa(id_tarefa, usuario_atual.id)
 
 
@@ -84,9 +90,10 @@ def atualizar_tarefa(
     id_tarefa: UUID,
     tarefa: TarefaAtualizar,
     usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase)
+    servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.atualizar_tarefa(id_tarefa, tarefa, usuario_atual.id)
 
 

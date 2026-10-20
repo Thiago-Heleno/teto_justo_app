@@ -64,9 +64,10 @@ export async function abrirTarefaNotificada(
   dados: Record<string, unknown>,
   tokenDaSessao: string,
 ) {
-  const tarefaId = dados.tarefa_id;
+  const tarefaId = typeof dados.tarefa_id === "string" ? dados.tarefa_id : "";
   const casaId = dados.casa_id;
-  if (typeof tarefaId !== "string" || !UUID.test(tarefaId)) return;
+  const resumoRodizio = dados.tipo === "rodizio_distribuido";
+  if (!resumoRodizio && !UUID.test(tarefaId)) return;
   if (typeof casaId !== "string" || !UUID.test(casaId)) return;
 
   const casas = await listarCasas();
@@ -74,6 +75,10 @@ export async function abrirTarefaNotificada(
   if (!casa || sessao.getState().token !== tokenDaSessao) return;
   if (sessao.getState().casaAtiva?.id !== casaId) {
     if (!(await selecionarCasa(casa))) return;
+  }
+  if (resumoRodizio) {
+    if (sessao.getState().token === tokenDaSessao) router.push("/tarefas");
+    return;
   }
   try {
     const tarefa = await requisitar<Tarefa>(`/tarefas/${tarefaId}`);
