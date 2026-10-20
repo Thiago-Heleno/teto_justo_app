@@ -7,13 +7,18 @@ export type DadosCadastro = {
 
 export type ErrosCadastro = Partial<Record<keyof DadosCadastro, string>>;
 
+export function validarEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+    ? undefined
+    : "Informe um e-mail válido.";
+}
+
 export function validarPerfil(dados: Pick<DadosCadastro, "nome" | "email">) {
   const erros: ErrosCadastro = {};
 
   if (!dados.nome.trim()) erros.nome = "Informe seu nome.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dados.email.trim())) {
-    erros.email = "Informe um e-mail válido.";
-  }
+  const erroEmail = validarEmail(dados.email);
+  if (erroEmail) erros.email = erroEmail;
   return erros;
 }
 
@@ -23,8 +28,10 @@ export function somenteDigitosDoCodigo(valor: string) {
   return valor.replace(/\D/g, "").slice(0, TAMANHO_CODIGO);
 }
 
-export function validarCadastro(dados: DadosCadastro): ErrosCadastro {
-  const erros = validarPerfil(dados);
+export function validarNovaSenha(
+  dados: Pick<DadosCadastro, "senha" | "confirmacao">,
+): ErrosCadastro {
+  const erros: ErrosCadastro = {};
 
   if (!dados.senha.trim()) erros.senha = "Informe uma senha.";
   if (!dados.confirmacao) {
@@ -34,4 +41,8 @@ export function validarCadastro(dados: DadosCadastro): ErrosCadastro {
   }
 
   return erros;
+}
+
+export function validarCadastro(dados: DadosCadastro): ErrosCadastro {
+  return { ...validarPerfil(dados), ...validarNovaSenha(dados) };
 }

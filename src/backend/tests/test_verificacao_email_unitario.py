@@ -83,6 +83,19 @@ def test_rejeita_codigo_errado_email_diferente_e_token_adulterado():
         assert erro.value.detail == "Código inválido ou expirado."
 
 
+def test_codigo_so_vale_para_o_proposito_e_o_vinculo_com_que_foi_emitido():
+    servico = ServicoVerificacaoEmail()
+    emitido = servico.emitir(_EMAIL, "redefinicao", "hash-1")
+    codigo, token = emitido["codigo"], emitido["token_verificacao"]
+
+    servico.verificar(_EMAIL, codigo, token, "redefinicao", "hash-1")
+    outros = [("cadastro", "hash-1"), ("redefinicao", "hash-2"), ("redefinicao", "")]
+    for proposito, vinculo in outros:
+        with pytest.raises(HTTPException) as erro:
+            servico.verificar(_EMAIL, codigo, token, proposito, vinculo)
+        assert erro.value.status_code == 400
+
+
 @pytest.mark.parametrize("token", ["", "sem-ponto", "abc.def", "1.2.3", "9999999999.é"])
 def test_token_malformado_retorna_400_sem_erro_interno(token):
     with pytest.raises(HTTPException) as erro:
@@ -106,3 +119,13 @@ def test_html_traz_o_codigo_e_as_cores_do_design_system():
     assert ">48213</p>" in html
     for cor in ("#e2e2df", "#f7f6f2", "#fc5000", "#f5f28e", "#070607"):
         assert cor in html
+
+
+def test_html_aceita_titulo_e_texto_proprios():
+    html = ServicoVerificacaoEmail.montar_html(
+        "48213", "Redefina sua senha", "Crie uma nova senha."
+    )
+
+    assert "Redefina sua senha" in html
+    assert "Crie uma nova senha." in html
+    assert "Confirme seu e-mail" not in html

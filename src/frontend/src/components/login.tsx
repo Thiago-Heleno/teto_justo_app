@@ -21,12 +21,14 @@ export function LoginScreen({
   emailInicial = "",
   mensagemCadastro,
   onCriarConta,
+  onEsqueciSenha,
   onIniciarLogin,
 }: {
   aviso?: string;
   emailInicial?: string;
   mensagemCadastro?: string;
   onCriarConta: (email: string) => void;
+  onEsqueciSenha: (email: string) => void;
   onIniciarLogin: () => void;
 }) {
   const [email, setEmail] = useState(emailInicial);
@@ -146,6 +148,16 @@ export function LoginScreen({
               ) : (
                 <Text style={styles.buttonText}>Entrar</Text>
               )}
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Esqueci minha senha"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: enviando }}
+              disabled={enviando}
+              onPress={() => onEsqueciSenha(email.trim())}
+              style={styles.createAccountButton}
+            >
+              <Text style={styles.createAccountText}>Esqueci minha senha</Text>
             </Pressable>
             <Pressable
               accessibilityLabel="Criar conta"

@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
 from schemas.usuario import (
+    RecuperarSenhaEntrada,
+    RedefinirSenhaEntrada,
     UsuarioAtualizar,
     UsuarioCadastro,
     UsuarioCriar,
@@ -17,7 +19,11 @@ from schemas.notificacao import (
 from services.usuario import ServicoUsuario
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.envio_email import ServicoEmail
-from services.limite_login import LimitadorLogin, get_limitador_verificacao
+from services.limite_login import (
+    LimitadorLogin,
+    get_limitador_recuperacao,
+    get_limitador_verificacao,
+)
 from services.notificacao import ServicoNotificacao
 from services.verificacao_email import ServicoVerificacaoEmail
 
@@ -144,3 +150,59 @@ def deletar_usuario(
     servico = ServicoUsuario(supabase)
     servico.deletar_usuario(id_usuario)
     return
+
+
+@router.post("/recuperar-senha", response_model=VerificacaoEmailResposta)
+def solicitar_recuperacao_senha(
+    dados: RecuperarSenhaEntrada,
+    request: Request,
+    supabase=Depends(get_supabase),
+    limitador: LimitadorLogin = Depends(get_limitador_recuperacao),
+):
+    email, ip = str(dados.email), _ip_cliente(request)
+    limitador.reservar_tentativa("envio:" + email, "envio:" + ip)
+    hash_atual = ServicoUsuario(supabase).obter_hash_senha(email)
+    # Emite sempre: a resposta é igual exista a conta ou não; só o e-mail muda.
+    emitido = ServicoVerificacaoEmail().emitir(email, "redefinicao", hash_atual or "")
+    if hash_atual:
+        try:
+            ServicoEmail().enviar(
+                email,
+                "Redefinição de senha | Teto Justo",
+                ServicoVerificacaoEmail.montar_html(
+                    emitido["codigo"],
+                    "Redefina sua senha",
+                    "Use o código abaixo para criar uma nova senha.",
+                ),
+            )
+        except Exception:
+            limitador.cancelar_tentativa("envio:" + email, "envio:" + ip)
+            raise
+    return emitido
+
+
+@router.post("/redefinir-senha", status_code=status.HTTP_204_NO_CONTENT)
+def redefinir_senha(
+    dados: RedefinirSenhaEntrada,
+    request: Request,
+    supabase=Depends(get_supabase),
+    limitador: LimitadorLogin = Depends(get_limitador_recuperacao),
+):
+    email, ip = str(dados.email), _ip_cliente(request)
+    limitador.reservar_tentativa("codigo:" + email, "codigo:" + ip)
+    servico = ServicoUsuario(supabase)
+    try:
+        hash_atual = servico.obter_hash_senha(email)
+        ServicoVerificacaoEmail().verificar(
+            email, dados.codigo, dados.token_verificacao, "redefinicao", hash_atual or ""
+        )
+        servico.redefinir_senha(email, dados.nova_senha, hash_atual)
+    except HTTPException as erro:
+        if erro.status_code == 400:
+            limitador.registrar_falha("codigo:" + email, "codigo:" + ip)
+        else:
+            limitador.cancelar_tentativa("codigo:" + email, "codigo:" + ip)
+        raise
+    limitador.confirmar_sucesso("codigo:" + email, "codigo:" + ip)
+
+

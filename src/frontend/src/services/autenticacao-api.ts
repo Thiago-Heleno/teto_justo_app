@@ -68,6 +68,33 @@ export async function cadastrar(
   });
 }
 
+export async function solicitarRecuperacaoSenha(email: string) {
+  const resposta = await requisitar<{ token_verificacao: string }>(
+    "/usuarios/recuperar-senha",
+    undefined,
+    { method: "POST", publica: true, body: { email: email.trim() } },
+  );
+  return resposta.token_verificacao;
+}
+
+export async function redefinirSenha(
+  email: string,
+  codigo: string,
+  tokenVerificacao: string,
+  novaSenha: string,
+) {
+  await requisitar<void>("/usuarios/redefinir-senha", undefined, {
+    method: "POST",
+    publica: true,
+    body: {
+      email: email.trim(),
+      codigo,
+      token_verificacao: tokenVerificacao,
+      nova_senha: novaSenha,
+    },
+  });
+}
+
 export async function sair() {
   if (sessao.getState().token) {
     await removerNotificacoesDoDispositivo();
