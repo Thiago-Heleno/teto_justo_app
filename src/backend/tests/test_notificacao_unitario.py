@@ -5,11 +5,11 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
@@ -406,6 +406,7 @@ class BancoAvisos:
     def __init__(self, tarefas, atribuicoes):
         self.tarefas = tarefas
         self.atribuicoes = atribuicoes
+        self.antes_de_atualizar = None
 
     def table(self, nome):
         return ConsultaAvisos(self, nome)
@@ -438,11 +439,11 @@ class ConsultaAvisos:
         return self
 
     def gt(self, campo, valor):
-        self.filtros.append(lambda item: item[campo] > valor)
+        self.filtros.append(lambda item: item.get(campo) is not None and item[campo] > valor)
         return self
 
     def lte(self, campo, valor):
-        self.filtros.append(lambda item: item[campo] <= valor)
+        self.filtros.append(lambda item: item.get(campo) is not None and item[campo] <= valor)
         return self
 
     def order(self, _campo):
@@ -454,6 +455,8 @@ class ConsultaAvisos:
 
     def execute(self):
         origem = self.banco.tarefas if self.nome == "tarefa" else self.banco.atribuicoes
+        if self.alteracao is not None and self.banco.antes_de_atualizar:
+            self.banco.antes_de_atualizar()
         registros = [item for item in origem if all(filtro(item) for filtro in self.filtros)]
         if self.alteracao is not None:
             for item in registros:
@@ -525,3 +528,203 @@ def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
     assert servico.avisar_vencimentos(agora)["falhas"] == 1
     assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
     assert chamadas == [True]
+
+
+def tarefa_com_inicio(agora, **alteracoes):
+    return {
+        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "data_inicio": (agora + timedelta(hours=12)).isoformat(),
+        "estado_atual": "pendente", "rotatividade_id": None,
+        "aviso_inicio_tentado_em": None, "aviso_enviado_em": "aviso-de-vencimento-existente",
+        **alteracoes,
+    }
+
+
+@pytest.fixture
+def envio_normal(monkeypatch):
+    enviar = Mock(return_value={
+        "aceitos": [{"dispositivo_id": str(uuid4()), "ticket_id": str(uuid4())}],
+        "invalidos": [], "falhas": [],
+    })
+    monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
+    return enviar
+
+
+def test_inicio_respeita_limites_estado_e_marcacao_sem_afetar_vencimento(envio_normal):
+    agora = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+    usuario = str(uuid4())
+    alteracoes = [
+        {"data_inicio": agora.isoformat()},
+        {"data_inicio": (agora + timedelta(microseconds=1)).isoformat()},
+        {"data_inicio": (agora + timedelta(hours=24)).isoformat()},
+        {"data_inicio": (agora + timedelta(hours=24, microseconds=1)).isoformat()},
+        {"data_inicio": (agora - timedelta(hours=1)).isoformat()},
+        {"data_inicio": None}, {"estado_atual": "finalizado"},
+        {"estado_atual": "nao_feito"}, {"estado_atual": "atrasada"},
+        {"aviso_inicio_tentado_em": agora.isoformat()},
+    ]
+    tarefas = [tarefa_com_inicio(agora, **mudanca) for mudanca in alteracoes]
+    banco = BancoAvisos(tarefas, [
+        {"fk_tarefa_id": t["id"], "fk_usuario_id": usuario} for t in tarefas
+    ])
+    servico = ServicoNotificacao(banco)
+
+    assert servico.avisar_inicios(agora) == {
+        "tarefas_elegiveis": 2, "avisos_enviados": 2, "falhas": 0,
+    }
+    assert {c.args[3]["tarefa_id"] for c in envio_normal.call_args_list} == {
+        tarefas[1]["id"], tarefas[2]["id"],
+    }
+    assert all(c.args[0] == [UUID(usuario)] for c in envio_normal.call_args_list)
+    assert all(c.args[3]["tipo"] == "inicio_tarefa" for c in envio_normal.call_args_list)
+    assert all(t["aviso_enviado_em"] == "aviso-de-vencimento-existente" for t in tarefas)
+    assert servico.avisar_inicios(agora)["tarefas_elegiveis"] == 0
+    assert envio_normal.call_count == 2
+
+
+def test_inicio_sem_responsavel_nao_reserva_nem_envia(envio_normal):
+    agora = datetime.now(timezone.utc)
+    tarefa = tarefa_com_inicio(agora)
+    resultado = ServicoNotificacao(BancoAvisos([tarefa], [])).avisar_inicios(agora)
+    assert resultado == {"tarefas_elegiveis": 1, "avisos_enviados": 0, "falhas": 0}
+    assert tarefa["aviso_inicio_tentado_em"] is None
+    envio_normal.assert_not_called()
+
+
+@pytest.mark.parametrize("alteracao", ["marcacao", "estado", "inicio"])
+def test_reserva_de_inicio_nao_sobrescreve_mudanca_concorrente(envio_normal, alteracao):
+    agora = datetime.now(timezone.utc)
+    tarefa = tarefa_com_inicio(agora)
+    banco = BancoAvisos([tarefa], [
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
+    ])
+    mudancas = {
+        "marcacao": {"aviso_inicio_tentado_em": agora.isoformat()},
+        "estado": {"estado_atual": "finalizado"},
+        "inicio": {"data_inicio": (agora + timedelta(days=2)).isoformat()},
+    }
+    banco.antes_de_atualizar = lambda: tarefa.update(mudancas[alteracao])
+
+    assert ServicoNotificacao(banco).avisar_inicios(agora)["avisos_enviados"] == 0
+    envio_normal.assert_not_called()
+
+
+def test_inicio_processa_todas_as_paginas_antes_de_marcar(envio_normal):
+    agora = datetime.now(timezone.utc)
+    tarefas = [tarefa_com_inicio(agora) for _ in range(101)]
+    banco = BancoAvisos(tarefas, [
+        {"fk_tarefa_id": t["id"], "fk_usuario_id": str(uuid4())} for t in tarefas
+    ])
+
+    assert ServicoNotificacao(banco).avisar_inicios(agora)["avisos_enviados"] == 101
+    assert all(t["aviso_inicio_tentado_em"] == agora.isoformat() for t in tarefas)
+    assert envio_normal.call_count == 101
+
+
+def test_rodizio_agrupa_por_usuario_e_casa_sem_avisar_ocorrencias_distantes(envio_normal):
+    agora = datetime.now(timezone.utc)
+    casa, outra_casa, usuario, outro_usuario = [str(uuid4()) for _ in range(4)]
+    rotatividade = str(uuid4())
+    tarefas = [
+        tarefa_com_inicio(agora, fk_casa_id=casa, rotatividade_id=rotatividade),
+        tarefa_com_inicio(agora, fk_casa_id=casa, rotatividade_id=rotatividade),
+        tarefa_com_inicio(agora, fk_casa_id=outra_casa, rotatividade_id=rotatividade),
+        tarefa_com_inicio(agora, fk_casa_id=casa, rotatividade_id=rotatividade),
+        tarefa_com_inicio(agora, fk_casa_id=casa),
+        tarefa_com_inicio(
+            agora, fk_casa_id=casa, rotatividade_id=rotatividade,
+            data_inicio=(agora + timedelta(days=60)).isoformat(),
+        ),
+    ]
+    banco = BancoAvisos(tarefas, [
+        {"fk_tarefa_id": t["id"], "fk_usuario_id": outro_usuario if i == 3 else usuario}
+        for i, t in enumerate(tarefas)
+    ])
+
+    assert ServicoNotificacao(banco).avisar_inicios(agora) == {
+        "tarefas_elegiveis": 5, "avisos_enviados": 4, "falhas": 0,
+    }
+    resumos = [c for c in envio_normal.call_args_list if c.args[3]["tipo"] == "rodizio_distribuido"]
+    assert len(resumos) == 3
+    resumo_principal = next(
+        c for c in resumos if c.args[0] == [UUID(usuario)] and c.args[3]["casa_id"] == casa
+    )
+    assert "2 tarefas" in resumo_principal.args[2]
+    assert all("tarefa_id" not in c.args[3] for c in resumos)
+    assert tarefas[-1]["aviso_inicio_tentado_em"] is None
+
+
+def test_inicio_isola_falha_inesperada_e_nao_repete_tentativa(envio_normal, caplog):
+    agora = datetime.now(timezone.utc)
+    tarefas = [tarefa_com_inicio(agora) for _ in range(2)]
+    banco = BancoAvisos(tarefas, [
+        {"fk_tarefa_id": t["id"], "fk_usuario_id": str(uuid4())} for t in tarefas
+    ])
+    detalhe_privado = uuid4().hex
+    envio_normal.side_effect = RuntimeError(detalhe_privado)
+    servico = ServicoNotificacao(banco)
+
+    assert servico.avisar_inicios(agora) == {
+        "tarefas_elegiveis": 2, "avisos_enviados": 0, "falhas": 2,
+    }
+    assert servico.avisar_inicios(agora)["tarefas_elegiveis"] == 0
+    assert envio_normal.call_count == 2
+    assert detalhe_privado not in caplog.text
+
+
+def test_aviso_de_evento_aguarda_segundo_plano_e_preserva_destinatarios(envio_normal):
+    tarefa = tarefa_com_inicio(datetime.now(timezone.utc))
+    usuario = str(uuid4())
+    destinatarios = [usuario]
+    tarefas_fundo = BackgroundTasks()
+    servico = ServicoNotificacao(object(), tarefas_fundo)
+
+    servico.notificar_tarefa("tarefa_atribuida", tarefa, destinatarios)
+    destinatarios.clear()
+    tarefa["fk_casa_id"] = str(uuid4())
+    envio_normal.assert_not_called()
+    assert len(tarefas_fundo.tasks) == 1
+    agendada = tarefas_fundo.tasks[0]
+    agendada.func(*agendada.args, **agendada.kwargs)
+
+    assert envio_normal.call_args.args[0] == [UUID(usuario)]
+    assert envio_normal.call_args.args[3]["tipo"] == "tarefa_atribuida"
+    assert envio_normal.call_args.args[3]["casa_id"] != tarefa["fk_casa_id"]
+
+
+def test_falha_na_preparacao_do_aviso_nao_se_propaga(envio_normal, caplog):
+    banco = Mock()
+    detalhe_privado = uuid4().hex
+    banco.table.side_effect = RuntimeError(detalhe_privado)
+    ServicoNotificacao(banco).notificar_tarefa("prazo_encerrado", {"id": str(uuid4())})
+    envio_normal.assert_not_called()
+    assert detalhe_privado not in caplog.text
+
+
+def test_reinicio_de_aviso_ocorre_em_segundo_plano_sem_alterar_marcacao_de_vencimento():
+    agora = datetime.now(timezone.utc)
+    tarefa = tarefa_com_inicio(agora, aviso_inicio_tentado_em=agora.isoformat())
+    banco = BancoAvisos([tarefa], [])
+    tarefas_fundo = BackgroundTasks()
+    ServicoNotificacao(banco, tarefas_fundo).reiniciar_aviso_inicio(tarefa)
+    assert tarefa["aviso_inicio_tentado_em"] == agora.isoformat()
+
+    agendada = tarefas_fundo.tasks[0]
+    agendada.func(*agendada.args)
+
+    assert tarefa["aviso_inicio_tentado_em"] is None
+    assert tarefa["aviso_enviado_em"] == "aviso-de-vencimento-existente"
+
+
+def test_reinicio_falhando_ou_desatualizado_nao_altera_tarefa_nem_propaga_erro(caplog):
+    agora = datetime.now(timezone.utc)
+    tarefa = tarefa_com_inicio(agora, aviso_inicio_tentado_em=agora.isoformat())
+    anterior = {**tarefa, "data_inicio": (agora + timedelta(hours=1)).isoformat()}
+    ServicoNotificacao(BancoAvisos([tarefa], [])).reiniciar_aviso_inicio(anterior)
+    assert tarefa["aviso_inicio_tentado_em"] == agora.isoformat()
+
+    banco = Mock()
+    detalhe_privado = uuid4().hex
+    banco.table.side_effect = RuntimeError(detalhe_privado)
+    ServicoNotificacao(banco).reiniciar_aviso_inicio(tarefa)
+    assert detalhe_privado not in caplog.text

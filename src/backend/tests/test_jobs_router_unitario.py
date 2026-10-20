@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -51,7 +51,7 @@ def test_endpoint_job_invoca_servico_com_token_valido(monkeypatch):
     chamadas = []
 
     class ServicoFalso:
-        def __init__(self, supabase):
+        def __init__(self, supabase, tarefas_fundo):
             assert supabase is banco
 
         def processar_tarefas(self):
@@ -74,7 +74,7 @@ def test_endpoint_job_invoca_servico_com_token_valido(monkeypatch):
     assert chamadas == [True]
 
 
-@pytest.fixture(params=["penalidades", "rotatividades", "notificacoes"])
+@pytest.fixture(params=["penalidades", "rotatividades", "notificacoes", "notificacoes-avisos"])
 def job_cron(request, monkeypatch):
     nome_servico, metodo, resultado = {
         "penalidades": (
@@ -90,6 +90,11 @@ def job_cron(request, monkeypatch):
         "notificacoes": (
             "ServicoNotificacao",
             "avisar_vencimentos",
+            {"tarefas_elegiveis": 2, "avisos_enviados": 1, "falhas": 0},
+        ),
+        "notificacoes-avisos": (
+            "ServicoNotificacao",
+            "avisar_inicios",
             {"tarefas_elegiveis": 2, "avisos_enviados": 1, "falhas": 0},
         ),
     }[request.param]
@@ -180,7 +185,10 @@ def test_cron_autenticado_executa_servico_sem_cache(job_cron, monkeypatch):
     assert resposta.json() == job_cron.resultado
     assert resposta.headers["Cache-Control"] == "no-store"
     assert job_cron.acessos_banco == [True]
-    job_cron.classe_servico.assert_called_once_with(job_cron.banco)
+    if job_cron.caminho == "/jobs/penalidades":
+        job_cron.classe_servico.assert_called_once_with(job_cron.banco, ANY)
+    else:
+        job_cron.classe_servico.assert_called_once_with(job_cron.banco)
     job_cron.processamento.assert_called_once_with()
 
 

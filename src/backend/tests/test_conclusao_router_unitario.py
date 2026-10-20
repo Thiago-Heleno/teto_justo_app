@@ -46,7 +46,7 @@ def test_post_conclusoes_envia_tarefa_e_usuario_ao_servico(monkeypatch):
     chamadas = []
 
     class ServicoTarefaFalso:
-        def __init__(self, supabase):
+        def __init__(self, supabase, tarefas_fundo):
             assert supabase is banco
 
         def concluir_tarefa(self, id_recebido, usuario_recebido):

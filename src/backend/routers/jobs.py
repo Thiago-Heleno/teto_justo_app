@@ -1,7 +1,7 @@
 import hmac
 import os
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response
 
 from core.database import get_supabase
 from schemas.penalidade import ProcessamentoPenalidadesResposta
@@ -32,8 +32,8 @@ def validar_cron(
     response_model=ProcessamentoPenalidadesResposta,
     dependencies=[Depends(validar_cron)],
 )
-def processar_penalidades_cron(supabase=Depends(get_supabase)):
-    return ServicoPenalidade(supabase).processar_tarefas()
+def processar_penalidades_cron(tarefas_fundo: BackgroundTasks, supabase=Depends(get_supabase)):
+    return ServicoPenalidade(supabase, tarefas_fundo).processar_tarefas()
 
 
 @router.get(
@@ -50,11 +50,17 @@ def processar_notificacoes_cron(supabase=Depends(get_supabase)):
     return ServicoNotificacao(supabase).avisar_vencimentos()
 
 
+@router.get("/notificacoes-avisos", dependencies=[Depends(validar_cron)])
+def processar_avisos_inicio_cron(supabase=Depends(get_supabase)):
+    return ServicoNotificacao(supabase).avisar_inicios()
+
+
 @router.post(
     "/penalidades",
     response_model=ProcessamentoPenalidadesResposta,
 )
 def processar_penalidades(
+    tarefas_fundo: BackgroundTasks,
     token: str | None = Header(default=None, alias="X-Penalidade-Job-Token"),
     supabase=Depends(get_supabase),
 ):
@@ -67,7 +73,7 @@ def processar_penalidades(
     if token is None or not hmac.compare_digest(token_configurado.encode(), token.encode()):
         raise HTTPException(status_code=401, detail="Token de job inválido.")
 
-    return ServicoPenalidade(supabase).processar_tarefas()
+    return ServicoPenalidade(supabase, tarefas_fundo).processar_tarefas()
 
 
 @router.post("/rotatividades", response_model=ResultadoJobRotatividade)
