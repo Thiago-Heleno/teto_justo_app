@@ -4,6 +4,14 @@ from uuid import UUID
 from datetime import datetime
 
 
+def _validar_senha(senha: str) -> str:
+    if not senha:
+        raise ValueError("A senha não pode estar vazia.")
+    if len(senha.encode("utf-8")) > 72:
+        raise ValueError("A senha deve ter no máximo 72 bytes.")
+    return senha
+
+
 class UsuarioCriar(BaseModel):
     nome: str
     email: EmailStr
@@ -15,11 +23,7 @@ class UsuarioCriar(BaseModel):
     @field_validator("senha")
     @classmethod
     def validar_senha(cls, senha: str) -> str:
-        if not senha:
-            raise ValueError("A senha não pode estar vazia.")
-        if len(senha.encode("utf-8")) > 72:
-            raise ValueError("A senha deve ter no máximo 72 bytes.")
-        return senha
+        return _validar_senha(senha)
 
 
 class UsuarioCadastro(UsuarioCriar):
@@ -30,6 +34,22 @@ class UsuarioCadastro(UsuarioCriar):
 class VerificacaoEmailResposta(BaseModel):
     token_verificacao: str
     expira_em: datetime
+
+
+class RecuperarSenhaEntrada(BaseModel):
+    email: EmailStr
+
+
+class RedefinirSenhaEntrada(BaseModel):
+    email: EmailStr
+    codigo: str = Field(pattern=r"^\d{5}$")
+    token_verificacao: str
+    nova_senha: str
+
+    @field_validator("nova_senha")
+    @classmethod
+    def validar_nova_senha(cls, senha: str) -> str:
+        return _validar_senha(senha)
 
 
 class UsuarioAtualizar(BaseModel):

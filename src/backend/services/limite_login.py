@@ -115,3 +115,8 @@ def get_limitador_login() -> LimitadorLogin:
 @lru_cache
 def get_limitador_verificacao() -> LimitadorLogin:
     return LimitadorLogin("Muitas tentativas de verificação. Tente novamente mais tarde.")
+
+
+@lru_cache
+def get_limitador_recuperacao() -> LimitadorLogin:
+    return LimitadorLogin("Muitas tentativas de recuperação de senha. Tente novamente mais tarde.")

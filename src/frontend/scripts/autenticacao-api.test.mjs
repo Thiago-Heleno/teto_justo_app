@@ -37,14 +37,19 @@ const {
   entrar,
   sair,
   iniciarAutenticacao,
+  redefinirSenha,
   solicitarCodigoVerificacao,
+  solicitarRecuperacaoSenha,
 } = await import("../src/services/autenticacao-api.ts");
 const { atualizarPerfil, excluirConta } =
   await import("../src/services/perfil-api.ts");
 const { requisitar } = await import("../src/services/api.ts");
 const { sessao } = await import("../src/services/sessao-store.ts");
-const { validarCadastro, somenteDigitosDoCodigo } =
+const { validarCadastro, validarEmail, validarNovaSenha, somenteDigitosDoCodigo } =
   await import("../src/utils/cadastro.ts");
+const { mensagemDeErroRecuperacao } =
+  await import("../src/utils/recuperacao-senha.ts");
+const { ErroApi } = await import("../src/services/api.ts");
 const fetchOriginal = globalThis.fetch;
 const ambiente = { ...process.env };
 const novoToken = () => randomBytes(32).toString("base64url");
@@ -215,6 +220,92 @@ test("cadastro valida campos obrigatórios, e-mail e confirmação da senha", ()
   assert.deepEqual(validarCadastro({
     nome: " Moradora ", email: " moradora@example.com ", senha: "senha-A", confirmacao: "senha-A",
   }), {});
+});
+
+test("pedido de recuperação envia só o e-mail, sem sessão, e devolve o token", async () => {
+  let pedido;
+  globalThis.fetch = async (url, opcoes) => {
+    pedido = { url, opcoes };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ token_verificacao: "token-de-teste", expira_em: "x" }),
+    };
+  };
+
+  const token = await solicitarRecuperacaoSenha("  moradora@example.com  ");
+
+  assert.equal(token, "token-de-teste");
+  assert.equal(pedido.url, "http://api.test/usuarios/recuperar-senha");
+  assert.equal(pedido.opcoes.method, "POST");
+  assert.equal(pedido.opcoes.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(pedido.opcoes.body), { email: "moradora@example.com" });
+  assert.equal(sessao.getState().token, null);
+});
+
+test("redefinição envia código, token e nova senha e aceita 204 sem iniciar sessão", async () => {
+  const novaSenha = novoToken();
+  let pedido;
+  globalThis.fetch = async (url, opcoes) => {
+    pedido = { url, opcoes };
+    return { ok: true, status: 204 };
+  };
+
+  await redefinirSenha(" moradora@example.com ", "48213", "token-de-teste", novaSenha);
+
+  assert.equal(pedido.url, "http://api.test/usuarios/redefinir-senha");
+  assert.equal(pedido.opcoes.method, "POST");
+  assert.equal(pedido.opcoes.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(pedido.opcoes.body), {
+    email: "moradora@example.com",
+    codigo: "48213",
+    token_verificacao: "token-de-teste",
+    nova_senha: novaSenha,
+  });
+  assert.equal(tokenSalvo, null);
+  assert.equal(sessao.getState().token, null);
+});
+
+test("redefinição preserva o 400 de código inválido e o 429 com tempo de espera", async () => {
+  for (const [status, detail, retry] of [
+    [400, "Código inválido ou expirado.", null],
+    [429, "Muitas tentativas de recuperação de senha.", "61"],
+  ]) {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status,
+      headers: { get: () => retry },
+      json: async () => ({ detail }),
+    });
+    await assert.rejects(
+      redefinirSenha("moradora@example.com", "48213", "token-de-teste", novoToken()),
+      (erro) => erro.status === status && erro.message === detail,
+    );
+  }
+});
+
+test("mensagens de erro da recuperação cobrem limite, indisponibilidade e rede", () => {
+  const padrao = "padrão";
+  assert.match(mensagemDeErroRecuperacao(new ErroApi("x", 429, [], 61), padrao), /2 min/);
+  assert.match(mensagemDeErroRecuperacao(new ErroApi("x", 429, [], 30), padrao), /30 s/);
+  assert.match(mensagemDeErroRecuperacao(new ErroApi("x", 429), padrao), /Aguarde/);
+  assert.match(mensagemDeErroRecuperacao(new ErroApi("x", 503), padrao), /indisponível/);
+  assert.match(mensagemDeErroRecuperacao(new TypeError("x"), padrao), /conectar/);
+  assert.equal(mensagemDeErroRecuperacao(new ErroApi("x", 500), padrao), padrao);
+});
+
+test("validação de e-mail e da nova senha com confirmação", () => {
+  assert.equal(validarEmail("sem-arroba"), "Informe um e-mail válido.");
+  assert.equal(validarEmail(" moradora@example.com "), undefined);
+  assert.deepEqual(validarNovaSenha({ senha: " ", confirmacao: "" }), {
+    senha: "Informe uma senha.",
+    confirmacao: "Confirme sua senha.",
+  });
+  assert.equal(
+    validarNovaSenha({ senha: "senha-A", confirmacao: "senha-B" }).confirmacao,
+    "As senhas não coincidem.",
+  );
+  assert.deepEqual(validarNovaSenha({ senha: "senha-A", confirmacao: "senha-A" }), {});
 });
 
 test("senha incorreta mostra erro e não persiste sessão", async () => {

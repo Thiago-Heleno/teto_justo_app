@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { CadastroScreen } from "@/components/cadastro";
 import { LoginScreen } from "@/components/login";
+import { RecuperarSenhaScreen } from "@/components/recuperar-senha";
+import { RedefinirSenhaScreen } from "@/components/redefinir-senha";
 import { VerificacaoEmailScreen } from "@/components/verificacao-email";
 import type { DadosConta } from "@/services/autenticacao-api";
 
@@ -14,6 +16,42 @@ export default function AutenticacaoScreen() {
     dados: DadosConta;
     token: string;
   }>();
+  // Recuperação de senha: sem token, pede o e-mail; com token, pede o código.
+  const [recuperacao, setRecuperacao] = useState<{
+    email: string;
+    token?: string;
+  }>();
+
+  if (recuperacao?.token) {
+    return (
+      <RedefinirSenhaScreen
+        email={recuperacao.email}
+        tokenInicial={recuperacao.token}
+        onVoltar={(email) => {
+          setEmailLogin(email);
+          setRecuperacao(undefined);
+        }}
+        onRedefinida={(email) => {
+          setEmailLogin(email);
+          setMensagemCadastro("Senha alterada. Entre com a nova senha.");
+          setRecuperacao(undefined);
+        }}
+      />
+    );
+  }
+
+  if (recuperacao) {
+    return (
+      <RecuperarSenhaScreen
+        emailInicial={recuperacao.email}
+        onVoltar={(email) => {
+          setEmailLogin(email);
+          setRecuperacao(undefined);
+        }}
+        onCodigoEnviado={(email, token) => setRecuperacao({ email, token })}
+      />
+    );
+  }
 
   if (pendente) {
     return (
@@ -58,6 +96,11 @@ export default function AutenticacaoScreen() {
         setEmailLogin(email);
         setMensagemCadastro(undefined);
         setCadastroAberto(true);
+      }}
+      onEsqueciSenha={(email) => {
+        setEmailLogin(email);
+        setMensagemCadastro(undefined);
+        setRecuperacao({ email });
       }}
     />
   );

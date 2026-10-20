@@ -11,6 +11,11 @@ class ServicoUsuario:
     def __init__(self, supabase_client):
         self.supabase = supabase_client
 
+    @staticmethod
+    def _hash_senha(senha: str) -> str:
+        return bcrypt.hashpw(
+            senha.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
     def garantir_email_disponivel(self, email: str):
         busca = self.supabase.table("usuario").select(
             "id").eq("email", email).execute()
@@ -22,16 +27,11 @@ class ServicoUsuario:
     def criar_usuario(self, dados: UsuarioCriar):
         self.garantir_email_disponivel(dados.email)
 
-        senha_criptografada = bcrypt.hashpw(
-            dados.senha.encode("utf-8"),
-            bcrypt.gensalt(rounds=12),
-        ).decode("utf-8")
-
         novo_usuario = {
             "nome": dados.nome,
             "email": dados.email,
             "telefone": dados.telefone,
-            "senha_hash": senha_criptografada,
+            "senha_hash": self._hash_senha(dados.senha),
             "foto": dados.foto,
             "usuario_tipo": dados.usuario_tipo
         }
@@ -156,3 +156,24 @@ class ServicoUsuario:
             "usuario", "id", pagina,
             "id,nome,email,telefone,foto,usuario_tipo,data_criacao", ("id",),
         )
+
+    def obter_hash_senha(self, email: str) -> str | None:
+        # Conta removida tem senha_hash nulo: não há o que recuperar.
+        busca = self.supabase.table("usuario").select("senha_hash").eq(
+            "email", email).execute()
+        return busca.data[0].get("senha_hash") if busca.data else None
+
+    def redefinir_senha(self, email: str, nova_senha: str, hash_atual: str | None):
+        # Só atualiza se o hash ainda for o que validou o código: dois pedidos
+        # simultâneos com o mesmo código não passam ambos.
+        atualizado = None
+        if hash_atual:
+            atualizado = self.supabase.table("usuario").update({
+                "senha_hash": self._hash_senha(nova_senha),
+            }).eq("email", email).eq("senha_hash", hash_atual).execute()
+        if not atualizado or not atualizado.data:
+            raise HTTPException(
+                status_code=400, detail="Código inválido ou expirado.")
+        # Quem recupera a senha pode estar com a conta comprometida.
+        self.supabase.table("sessao").delete().eq(
+            "fk_usuario_id", str(atualizado.data[0]["id"])).execute()

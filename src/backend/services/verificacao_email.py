@@ -24,37 +24,47 @@ def _chave() -> bytes:
     return hmac.new(segredo, _ROTULO_CHAVE, hashlib.sha256).digest()
 
 
-def _assinar(email: str, exp: int, codigo: str) -> str:
-    conteudo = f"{email.strip().casefold()}|{exp}|{codigo}".encode("utf-8")
-    return hmac.new(_chave(), conteudo, hashlib.sha256).hexdigest()
+def _assinar(email: str, exp: int, codigo: str, proposito: str, vinculo: str) -> str:
+    conteudo = f"{proposito}|{email.strip().casefold()}|{exp}|{codigo}|{vinculo}"
+    return hmac.new(_chave(), conteudo.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 class ServicoVerificacaoEmail:
-    """Código de 5 dígitos sem estado: o token só prova que o código foi emitido para o e-mail."""
+    """Código de 5 dígitos sem estado: o token só prova que o código foi emitido para o e-mail.
 
-    def emitir(self, email: str) -> dict:
+    `proposito` impede que um código de um fluxo valha em outro. `vinculo` amarra o token
+    a um dado que muda quando o código é consumido (ex.: o hash da senha), tornando-o de uso único.
+    """
+
+    def emitir(self, email: str, proposito: str = "cadastro", vinculo: str = "") -> dict:
         codigo = str(secrets.randbelow(90000) + 10000)
         exp = int((datetime.now(timezone.utc) + _DURACAO_CODIGO).timestamp())
         return {
             "codigo": codigo,
-            "token_verificacao": f"{exp}.{_assinar(email, exp, codigo)}",
+            "token_verificacao": f"{exp}.{_assinar(email, exp, codigo, proposito, vinculo)}",
             "expira_em": datetime.fromtimestamp(exp, timezone.utc),
         }
 
-    def verificar(self, email: str, codigo: str, token: str) -> None:
+    def verificar(
+        self, email: str, codigo: str, token: str, proposito: str = "cadastro", vinculo: str = ""
+    ) -> None:
         try:
             parte_exp, assinatura = token.split(".")
             exp = int(parte_exp)
         except (AttributeError, ValueError) as erro:
             raise HTTPException(status_code=400, detail=_ERRO_CODIGO) from erro
-        esperada = _assinar(email, exp, codigo)
+        esperada = _assinar(email, exp, codigo, proposito, vinculo)
         if exp <= datetime.now(timezone.utc).timestamp() or not hmac.compare_digest(
             assinatura.encode("utf-8"), esperada.encode("utf-8")
         ):
             raise HTTPException(status_code=400, detail=_ERRO_CODIGO)
 
     @staticmethod
-    def montar_html(codigo: str) -> str:
+    def montar_html(
+        codigo: str,
+        titulo_email: str = "Confirme seu e-mail",
+        texto: str = "Use o código abaixo para concluir seu cadastro.",
+    ) -> str:
         faixa = "background:#e2e2df;padding:32px 16px;"
         cartao = "max-width:480px;background:#f7f6f2;border-radius:40px;"
         marca = "margin:0 0 24px;font-size:14px;font-weight:800;letter-spacing:2px;color:#fc5000;"
@@ -67,9 +77,9 @@ class ServicoVerificacaoEmail:
             f'<table {tabela} style="{cartao}"><tr>'
             f'<td style="padding:40px;{_TEXTO}">'
             f'<p style="{marca}">TETO JUSTO</p>'
-            f'<h1 style="{titulo}{_TITULO}">Confirme seu e-mail</h1>'
+            f'<h1 style="{titulo}{_TITULO}">{titulo_email}</h1>'
             '<p style="margin:0 0 24px;font-size:16px;line-height:1.55;">'
-            "Use o código abaixo para concluir seu cadastro.</p>"
+            f"{texto}</p>"
             f'<p style="{bloco}{_TITULO}">{codigo}</p>'
             '<p style="margin:0 0 8px;font-size:14px;line-height:1.55;">'
             "O código vale por 10 minutos.</p>"
