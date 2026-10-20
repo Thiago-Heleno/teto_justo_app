@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   dayTask: {
-    backgroundColor: Caldera.pumice,
+    backgroundColor: Caldera.chalk,
     borderRadius: 4,
     paddingHorizontal: 3,
     color: Caldera.obsidian,
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     borderRadius: 800,
     paddingHorizontal: Spacing.two,
     paddingVertical: 4,
-    backgroundColor: Caldera.pumice,
+    backgroundColor: Caldera.chalk,
     color: Caldera.obsidian,
     fontSize: 12,
     fontWeight: "500",
