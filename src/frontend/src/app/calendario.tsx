@@ -2,6 +2,7 @@ import { Link, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -209,8 +210,12 @@ function Calendario({
           accessibilityLabel="Somente minhas tarefas"
           value={somenteMinhas}
           onValueChange={setSomenteMinhas}
-          trackColor={{ false: Caldera.pumice, true: Caldera.ember }}
-          thumbColor={Caldera.obsidian}
+          trackColor={{ false: Caldera.obsidian, true: Caldera.ember }}
+          thumbColor={Caldera.chalk}
+          ios_backgroundColor={Caldera.obsidian}
+          {...(Platform.OS === "web"
+            ? { activeThumbColor: Caldera.chalk }
+            : {})}
         />
         <Text style={styles.body}>Somente minhas tarefas</Text>
       </View>
@@ -485,7 +490,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   dayTask: {
-    backgroundColor: Caldera.sulfur,
+    backgroundColor: Caldera.pumice,
     borderRadius: 4,
     paddingHorizontal: 3,
     color: Caldera.obsidian,
@@ -515,7 +520,7 @@ const styles = StyleSheet.create({
     borderRadius: 800,
     paddingHorizontal: Spacing.two,
     paddingVertical: 4,
-    backgroundColor: Caldera.sulfur,
+    backgroundColor: Caldera.pumice,
     color: Caldera.obsidian,
     fontSize: 12,
     fontWeight: "500",
