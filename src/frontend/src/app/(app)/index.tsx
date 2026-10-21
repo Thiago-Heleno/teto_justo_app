@@ -169,11 +169,6 @@ export default function HomeScreen() {
                   <Text style={styles.buttonText}>Ver tarefas →</Text>
                 </MotionPressable>
               </Link>
-              <Link href="/tarefas" asChild>
-                <MotionPressable accessibilityRole="link" style={styles.button}>
-                  <Text style={styles.buttonText}>Ver calendário →</Text>
-                </MotionPressable>
-              </Link>
               <Link href="/gerenciar-casa" asChild>
                 <MotionPressable
                   accessibilityRole="button"
