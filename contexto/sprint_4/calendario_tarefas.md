@@ -2,10 +2,13 @@
 
 ## Objetivo e comportamento
 
-Consultar as tarefas ativas da casa em uma visão mensal, acessível por
-**Ver calendário** nas telas Início e Tarefas.
+Consultar as tarefas ativas da casa em uma visão mensal no topo da aba
+**Tarefas**, antes do resumo, placar, filtros e lista. Ao voltar à aba, a
+rolagem retorna ao topo. O contador de tarefas em aberto usa um bloco
+horizontal compacto, com quantidade e rótulo.
 
-- A rota `/calendario` exige sessão e casa selecionada, como as demais telas da casa.
+- O atalho **Ver calendário** do Início abre `/tarefas`. A rota antiga
+  `/calendario` redireciona para essa aba, mantendo a proteção por sessão e casa.
 - Ativas são as tarefas `pendente` e `atrasada`. Os estados finais `finalizado`
   e `nao_feito` não aparecem.
 - Cada tarefa aparece no dia do vencimento. `data_fixa` preserva a data
@@ -26,12 +29,17 @@ Consultar as tarefas ativas da casa em uma visão mensal, acessível por
 
 ## Arquivos e decisões
 
-- `src/frontend/src/app/calendario.tsx`: tela, consultas, seleção de data,
-  calendário mensal, agenda e estados de carregamento, erro e vazio.
+- `src/frontend/src/components/calendario-tarefas.tsx`: seleção de data,
+  calendário mensal, filtro pessoal e agenda; recebe os dados da aba Tarefas.
+- `src/frontend/src/app/(app)/tarefas.tsx`: calendário no topo, contador compacto
+  e consultas compartilhadas com a lista, incluindo carregamento e erro.
+- `src/frontend/src/app/calendario.tsx`: redirecionamento da rota antiga.
+- `src/frontend/src/services/tarefas-api.ts`: tipo da casa inclui `timezone`,
+  já retornado pela consulta existente.
 - `src/frontend/src/utils/calendario-tarefas.ts`: agrupamento das tarefas
   ativas, conversão para a data da casa, navegação e grade mensal.
 - `src/frontend/src/app/_layout.tsx`: registro da rota protegida.
-- `src/frontend/src/app/(app)/index.tsx` e `tarefas.tsx`: acessos ao calendário.
+- `src/frontend/src/app/(app)/index.tsx`: atalho para o calendário na aba Tarefas.
 - `src/frontend/scripts/calendario-tarefas.test.mjs` e
   `src/frontend/package.json`: sete testes unitários incluídos em `test:tarefas`.
 
@@ -40,11 +48,30 @@ consulta de casa, moradores e `GET /tarefas/casa/{id}`. Os filtros da lista de
 tarefas não restringem o calendário. Não houve novas dependências, alterações
 no backend ou migrações de banco.
 
+A integração na aba reutiliza a consulta completa de tarefas e o contexto já
+carregado, sem requisições extras. As cores amarelas locais das tarefas e dos
+status foram preservadas na extração do componente.
+
 O filtro pessoal reutiliza `carregarUsuarioAtual` (`GET /usuarios/eu`) e
 `filtrarTarefas`, aplicando o responsável antes do agrupamento por dia. Alternar
 o filtro usa os dados já carregados e não faz novas requisições.
 
 ## Validação executada
+
+Na integração do calendário à aba Tarefas, a partir de `src/frontend`:
+
+- `npm run test:tarefas`: 63 testes aprovados e uma falha ao carregar
+  `scripts/notificacoes.test.mjs`, por ausência de `expo-notifications` na
+  instalação local. Os testes de calendário e tarefas passaram.
+- `npx tsc --noEmit`: bloqueado pela mesma dependência ausente e pelos tipos
+  implícitos associados às notificações em `src/app/_layout.tsx`.
+- ESLint nos cinco arquivos TypeScript alterados: aprovado.
+- `git diff --check`, a partir da raiz: aprovado.
+- A inicialização do servidor para inspeção visual foi rejeitada pela política
+  de permissões do ambiente. Esta alteração não foi validada no navegador
+  nem em dispositivo.
+
+Validações anteriores à integração na aba:
 
 Comandos executados a partir de `src/frontend`:
 
