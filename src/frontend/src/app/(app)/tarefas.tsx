@@ -1,9 +1,4 @@
-import {
-  Link,
-  router,
-  useFocusEffect,
-  useLocalSearchParams,
-} from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
@@ -27,6 +22,7 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
+import { CalendarioTarefas } from "@/components/calendario-tarefas";
 import {
   DetalheTarefa,
   type ResultadoFinalizacao,
@@ -173,6 +169,12 @@ export default function TarefasScreen() {
     carregandoContexto ||
     (filtrosAtivos && carregandoTarefas) ||
     carregandoPlacar;
+
+  useFocusEffect(
+    useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, []),
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -502,6 +504,13 @@ export default function TarefasScreen() {
             entering={FadeIn.duration(220).reduceMotion(ReduceMotion.System)}
             style={[styles.content, telaPequena && styles.contentSmall]}
           >
+            <CalendarioTarefas
+              key={`${casa.id}-${casa.timezone}-${usuarioAtual.id}`}
+              casa={casa}
+              moradores={moradores}
+              tarefas={todasTarefas}
+              usuarioAtualId={usuarioAtual.id}
+            />
             <View style={styles.hero}>
               <View style={styles.heroCopy}>
                 <Text style={styles.houseName}>{casa.nome}</Text>
@@ -516,16 +525,6 @@ export default function TarefasScreen() {
                   cada prazo.
                 </Text>
                 <View style={styles.heroActions}>
-                  <Link href="/calendario" asChild>
-                    <MotionPressable
-                      accessibilityRole="link"
-                      style={styles.retryButton}
-                    >
-                      <Text style={styles.retryButtonText}>
-                        Ver calendário →
-                      </Text>
-                    </MotionPressable>
-                  </Link>
                   <MotionPressable
                     accessibilityRole="button"
                     accessibilityState={{
@@ -542,12 +541,9 @@ export default function TarefasScreen() {
                   </MotionPressable>
                 </View>
               </View>
-              <View
-                style={[styles.statCard, telaPequena && styles.statCardSmall]}
-              >
-                <Text style={styles.statLabel}>EM ABERTO</Text>
+              <View style={styles.statCard}>
                 <Text style={styles.statValue}>{tarefasEmAberto}</Text>
-                <Text style={styles.statCaption}>tarefas pedem atenção</Text>
+                <Text style={styles.statLabel}>TAREFAS EM ABERTO</Text>
               </View>
             </View>
 
@@ -873,29 +869,28 @@ const styles = StyleSheet.create({
     maxWidth: 620,
   },
   statCard: {
-    flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 240,
-    maxWidth: 360,
-    minHeight: 210,
-    borderRadius: 40,
-    backgroundColor: Caldera.ember,
-    padding: Spacing.five,
-    justifyContent: "space-between",
-  },
-  statCardSmall: {
-    padding: Spacing.three,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
     borderRadius: 24,
-    minHeight: 160,
+    backgroundColor: Caldera.ember,
+    paddingHorizontal: Spacing.four,
+    padding: Spacing.three,
   },
-  statLabel: { color: Caldera.chalk, fontSize: 14, fontWeight: "500" },
+  statLabel: {
+    color: Caldera.obsidian,
+    fontSize: 14,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
   statValue: {
-    color: Caldera.chalk,
+    color: Caldera.obsidian,
     fontFamily: CompactFont,
-    fontSize: 80,
-    lineHeight: 82,
+    fontSize: 40,
+    lineHeight: 44,
   },
-  statCaption: { color: Caldera.chalk, fontSize: 16, fontWeight: "500" },
   filtersCard: {
     backgroundColor: Caldera.limestone,
     borderRadius: 40,

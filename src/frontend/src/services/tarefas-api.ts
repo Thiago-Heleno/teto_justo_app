@@ -5,7 +5,12 @@ import { sessao } from "./sessao-store.ts";
 import type { EstadoTarefa, PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { FiltrosTarefa } from "@/utils/filtros-tarefa";
 
-export type Casa = { id: string; nome: string; fk_usuario_id: string };
+export type Casa = {
+  id: string;
+  nome: string;
+  fk_usuario_id: string;
+  timezone: string;
+};
 
 export type Morador = MoradorCasa;
 
