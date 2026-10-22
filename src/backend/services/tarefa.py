@@ -479,6 +479,7 @@ class ServicoTarefa:
             or usuarios_foram_informados
         ):
             dados["aviso_enviado_em"] = None
+            dados["aviso_atraso_enviado_em"] = None
 
         if dados:
             resposta = (
@@ -744,4 +745,3 @@ class ServicoTarefa:
             .execute()
         )
         return resposta.data[0]["score"] if resposta.data else 0
-
