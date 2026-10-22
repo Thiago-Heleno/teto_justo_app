@@ -34,7 +34,6 @@ import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { sessao } from "@/services/sessao-store";
 import {
   carregarContextoTarefas,
-  carregarPlacar,
   carregarTarefas,
   carregarUsuarioAtual,
   editarTarefa,
@@ -42,7 +41,6 @@ import {
   reabrirTarefa,
   type Casa,
   type Morador,
-  type Placar,
   type Tarefa,
   type UsuarioAtual,
   type TarefaAtualizar,
@@ -119,9 +117,6 @@ export default function TarefasScreen() {
   const [origemContexto, setOrigemContexto] = useState<string>();
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
-  const [placar, setPlacar] = useState<Placar>();
-  const [origemPlacar, setOrigemPlacar] = useState<string>();
-  const [erroPlacar, setErroPlacar] = useState<string>();
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual>();
   const [todasTarefas, setTodasTarefas] = useState<Tarefa[]>();
   const [resultadoFiltrado, setResultadoFiltrado] = useState<{
@@ -130,7 +125,6 @@ export default function TarefasScreen() {
   }>();
   const [carregandoContexto, setCarregandoContexto] = useState(true);
   const [carregandoTarefas, setCarregandoTarefas] = useState(false);
-  const [carregandoPlacar, setCarregandoPlacar] = useState(true);
   const [erroContexto, setErroContexto] = useState<string>();
   const [erroTarefas, setErroTarefas] = useState<{
     chave: string;
@@ -149,7 +143,6 @@ export default function TarefasScreen() {
     estado !== "todos" || responsavel !== "todos" || prazo !== "todos";
   const chaveFiltro = `${chaveSessao}:${estado}:${responsavel}:${prazo}`;
   const contextoAtual = origemContexto === chaveSessao;
-  const placarAtual = origemPlacar === chaveSessao ? placar : undefined;
   const tarefas = !contextoAtual
     ? undefined
     : filtrosAtivos
@@ -166,9 +159,7 @@ export default function TarefasScreen() {
         tarefa.estado_atual === "atrasada",
     ).length ?? 0;
   const atualizando =
-    carregandoContexto ||
-    (filtrosAtivos && carregandoTarefas) ||
-    carregandoPlacar;
+    carregandoContexto || (filtrosAtivos && carregandoTarefas);
 
   useFocusEffect(
     useCallback(() => {
@@ -282,38 +273,6 @@ export default function TarefasScreen() {
     ]),
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!casaId || !token) return;
-      const controlador = new AbortController();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCarregandoPlacar(true);
-      setErroPlacar(undefined);
-      Promise.resolve()
-        .then(() => carregarPlacar(controlador.signal))
-        .then((dados) => {
-          if (!controlador.signal.aborted) {
-            setPlacar(dados);
-            setOrigemPlacar(chaveSessao);
-          }
-        })
-        .catch((erro: unknown) => {
-          if (!controlador.signal.aborted)
-            setErroPlacar(
-              erro instanceof Error
-                ? erro.message
-                : "Não foi possível carregar o placar.",
-            );
-        })
-        .finally(() => {
-          if (!controlador.signal.aborted) setCarregandoPlacar(false);
-        });
-      return () => controlador.abort();
-      // A tentativa também refaz a consulta sem trocar de aba.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [casaId, token, chaveSessao, tentativa]),
-  );
-
   useEffect(() => {
     if (!tarefas || !tarefaSelecionadaId) return;
     if (tarefas.some((tarefa) => tarefa.id === tarefaSelecionadaId)) return;
@@ -377,7 +336,7 @@ export default function TarefasScreen() {
     if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
     const tarefaReaberta = await reabrirTarefa(tarefaSelecionada.id);
     atualizarTarefaLocal(tarefaReaberta);
-    // Recarrega saldo, placar e contagem de tarefas em aberto.
+    // Recarrega saldo e contagem de tarefas em aberto.
     setTentativa((atual) => atual + 1);
   }
 
@@ -545,63 +504,6 @@ export default function TarefasScreen() {
                 <Text style={styles.statValue}>{tarefasEmAberto}</Text>
                 <Text style={styles.statLabel}>TAREFAS EM ABERTO</Text>
               </View>
-            </View>
-
-            <View style={[styles.filtersCard, telaPequena && styles.cardSmall]}>
-              <Text
-                accessibilityRole="header"
-                style={[
-                  styles.sectionTitle,
-                  telaPequena && styles.sectionTitleSmall,
-                ]}
-              >
-                PLACAR DA CASA
-              </Text>
-              {placarAtual ? (
-                <>
-                  {erroPlacar && (
-                    <Text
-                      accessibilityLiveRegion="polite"
-                      style={styles.emptyText}
-                    >
-                      {erroPlacar} Exibindo o placar da última consulta
-                      bem-sucedida.
-                    </Text>
-                  )}
-                  <Text style={styles.filterLabel}>
-                    Períodos no fuso {placarAtual.fuso_horario}
-                  </Text>
-                  <View style={styles.placarGrid}>
-                    {placarAtual.moradores.map((morador) => (
-                      <View
-                        key={morador.usuario_id}
-                        style={styles.placarMorador}
-                      >
-                        <Text style={styles.placarNome}>{morador.nome}</Text>
-                        <Text style={styles.metaValue}>
-                          Semana: {morador.semanal}
-                        </Text>
-                        <Text style={styles.metaValue}>
-                          Mês: {morador.mensal}
-                        </Text>
-                        <Text style={styles.metaValue}>
-                          Ano: {morador.anual}
-                        </Text>
-                        <Text style={styles.metaValue}>
-                          Total: {morador.acumulado}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
-                  {erroPlacar ??
-                    (carregandoPlacar
-                      ? "Carregando placar..."
-                      : "Placar indisponível.")}
-                </Text>
-              )}
             </View>
 
             <View style={[styles.filtersCard, telaPequena && styles.cardSmall]}>
@@ -897,19 +799,6 @@ const styles = StyleSheet.create({
     padding: Spacing.five,
     gap: Spacing.four,
   },
-  placarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
-  placarMorador: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 180,
-    minWidth: 0,
-    maxWidth: "100%",
-    gap: 6,
-    padding: Spacing.three,
-    backgroundColor: Caldera.pumice,
-    borderRadius: 20,
-  },
-  placarNome: { color: Caldera.obsidian, fontSize: 18, fontWeight: "600" },
   filterGroup: { gap: 12 },
   filterLabel: { color: Caldera.obsidian, fontSize: 12, fontWeight: "500" },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },

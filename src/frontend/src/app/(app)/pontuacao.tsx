@@ -265,6 +265,28 @@ export default function PontuacaoScreen() {
             </View>
           )}
 
+          {placar && (
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                PLACAR DA CASA
+              </Text>
+              <Text style={styles.caption}>
+                Períodos no fuso {placar.fuso_horario}
+              </Text>
+              <View style={styles.placarGrid}>
+                {placar.moradores.map((morador) => (
+                  <View key={morador.usuario_id} style={styles.placarMorador}>
+                    <Text style={styles.placarNome}>{morador.nome}</Text>
+                    <Text style={styles.body}>Semana: {morador.semanal}</Text>
+                    <Text style={styles.body}>Mês: {morador.mensal}</Text>
+                    <Text style={styles.body}>Ano: {morador.anual}</Text>
+                    <Text style={styles.body}>Total: {morador.acumulado}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
           {extrato && (
             <View style={styles.card}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>
@@ -373,6 +395,19 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     gap: Spacing.three,
   },
+  placarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
+  placarMorador: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 180,
+    minWidth: 0,
+    maxWidth: "100%",
+    gap: 6,
+    padding: Spacing.three,
+    backgroundColor: Caldera.pumice,
+    borderRadius: 20,
+  },
+  placarNome: { color: Caldera.obsidian, fontSize: 18, fontWeight: "600" },
   sectionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
