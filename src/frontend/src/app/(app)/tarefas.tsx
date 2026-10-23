@@ -378,7 +378,9 @@ export default function TarefasScreen() {
     );
   }
 
-  const tarefasFiltradas = tarefas ?? [];
+  const tarefasFiltradas = [...(tarefas ?? [])].sort(
+    (a, b) => new Date(a.data_fim).getTime() - new Date(b.data_fim).getTime(),
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
