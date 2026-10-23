@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review para teto_justo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { border-top: 2px dashed #64748b; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+      .leak { border-color: #dc2626; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-3">
+        <h1 class="font-serif text-3xl">Architecture review · teto_justo</h1>
+        <p class="text-sm text-slate-500">22/10/2026 · foco nos hot spots dos últimos ~150 commits (tarefa, rotatividade, usuario, api.ts, tarefas.tsx)</p>
+        <div class="flex flex-wrap gap-4 text-xs uppercase tracking-wider text-slate-600">
+          <span class="border border-slate-400 px-2 py-1">caixa = module</span>
+          <span class="border-t-2 border-dashed border-slate-500 px-2 py-1">tracejado = seam</span>
+          <span class="border border-red-600 text-red-600 px-2 py-1">vermelho = leakage</span>
+          <span class="deep px-2 py-1">escuro = deep module</span>
+        </div>
+        <p class="text-sm text-slate-600">Sem <code>GLOSSARY.md</code> nem ADRs no repo: o vocabulário de domínio vem dos nomes do código (casa, pertencer, tarefa, rotatividade, score).</p>
+      </header>
+
+      <section id="candidates" class="space-y-14">
+
+        <!-- 1 -->
+        <article id="c1" class="space-y-4">
+          <h2 class="font-serif text-2xl">1. Concentrar "quem pode o quê na casa" em um módulo</h2>
+          <div class="flex gap-2 text-xs uppercase tracking-wider">
+            <span class="bg-emerald-600 text-white px-2 py-1">Strong</span>
+            <span class="bg-slate-200 px-2 py-1">in-process</span>
+          </div>
+          <p class="font-mono text-sm text-slate-700">
+            services/autorizacao.py · services/placar.py:16 · routers/casa.py · routers/usuario.py · services/tarefa.py · services/rotatividade_agendamento.py ·
+            frontend: hooks/use-gerenciamento-casa.ts, (app)/tarefas.tsx, (app)/index.tsx, utils/reabertura.ts, components/detalhe-tarefa.tsx
+          </p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Antes</div>
+              <pre class="mermaid">
+flowchart LR
+  R[routers/casa] --> P[ServicoPlacar.garantir_acesso]
+  R --> A[ServicoAutorizacaoCasa.garantir_acesso]
+  T[ServicoTarefa] --> A
+  T -.pertencer.ativo à mão.-> DB[(casa / pertencer)]
+  ROT[Agendamento] -.pertencer.ativo à mão.-> DB
+  P -.cópia da regra.-> DB
+  A --> DB
+  FE[5 telas: fk_usuario_id === usuario.id] -.regra recomputada.-> R
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class P,T,ROT,FE leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Depois</div>
+              <div class="deep rounded p-4 text-sm space-y-2">
+                <div class="text-xs uppercase tracking-wider text-slate-300">Casa membership module</div>
+                <div>papel(casa, usuário) → admin | morador | nenhum</div>
+                <div class="seam border-slate-500 pt-2 text-xs text-slate-300">única leitura de casa.fk_usuario_id e pertencer.ativo</div>
+              </div>
+              <div class="mt-3 text-xs uppercase tracking-wider text-slate-500">Routers, services e frontend consomem o papel como dado</div>
+            </div>
+          </div>
+          <p><b>Problema:</b> duas cópias de <code>garantir_acesso</code> divergem (<code>.limit(1)</code> só em uma) e a regra de admin aparece em ~10 pontos no backend e ~5 no frontend.</p>
+          <p><b>Solução:</b> um module dono da regra de acesso e cargo, com a consulta de membros ativos e o fuso da casa atrás do mesmo interface.</p>
+          <ul class="list-disc ml-6 text-sm">
+            <li>locality: regra de cargo muda em um lugar</li>
+            <li>leverage: um interface, ~15 call sites</li>
+            <li>Testes cruzam um seam em vez de 5 fakes</li>
+            <li>Remove cópia em <code>ServicoPlacar</code></li>
+          </ul>
+        </article>
+
+        <!-- 2 -->
+        <article id="c2" class="space-y-4">
+          <h2 class="font-serif text-2xl">2. Task lifecycle: estado, prazo e crédito de pontos em um module</h2>
+          <div class="flex gap-2 text-xs uppercase tracking-wider">
+            <span class="bg-emerald-600 text-white px-2 py-1">Strong</span>
+            <span class="bg-slate-200 px-2 py-1">in-process</span>
+          </div>
+          <p class="font-mono text-sm text-slate-700">
+            services/tarefa.py (747 linhas) · services/penalidade.py:41 · services/score.py · frontend utils/filtros-tarefa.ts, calendario-tarefas.ts, detalhe-tarefa.tsx
+          </p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-2">
+              <div class="text-xs uppercase tracking-wider text-slate-500">Antes: a regra de estado existe 3× no backend</div>
+              <div class="border border-red-600 p-2 text-xs">tarefa.py <code>_sincronizar_estado_por_atraso</code> (roda em toda leitura, escreve)</div>
+              <div class="border border-red-600 p-2 text-xs">penalidade.py <code>_estado_calculado</code> (cron)</div>
+              <div class="border border-red-600 p-2 text-xs">tarefa.py <code>_reabrir_estado_tarefa</code> (3º if/elif)</div>
+              <div class="border border-red-600 p-2 text-xs">4 parsers ISO→UTC copiados · "hoje" em UTC no backend, local no app, fuso da casa no calendário</div>
+              <div class="border border-red-600 p-2 text-xs"><code>_creditar_e_finalizar</code> / <code>_estornar_e_reabrir</code>: CAS + UNIQUE 23505 duplicados</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Depois</div>
+              <div class="deep rounded p-4 text-sm space-y-1">
+                <div class="text-xs uppercase tracking-wider text-slate-300">Task lifecycle module</div>
+                <div>estado(tarefa, agora)</div>
+                <div>janela de prazo no fuso da casa</div>
+                <div>concluir / reabrir (crédito + estorno idempotentes)</div>
+              </div>
+              <div class="seam mt-3 pt-2 text-xs text-slate-500">seam: persistência da tarefa e do score_event</div>
+            </div>
+          </div>
+          <p><b>Problema:</b> os bugs reais (corrida no crédito, "hoje" diferente entre backend e app, leitura que escreve) moram nos callers das helpers puras, não nas helpers.</p>
+          <p><b>Solução:</b> um module dono do estado, da janela de prazo e das transições de crédito/estorno, com os testes passando pelo interface.</p>
+          <ul class="list-disc ml-6 text-sm">
+            <li>locality: "quando vira atrasada" em um lugar</li>
+            <li>Testes deixam de depender da ordem das queries</li>
+            <li>Corrige a divergência de "hoje"</li>
+            <li><code>atualizar_tarefa</code> (145 linhas) encolhe</li>
+          </ul>
+        </article>
+
+        <!-- 3 -->
+        <article id="c3" class="space-y-4">
+          <h2 class="font-serif text-2xl">3. Um seam de persistência no lugar de ~11 fakes do Supabase</h2>
+          <div class="flex gap-2 text-xs uppercase tracking-wider">
+            <span class="bg-amber-500 text-white px-2 py-1">Worth exploring</span>
+            <span class="bg-slate-200 px-2 py-1">ports &amp; adapters</span>
+          </div>
+          <p class="font-mono text-sm text-slate-700">
+            services/* (≈21 <code>.table(</code> em tarefa.py, 20 em rotatividade_agendamento.py, 17 em usuario.py) · tests/test_*_unitario.py · loops de paginação em 8 services
+          </p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Antes</div>
+              <pre class="mermaid">
+flowchart LR
+  S1[ServicoTarefa] --> SB[(Supabase fluent API)]
+  S2[ServicoPlacar] --> SB
+  S3[ServicoUsuario] --> SB
+  T1[teste tarefa: MagicMock em ordem] -.fake próprio.-> S1
+  T2[teste placar: Consulta/Banco] -.fake próprio.-> S2
+  T3[teste usuario: BancoMemoria] -.fake próprio.-> S3
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class T1,T2,T3 leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Depois</div>
+              <pre class="mermaid">
+flowchart LR
+  S1[Task lifecycle] --> P{{seam: repositório}}
+  S2[Placar] --> P
+  S3[Account] --> P
+  P --> A1[Adapter Supabase]
+  P --> A2[Adapter em memória]
+  classDef deep fill:#0f172a,color:#f8fafc;
+  class P deep
+              </pre>
+            </div>
+          </div>
+          <p><b>Problema:</b> a regra do <code>AGENTS.md</code> (lógica sem depender do banco) só vale para <code>score.py</code> e <code>rotatividade.py</code>; os "unitários" codificam a API fluente do Supabase.</p>
+          <p><b>Solução:</b> adapters por agregado que escondem paginação, filtro <code>ativo</code>, CAS e tradução de erro, com dois adapters (Supabase e memória) justificando o seam.</p>
+          <ul class="list-disc ml-6 text-sm">
+            <li>Dois adapters: o seam é real</li>
+            <li>Um fake em memória substitui ~11</li>
+            <li>Paginação (3 tamanhos diferentes) em um lugar</li>
+          </ul>
+          <div class="border border-amber-300 bg-amber-50 text-sm p-3">Depende de 1 e 2: fazer o seam antes deles replica o trabalho.</div>
+        </article>
+
+        <!-- 4 -->
+        <article id="c4" class="space-y-4">
+          <h2 class="font-serif text-2xl">4. Account lifecycle: protocolo do limitador sai dos routers</h2>
+          <div class="flex gap-2 text-xs uppercase tracking-wider">
+            <span class="bg-amber-500 text-white px-2 py-1">Worth exploring</span>
+            <span class="bg-slate-200 px-2 py-1">in-process</span>
+          </div>
+          <p class="font-mono text-sm text-slate-700">routers/usuario.py:37-208 · services/usuario.py · services/verificacao_email.py · routers/jobs.py</p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Antes</div>
+              <pre class="mermaid">
+sequenceDiagram
+  participant R as Router (×4 rotas)
+  participant L as LimitadorLogin
+  participant V as VerificacaoEmail
+  participant U as ServicoUsuario
+  R->>L: reservar_tentativa("codigo:"+email, "codigo:"+ip)
+  R->>V: verificar
+  alt status 400
+    R->>L: registrar_falha
+  else outro erro
+    R->>L: cancelar_tentativa
+  end
+  R->>U: criar / redefinir
+  R->>L: confirmar_sucesso
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Depois</div>
+              <div class="deep rounded p-4 text-sm space-y-1">
+                <div class="text-xs uppercase tracking-wider text-slate-300">Account lifecycle module</div>
+                <div>cadastrar(dados, ip)</div>
+                <div>solicitar_recuperação(email, ip)</div>
+                <div>redefinir_senha(dados, ip)</div>
+              </div>
+              <div class="mt-3 text-xs text-slate-500">Router só traduz HTTP → chamada</div>
+            </div>
+          </div>
+          <p><b>Problema:</b> a política "o que conta como tentativa falha" e o esquema de chaves (<code>"envio:"</code>/<code>"codigo:"</code>) são re-escritos por rota, e a regra "só a própria conta" mora no router.</p>
+          <p><b>Solução:</b> um module dono do protocolo de verificação + limitador; o mesmo vale para o bloco duplicado de token em <code>jobs.py</code>.</p>
+          <ul class="list-disc ml-6 text-sm">
+            <li>locality: política do limitador em um lugar</li>
+            <li>Teste direto da matriz de status → limitador</li>
+            <li>Nova rota não esquece a checagem</li>
+          </ul>
+        </article>
+
+        <!-- 5 -->
+        <article id="c5" class="space-y-4">
+          <h2 class="font-serif text-2xl">5. Frontend: intérprete de erro da API ao lado de <code>requisitar</code></h2>
+          <div class="flex gap-2 text-xs uppercase tracking-wider">
+            <span class="bg-amber-500 text-white px-2 py-1">Worth exploring</span>
+            <span class="bg-slate-200 px-2 py-1">in-process</span>
+          </div>
+          <p class="font-mono text-sm text-slate-700">src/frontend/src/services/api.ts · login.tsx · cadastro.tsx · perfil.tsx · index.tsx · detalhes-casa.tsx · use-gerenciamento-casa.ts · utils/recuperacao-senha.ts</p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Antes</div>
+              <div class="deep rounded p-2 text-xs text-center">api.ts · requisitar (deep) → <code>ErroApi(status, validacoes, retryAfter)</code></div>
+              <div class="grid grid-cols-3 gap-1 mt-2 text-[11px]">
+                <div class="border border-red-600 p-1">login: 401/429</div>
+                <div class="border border-red-600 p-1">cadastro: 400/422/429/503</div>
+                <div class="border border-red-600 p-1">perfil: 400, ignora 401</div>
+                <div class="border border-red-600 p-1">index: 404/401/409/TypeError</div>
+                <div class="border border-red-600 p-1">detalhes: 403/404</div>
+                <div class="border border-red-600 p-1">gerenciar: 403</div>
+              </div>
+              <div class="text-xs text-slate-500 mt-2">~12 arquivos fazem <code>instanceof ErroApi &amp;&amp; status === N</code>; "ignorar 401" e "Verifique sua conexão" repetidos.</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Depois</div>
+              <div class="deep rounded p-3 text-sm space-y-1">
+                <div class="text-xs uppercase tracking-wider text-slate-300">API error module</div>
+                <div>interpretar(erro, contexto) → { mensagem, campos, semPermissao, sessaoEncerrada }</div>
+              </div>
+              <div class="text-xs text-slate-500 mt-2">Telas pedem a mensagem; o texto de 429/Retry-After sai de 3 cópias para 1.</div>
+            </div>
+          </div>
+          <p><b>Problema:</b> o interface de <code>requisitar</code> não cobre erro, então cada tela re-deriva mensagem e status; não há testes de tela para pegar divergência.</p>
+          <p><b>Solução:</b> um module que traduz <code>ErroApi</code>/rede em resultado de UI, testável com o runner de <code>.mjs</code> que já existe.</p>
+          <ul class="list-disc ml-6 text-sm">
+            <li>leverage: um interface, ~12 call sites</li>
+            <li>Primeiro teste real da lógica de mensagem</li>
+            <li>Casa com a candidata 2 (mesmo estilo de utils testáveis)</li>
+          </ul>
+        </article>
+
+        <!-- 6 -->
+        <article id="c6" class="space-y-4">
+          <h2 class="font-serif text-2xl">6. Rotation planner puro separado da escrita</h2>
+          <div class="flex gap-2 text-xs uppercase tracking-wider">
+            <span class="bg-slate-500 text-white px-2 py-1">Speculative</span>
+            <span class="bg-slate-200 px-2 py-1">in-process</span>
+          </div>
+          <p class="font-mono text-sm text-slate-700">services/rotatividade_agendamento.py (493 linhas) · services/rotatividade.py</p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-1">
+              <div class="text-xs uppercase tracking-wider text-slate-500">Antes</div>
+              <div class="border border-slate-300 p-2 text-xs"><code>datas_ocorrencias</code> (puro)</div>
+              <div class="border border-slate-300 p-2 text-xs"><code>distribuir_tarefas</code> (puro, usado 1 tarefa por vez)</div>
+              <div class="border border-red-600 p-2 text-xs"><code>_registrar_ocorrencia</code>: janela + insert + UNIQUE + atribuição</div>
+              <div class="border border-red-600 p-2 text-xs"><code>criar_rotatividade</code>: <code>except: pass</code> no primeiro processamento</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Depois</div>
+              <div class="deep rounded p-3 text-sm space-y-1">
+                <div class="text-xs uppercase tracking-wider text-slate-300">Rotation plan module</div>
+                <div>planejar(config, membros, existentes, totais) → o que criar e para quem</div>
+              </div>
+              <div class="seam mt-3 pt-2 text-xs text-slate-500">escrita e idempotência ficam em um adapter</div>
+            </div>
+          </div>
+          <p><b>Problema:</b> a janela de prazo é recalculada aqui e em <code>tarefa.py</code>, e falhas na criação do rodízio são engolidas sem sinal.</p>
+          <p><b>Solução:</b> planner único que compartilha a janela com o task lifecycle (candidata 2).</p>
+          <ul class="list-disc ml-6 text-sm">
+            <li>Janela de prazo sem duplicação</li>
+            <li>Planner testável sem fake de banco</li>
+          </ul>
+          <div class="border border-amber-300 bg-amber-50 text-sm p-3">Só vale depois da candidata 2: o planner reutiliza a janela de prazo extraída lá.</div>
+        </article>
+      </section>
+
+      <section id="top-recommendation">
+        <div class="rounded-xl border-2 border-emerald-600 bg-white p-6 space-y-2">
+          <div class="text-xs uppercase tracking-wider text-emerald-700">Top recommendation</div>
+          <h2 class="font-serif text-2xl">Candidata 1: casa membership module</h2>
+          <p>Menor e mais isolada das fortes: duas cópias já divergentes, regra de cargo espalhada em ~15 pontos e três fakes de teste que se beneficiam dela. Destrava as candidatas 2 e 3 sem exigir seam de persistência primeiro. <a class="text-emerald-700 underline" href="#c1">Ver card</a>.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
