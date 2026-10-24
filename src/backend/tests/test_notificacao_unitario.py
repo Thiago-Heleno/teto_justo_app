@@ -472,8 +472,9 @@ def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
     responsavel = uuid4()
     tarefa = {
         "id": str(uuid4()), "fk_casa_id": str(uuid4()),
-        "data_fim": (agora + timedelta(hours=25)).isoformat(),
+        "data_fim": (agora + timedelta(hours=12)).isoformat(),
         "estado_atual": "pendente", "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
     }
     banco = BancoAvisos([
         tarefa,
@@ -497,7 +498,13 @@ def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
         "tarefas_elegiveis": 1, "avisos_enviados": 1, "falhas": 0,
     }
     assert envios[0][0] == [responsavel]
-    assert envios[0][3] == {"tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"]}
+    assert envios[0][1] == "Sua tarefa vence hoje"
+    assert envios[0][2] == "A tarefa vence hoje e já pode ser concluída."
+    assert envios[0][3] == {
+        "tipo": "tarefa_vence_hoje",
+        "tarefa_id": tarefa["id"],
+        "casa_id": tarefa["fk_casa_id"],
+    }
     assert tarefa["aviso_enviado_em"] == agora.isoformat()
     assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
     assert len(envios) == 1
@@ -509,6 +516,7 @@ def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
         "id": str(uuid4()), "fk_casa_id": str(uuid4()),
         "data_fim": (agora + timedelta(hours=1)).isoformat(),
         "estado_atual": "atrasada", "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
     }
     banco = BancoAvisos([tarefa], [
         {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
@@ -528,6 +536,89 @@ def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
     assert servico.avisar_vencimentos(agora)["falhas"] == 1
     assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
     assert chamadas == [True]
+
+
+
+
+def test_job_avisa_tarefa_atrasada_apenas_dentro_da_tolerancia(monkeypatch):
+    agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
+    responsavel = uuid4()
+    elegivel = {
+        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "data_fim": (agora - timedelta(hours=2)).isoformat(),
+        "estado_atual": "atrasada", "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
+    }
+    expirou = {
+        **elegivel, "id": str(uuid4()),
+        "data_fim": (agora - timedelta(days=3)).isoformat(),
+        "atraso_maximo": 2,
+    }
+    banco = BancoAvisos([elegivel, expirou], [
+        {"fk_tarefa_id": elegivel["id"], "fk_usuario_id": str(responsavel)},
+        {"fk_tarefa_id": expirou["id"], "fk_usuario_id": str(responsavel)},
+    ])
+    envios = []
+
+    def enviar(_self, usuarios, titulo, mensagem, dados):
+        envios.append((usuarios, titulo, mensagem, dados))
+        return {"aceitos": [{"dispositivo_id": "d", "ticket_id": "t"}],
+                "falhas": [], "invalidos": []}
+
+    monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
+    servico = ServicoNotificacao(banco)
+
+    assert servico.avisar_vencimentos(agora) == {
+        "tarefas_elegiveis": 1, "avisos_enviados": 1, "falhas": 0,
+    }
+    assert envios[0][1] == "Sua tarefa está atrasada"
+    assert envios[0][2] == "A tarefa está atrasada, mas ainda pode ser concluída."
+    assert envios[0][3] == {
+        "tipo": "tarefa_atrasada",
+        "tarefa_id": elegivel["id"],
+        "casa_id": elegivel["fk_casa_id"],
+    }
+    assert elegivel["aviso_atraso_enviado_em"] == agora.isoformat()
+    assert expirou["aviso_atraso_enviado_em"] is None
+    assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
+    assert len(envios) == 1
+
+
+def test_aviso_de_vencimento_nao_e_enviado_antes_do_inicio_da_tarefa(monkeypatch):
+    agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
+    tarefa = {
+        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "data_inicio": (agora + timedelta(hours=1)).isoformat(),
+        "data_fim": (agora + timedelta(hours=12)).isoformat(),
+        "estado_atual": "pendente", "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
+    }
+    banco = BancoAvisos([tarefa], [
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
+    ])
+    enviar = Mock()
+    monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
+
+    assert ServicoNotificacao(banco).avisar_vencimentos(agora) == {
+        "tarefas_elegiveis": 0, "avisos_enviados": 0, "falhas": 0,
+    }
+    assert tarefa["aviso_enviado_em"] is None
+    enviar.assert_not_called()
+
+
+def test_push_inclui_categoria_de_acoes_para_notificacoes_de_prazo(banco, dispositivo, expo):
+    usuario = uuid4()
+    dispositivo(usuario)
+    expo.return_value = resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}]})
+
+    ServicoNotificacao(banco).enviar_push(
+        [usuario], "Sua tarefa vence hoje", "Mensagem",
+        {"tipo": "tarefa_vence_hoje", "tarefa_id": str(uuid4()), "casa_id": str(uuid4())},
+    )
+
+    mensagem = expo.call_args.kwargs["json"][0]
+    assert mensagem["categoryId"] == "tarefa_pendente"
+    assert mensagem["data"]["tipo"] == "tarefa_vence_hoje"
 
 
 def tarefa_com_inicio(agora, **alteracoes):

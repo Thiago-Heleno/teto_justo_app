@@ -86,7 +86,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
         setAviso("Notificações ativadas neste aparelho.");
       } else {
         setErro(
-          "Permita notificações nas configurações do Android para ativar os avisos.",
+          "Permita notificações nas configurações do aparelho para ativar os avisos.",
         );
       }
     } catch (falha) {
@@ -263,7 +263,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
             </Pressable>
           )}
 
-          {perfil && Platform.OS === "android" && (
+          {perfil && Platform.OS !== "web" && (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{

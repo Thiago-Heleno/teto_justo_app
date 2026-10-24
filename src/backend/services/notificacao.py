@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
 import logging
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import BackgroundTasks, HTTPException
 
 from schemas.notificacao import DispositivoPushRegistrar
+from services.score import ServicoScore
 
 
 _URL_EXPO = "https://exp.host/--/api/v2/push/send"
@@ -191,28 +193,88 @@ class ServicoNotificacao:
             .execute()
         )
 
+    @staticmethod
+    def _data_horaria(valor: str | datetime) -> datetime:
+        if isinstance(valor, datetime):
+            data = valor
+        else:
+            data = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+        if data.tzinfo is None or data.utcoffset() is None:
+            return data.replace(tzinfo=timezone.utc)
+        return data.astimezone(timezone.utc)
+
+    def _fuso_tarefa(self, tarefa: dict) -> ZoneInfo:
+        # O fuso pertence à casa, não à tabela tarefa.
+        try:
+            resposta = (
+                self.supabase.table("casa")
+                .select("timezone")
+                .eq("id", tarefa["fk_casa_id"])
+                .execute()
+            )
+            nome_fuso = (resposta.data or [{}])[0].get("timezone")
+            return ZoneInfo(nome_fuso or "America/Sao_Paulo")
+        except Exception:
+            # Mantém o job resiliente e compatível com casas legadas.
+            return ZoneInfo("America/Sao_Paulo")
+
     def avisar_vencimentos(self, agora: datetime | None = None) -> dict[str, int]:
         instante = agora or datetime.now(timezone.utc)
-        limite = instante + timedelta(hours=25)
-        tarefas = []
+        if instante.tzinfo is None or instante.utcoffset() is None:
+            raise ValueError("O instante do processamento deve conter fuso horário.")
+        instante = instante.astimezone(timezone.utc)
+        limite = instante + timedelta(hours=36)
+
+        tarefas_hoje = []
         while True:
             pagina = (
                 self.supabase.table("tarefa")
-                .select("id,fk_casa_id,data_fim,estado_atual")
+                .select(
+                    "id,fk_casa_id,data_inicio,data_fim,estado_atual,atraso_maximo,"
+                    "aviso_enviado_em"
+                )
                 .in_("estado_atual", ["pendente", "atrasada"])
                 .is_("aviso_enviado_em", "null")
                 .gt("data_fim", instante.isoformat())
                 .lte("data_fim", limite.isoformat())
                 .order("id")
-                .range(len(tarefas), len(tarefas) + 99)
+                .range(len(tarefas_hoje), len(tarefas_hoje) + 99)
                 .execute()
             ).data or []
-            tarefas.extend(pagina)
+            tarefas_hoje.extend(pagina)
             if len(pagina) < 100:
                 break
 
-        resultado = {"tarefas_elegiveis": len(tarefas), "avisos_enviados": 0, "falhas": 0}
-        for tarefa in tarefas:
+        tarefas_atrasadas = []
+        while True:
+            pagina = (
+                self.supabase.table("tarefa")
+                .select(
+                    "id,fk_casa_id,data_fim,estado_atual,atraso_maximo,"
+                    "aviso_atraso_enviado_em"
+                )
+                .in_("estado_atual", ["pendente", "atrasada"])
+                .is_("aviso_atraso_enviado_em", "null")
+                .lte("data_fim", instante.isoformat())
+                .order("id")
+                .range(len(tarefas_atrasadas), len(tarefas_atrasadas) + 99)
+                .execute()
+            ).data or []
+            tarefas_atrasadas.extend(pagina)
+            if len(pagina) < 100:
+                break
+
+        resultado = {"tarefas_elegiveis": 0, "avisos_enviados": 0, "falhas": 0}
+        for tarefa in tarefas_hoje:
+            data_fim = self._data_horaria(tarefa["data_fim"])
+            fuso = self._fuso_tarefa(tarefa)
+            hoje_local = instante.astimezone(fuso).date()
+            if data_fim.astimezone(fuso).date() != hoje_local:
+                continue
+            data_inicio = tarefa.get("data_inicio")
+            if data_inicio and self._data_horaria(data_inicio) > instante:
+                continue
+
             atribuicoes = (
                 self.supabase.table("atribuida")
                 .select("fk_usuario_id")
@@ -221,6 +283,7 @@ class ServicoNotificacao:
             ).data or []
             if not atribuicoes:
                 continue
+
             reserva = (
                 self.supabase.table("tarefa")
                 .update({"aviso_enviado_em": instante.isoformat()})
@@ -232,11 +295,58 @@ class ServicoNotificacao:
             )
             if not reserva.data:
                 continue
+
+            resultado["tarefas_elegiveis"] += 1
             envio = self.enviar_push(
                 [UUID(item["fk_usuario_id"]) for item in atribuicoes],
-                "Tarefa perto do vencimento",
-                "Você tem uma tarefa com prazo próximo.",
-                {"tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"]},
+                "Sua tarefa vence hoje",
+                "A tarefa vence hoje e já pode ser concluída.",
+                {
+                    "tipo": "tarefa_vence_hoje",
+                    "tarefa_id": tarefa["id"],
+                    "casa_id": tarefa["fk_casa_id"],
+                },
+            )
+            resultado["avisos_enviados"] += len(envio["aceitos"])
+            resultado["falhas"] += len(envio["falhas"])
+
+        for tarefa in tarefas_atrasadas:
+            data_fim = self._data_horaria(tarefa["data_fim"])
+            dias_atraso = ServicoScore.calcular_dias_atraso(data_fim, instante)
+            if dias_atraso <= 0 or dias_atraso > tarefa["atraso_maximo"]:
+                continue
+
+            atribuicoes = (
+                self.supabase.table("atribuida")
+                .select("fk_usuario_id")
+                .eq("fk_tarefa_id", tarefa["id"])
+                .execute()
+            ).data or []
+            if not atribuicoes:
+                continue
+
+            reserva = (
+                self.supabase.table("tarefa")
+                .update({"aviso_atraso_enviado_em": instante.isoformat()})
+                .eq("id", tarefa["id"])
+                .eq("data_fim", tarefa["data_fim"])
+                .in_("estado_atual", ["pendente", "atrasada"])
+                .is_("aviso_atraso_enviado_em", "null")
+                .execute()
+            )
+            if not reserva.data:
+                continue
+
+            resultado["tarefas_elegiveis"] += 1
+            envio = self.enviar_push(
+                [UUID(item["fk_usuario_id"]) for item in atribuicoes],
+                "Sua tarefa está atrasada",
+                "A tarefa está atrasada, mas ainda pode ser concluída.",
+                {
+                    "tipo": "tarefa_atrasada",
+                    "tarefa_id": tarefa["id"],
+                    "casa_id": tarefa["fk_casa_id"],
+                },
             )
             resultado["avisos_enviados"] += len(envio["aceitos"])
             resultado["falhas"] += len(envio["falhas"])
@@ -276,6 +386,11 @@ class ServicoNotificacao:
                     "to": dispositivo["token"],
                     "title": titulo,
                     "body": mensagem,
+                    **(
+                        {"categoryId": "tarefa_pendente"}
+                        if dados and dados.get("tipo") in {"tarefa_vence_hoje", "tarefa_atrasada"}
+                        else {}
+                    ),
                     **({"data": dados} if dados is not None else {}),
                 }
                 for dispositivo in lote

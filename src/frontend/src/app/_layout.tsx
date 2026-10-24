@@ -25,7 +25,7 @@ import { sessao } from "@/services/sessao-store";
 
 void SplashScreen.preventAutoHideAsync();
 
-if (Platform.OS === "android") {
+if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
@@ -34,6 +34,18 @@ if (Platform.OS === "android") {
       shouldSetBadge: false,
     }),
   });
+  void Notifications.setNotificationCategoryAsync("tarefa_pendente", [
+    {
+      identifier: "concluir_tarefa",
+      buttonTitle: "Concluir",
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: "ver_tarefa",
+      buttonTitle: "Ver tarefa",
+      options: { opensAppToForeground: true },
+    },
+  ]).catch(() => {});
 }
 
 export default function RootLayout() {
@@ -49,7 +61,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== "android" || !pronta || !token) return;
+    if (Platform.OS === "web" || !pronta || !token) return;
     void notificacoesAtivas()
       .then(async (ativa) => {
         if (ativa) await ativarNotificacoes();
@@ -59,12 +71,13 @@ export default function RootLayout() {
   }, [pronta, token]);
 
   useEffect(() => {
-    if (Platform.OS !== "android" || !pronta || !token) return;
+    if (Platform.OS === "web" || !pronta || !token) return;
     const tokenDaSessao = token;
     let montado = true;
 
     async function abrir(response: Notifications.NotificationResponse) {
-      const identificador = response.notification.request.identifier;
+      const identificador =
+        `${response.notification.request.identifier}:${response.actionIdentifier}`;
       if (ultimaResposta.current === identificador) return;
       ultimaResposta.current = identificador;
       try {
@@ -72,6 +85,7 @@ export default function RootLayout() {
           await abrirTarefaNotificada(
             response.notification.request.content.data ?? {},
             tokenDaSessao,
+            response.actionIdentifier,
           );
       } finally {
         await Notifications.clearLastNotificationResponseAsync().catch(

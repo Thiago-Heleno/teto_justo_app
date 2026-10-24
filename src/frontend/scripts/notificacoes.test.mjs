@@ -23,6 +23,8 @@ mock.module("expo-notifications", {
   namedExports: {
     AndroidImportance: { HIGH: 4 },
     setNotificationChannelAsync: async () => {},
+    setNotificationCategoryAsync: async () => {},
+    DEFAULT_ACTION_IDENTIFIER: "expo.modules.notifications.actions.DEFAULT",
     getPermissionsAsync: async () => ({ granted: permissao }),
     requestPermissionsAsync: async () => ({ granted: permissao }),
     getExpoPushTokenAsync: async () => ({ data: tokenExpo }),
@@ -171,4 +173,50 @@ test("resumo não navega para casa inacessível, sessão trocada ou payload inv�
   );
   assert.deepEqual(pedidos, []);
   assert.deepEqual(destinos, []);
+});
+
+
+test("ação Concluir chama endpoint de conclusão e abre a tarefa", async () => {
+  await abrirTarefaNotificada(
+    { tipo: "tarefa_vence_hoje", tarefa_id: tarefaId, casa_id: casaId },
+    "sessao",
+    "concluir_tarefa",
+  );
+
+  assert.deepEqual(
+    pedidos.map((pedido) => [pedido.caminho, pedido.opcoes?.method]),
+    [
+      [`/tarefas/${tarefaId}`, undefined],
+      [`/tarefas/${tarefaId}/conclusoes`, "POST"],
+    ],
+  );
+  assert.deepEqual(destinos, [
+    { pathname: "/tarefas", params: { abrir: tarefaId } },
+  ]);
+});
+
+test("ação Concluir também é válida para aviso de tarefa atrasada", async () => {
+  await abrirTarefaNotificada(
+    { tipo: "tarefa_atrasada", tarefa_id: tarefaId, casa_id: casaId },
+    "sessao",
+    "concluir_tarefa",
+  );
+  assert.equal(pedidos[1].caminho, `/tarefas/${tarefaId}/conclusoes`);
+  assert.equal(pedidos[1].opcoes.method, "POST");
+});
+
+
+test("ação Ver tarefa apenas abre o detalhe sem concluir", async () => {
+  await abrirTarefaNotificada(
+    { tipo: "tarefa_atrasada", tarefa_id: tarefaId, casa_id: casaId },
+    "sessao",
+    "ver_tarefa",
+  );
+  assert.deepEqual(
+    pedidos.map((pedido) => pedido.caminho),
+    [`/tarefas/${tarefaId}`],
+  );
+  assert.deepEqual(destinos, [
+    { pathname: "/tarefas", params: { abrir: tarefaId } },
+  ]);
 });
