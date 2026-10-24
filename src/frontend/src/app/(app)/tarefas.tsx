@@ -140,9 +140,12 @@ export default function TarefasScreen() {
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
   const [editando, setEditando] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const { estado, responsavel, prazo } = filtros;
-  const filtrosAtivos =
-    estado !== "todos" || responsavel !== "todos" || prazo !== "todos";
+  const quantidadeFiltros = [estado, responsavel, prazo].filter(
+    (valor) => valor !== "todos",
+  ).length;
+  const filtrosAtivos = quantidadeFiltros > 0;
   const chaveFiltro = `${chaveSessao}:${estado}:${responsavel}:${prazo}`;
   const contextoAtual = origemContexto === chaveSessao;
   const tarefas = !contextoAtual
@@ -530,80 +533,99 @@ export default function TarefasScreen() {
               </View>
             </View>
 
-            <View style={[styles.filtersCard, telaPequena && styles.cardSmall]}>
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>STATUS</Text>
-                <View style={styles.filterOptions}>
-                  <FilterPill
-                    label="Todos"
-                    selected={filtros.estado === "todos"}
-                    onPress={() =>
-                      setFiltros((atuais) => ({ ...atuais, estado: "todos" }))
-                    }
-                  />
-                  {opcoesEstadoTarefa.map((opcao) => (
-                    <FilterPill
-                      key={opcao.valor}
-                      label={opcao.rotulo}
-                      selected={filtros.estado === opcao.valor}
-                      onPress={() =>
-                        setFiltros((atuais) => ({
-                          ...atuais,
-                          estado: opcao.valor,
-                        }))
-                      }
-                    />
-                  ))}
-                </View>
-              </View>
+            <View style={styles.filtersSection}>
+              <MotionPressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: filtrosAbertos }}
+                onPress={() => setFiltrosAbertos((aberto) => !aberto)}
+                style={styles.filtersToggle}
+              >
+                <Text style={styles.filterPillText}>
+                  {`Filtros${filtrosAtivos ? ` (${quantidadeFiltros})` : ""} ${filtrosAbertos ? "▴" : "▾"}`}
+                </Text>
+              </MotionPressable>
+              {filtrosAbertos && (
+                <View
+                  style={[styles.filtersCard, telaPequena && styles.cardSmall]}
+                >
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>STATUS</Text>
+                    <View style={styles.filterOptions}>
+                      <FilterPill
+                        label="Todos"
+                        selected={filtros.estado === "todos"}
+                        onPress={() =>
+                          setFiltros((atuais) => ({
+                            ...atuais,
+                            estado: "todos",
+                          }))
+                        }
+                      />
+                      {opcoesEstadoTarefa.map((opcao) => (
+                        <FilterPill
+                          key={opcao.valor}
+                          label={opcao.rotulo}
+                          selected={filtros.estado === opcao.valor}
+                          onPress={() =>
+                            setFiltros((atuais) => ({
+                              ...atuais,
+                              estado: opcao.valor,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+                  </View>
 
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>RESPONSÁVEL</Text>
-                <View style={styles.filterOptions}>
-                  <FilterPill
-                    label="Todos"
-                    selected={filtros.responsavel === "todos"}
-                    onPress={() =>
-                      setFiltros((atuais) => ({
-                        ...atuais,
-                        responsavel: "todos",
-                      }))
-                    }
-                  />
-                  {moradores.map((morador) => (
-                    <FilterPill
-                      key={morador.id}
-                      label={morador.nome}
-                      selected={filtros.responsavel === morador.id}
-                      onPress={() =>
-                        setFiltros((atuais) => ({
-                          ...atuais,
-                          responsavel: morador.id,
-                        }))
-                      }
-                    />
-                  ))}
-                </View>
-              </View>
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>RESPONSÁVEL</Text>
+                    <View style={styles.filterOptions}>
+                      <FilterPill
+                        label="Todos"
+                        selected={filtros.responsavel === "todos"}
+                        onPress={() =>
+                          setFiltros((atuais) => ({
+                            ...atuais,
+                            responsavel: "todos",
+                          }))
+                        }
+                      />
+                      {moradores.map((morador) => (
+                        <FilterPill
+                          key={morador.id}
+                          label={morador.nome}
+                          selected={filtros.responsavel === morador.id}
+                          onPress={() =>
+                            setFiltros((atuais) => ({
+                              ...atuais,
+                              responsavel: morador.id,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+                  </View>
 
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>PRAZO</Text>
-                <View style={styles.filterOptions}>
-                  {opcoesPrazo.map((opcao) => (
-                    <FilterPill
-                      key={opcao.valor}
-                      label={opcao.rotulo}
-                      selected={filtros.prazo === opcao.valor}
-                      onPress={() =>
-                        setFiltros((atuais) => ({
-                          ...atuais,
-                          prazo: opcao.valor,
-                        }))
-                      }
-                    />
-                  ))}
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>PRAZO</Text>
+                    <View style={styles.filterOptions}>
+                      {opcoesPrazo.map((opcao) => (
+                        <FilterPill
+                          key={opcao.valor}
+                          label={opcao.rotulo}
+                          selected={filtros.prazo === opcao.valor}
+                          onPress={() =>
+                            setFiltros((atuais) => ({
+                              ...atuais,
+                              prazo: opcao.valor,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+                  </View>
                 </View>
-              </View>
+              )}
             </View>
 
             <View style={styles.listHeading}>
@@ -816,6 +838,18 @@ const styles = StyleSheet.create({
     fontFamily: CompactFont,
     fontSize: 40,
     lineHeight: 44,
+  },
+  filtersSection: { gap: Spacing.three },
+  filtersToggle: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    borderRadius: 800,
+    backgroundColor: Caldera.limestone,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
   },
   filtersCard: {
     backgroundColor: Caldera.limestone,
