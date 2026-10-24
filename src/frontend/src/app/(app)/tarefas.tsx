@@ -113,6 +113,8 @@ export default function TarefasScreen() {
   const telaPequena = width < 600;
   const estiloPagina = [styles.page, telaPequena && styles.pageSmall];
   const scrollRef = useRef<ScrollView>(null);
+  const posicaoLista = useRef(0);
+  const restaurarPosicaoLista = useRef(false);
   const chaveSessao = `${casaId}:${token}`;
   const [origemContexto, setOrigemContexto] = useState<string>();
   const [casa, setCasa] = useState<Casa>();
@@ -168,6 +170,8 @@ export default function TarefasScreen() {
   );
 
   useEffect(() => {
+    if (!tarefaSelecionadaId) return;
+    restaurarPosicaoLista.current = true;
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [tarefaSelecionadaId, editando]);
 
@@ -384,7 +388,25 @@ export default function TarefasScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <ScrollView ref={scrollRef} contentContainerStyle={estiloPagina}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={estiloPagina}
+        scrollEventThrottle={16}
+        onScroll={({ nativeEvent }) => {
+          if (!tarefaSelecionadaId && !restaurarPosicaoLista.current) {
+            posicaoLista.current = nativeEvent.contentOffset.y;
+          }
+        }}
+        onContentSizeChange={() => {
+          if (!tarefaSelecionadaId && restaurarPosicaoLista.current) {
+            scrollRef.current?.scrollTo({
+              y: posicaoLista.current,
+              animated: false,
+            });
+            restaurarPosicaoLista.current = false;
+          }
+        }}
+      >
         {erroContexto && (
           <View style={[styles.errorNotice, styles.pageNotice]}>
             <Text style={styles.emptyText}>
