@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 from uuid import UUID, uuid4
 
 import pytest
@@ -240,6 +240,94 @@ def test_listar_tarefas_por_casa_filtra_prazos_atrasados(servico, consulta, ids_
     resultado = servico.listar_tarefas_por_casa(ids_relacionados["fk_casa_id"], prazo="atrasadas")
 
     assert [tarefa["id"] for tarefa in resultado] == ["atrasada"]
+
+
+@pytest.mark.parametrize(
+    "fuso,agora,data_fim,incluida",
+    [
+        ("America/Sao_Paulo", "2026-10-23T15:00:00Z", "2026-10-23T08:00:00-03:00", True),
+        ("America/Sao_Paulo", "2026-10-23T15:00:00Z", "2026-10-23T00:00:00-03:00", True),
+        ("America/Sao_Paulo", "2026-10-23T15:00:00Z", "2026-10-23T23:59:59.999999-03:00", True),
+        ("America/Sao_Paulo", "2026-10-23T15:00:00Z", "2026-10-22T23:59:59.999999-03:00", False),
+        ("America/Sao_Paulo", "2026-10-23T15:00:00Z", "2026-10-24T00:00:00-03:00", False),
+        ("America/Sao_Paulo", "2026-10-24T01:00:00Z", "2026-10-24T02:59:59.999999Z", True),
+        ("America/Sao_Paulo", "2026-10-24T01:00:00Z", "2026-10-24T03:00:00Z", False),
+        ("Asia/Tokyo", "2026-10-23T16:00:00Z", "2026-10-24T23:59:59.999999+09:00", True),
+        ("Asia/Tokyo", "2026-10-23T16:00:00Z", "2026-10-23T23:59:59.999999+09:00", False),
+        ("America/New_York", "2026-03-08T16:00:00Z", "2026-03-08T00:00:00-05:00", True),
+        ("America/New_York", "2026-03-08T16:00:00Z", "2026-03-08T23:59:59.999999-04:00", True),
+        ("America/New_York", "2026-03-08T16:00:00Z", "2026-03-09T00:00:00-04:00", False),
+        ("America/New_York", "2026-11-01T17:00:00Z", "2026-11-01T01:30:00-04:00", True),
+        ("America/New_York", "2026-11-01T17:00:00Z", "2026-11-01T01:30:00-05:00", True),
+    ],
+)
+def test_listar_hoje_considera_dia_inteiro_no_fuso_atual_da_casa(
+    servico, consulta, ids_relacionados, monkeypatch, fuso, agora, data_fim, incluida
+):
+    instante = datetime.fromisoformat(agora)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instante
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
+    tarefa = {
+        "id": "tarefa",
+        "estado_atual": "atrasada",
+        "data_fim": data_fim,
+        "timezone": "UTC",
+        "usuarios_atribuidos": [],
+    }
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[tarefa]),
+        SimpleNamespace(data=[{"timezone": fuso}]),
+    ]
+    servico._montar_resposta = MagicMock(return_value=tarefa)
+
+    resultado = servico.listar_tarefas_por_casa(ids_relacionados["fk_casa_id"], prazo="hoje")
+
+    assert resultado == ([tarefa] if incluida else [])
+
+
+@pytest.mark.parametrize("prazo", [None, "todos", "hoje", "sete_dias", "atrasadas"])
+def test_listar_combina_filtros_e_consulta_fuso_apenas_uma_vez_para_hoje(
+    servico, banco, consulta, ids_relacionados, monkeypatch, prazo
+):
+    instante = datetime(2026, 10, 23, 15, tzinfo=timezone.utc)
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instante
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    tarefa = {
+        "id": "selecionada",
+        "estado_atual": "atrasada",
+        "data_fim": "2026-10-23T11:00:00Z",
+        "usuarios_atribuidos": [str(responsavel)],
+    }
+    tarefas = [
+        tarefa,
+        {**tarefa, "id": "outra-selecionada"},
+        {**tarefa, "id": "outro-estado", "estado_atual": "finalizado"},
+        {**tarefa, "id": "outro-responsavel", "usuarios_atribuidos": []},
+    ]
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=tarefas),
+        SimpleNamespace(data=[{"timezone": "America/Sao_Paulo"}]),
+    ]
+    servico._montar_resposta = lambda registro: registro
+
+    resultado = servico.listar_tarefas_por_casa(
+        ids_relacionados["fk_casa_id"], estado="atrasada", responsavel=responsavel, prazo=prazo
+    )
+
+    assert resultado == ([] if prazo == "sete_dias" else tarefas[:2])
+    assert banco.table.call_args_list.count(call("casa")) == (1 if prazo == "hoje" else 0)
+    assert consulta.execute.call_count == (2 if prazo == "hoje" else 1)
 
 
 def test_atualizar_tarefa_envia_apenas_campos_informados(

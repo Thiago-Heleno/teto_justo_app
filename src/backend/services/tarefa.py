@@ -257,6 +257,7 @@ class ServicoTarefa:
         tarefa: dict,
         filtro_prazo: str | None,
         agora: datetime,
+        fuso: ZoneInfo | None,
     ) -> bool:
         if not filtro_prazo or filtro_prazo == "todos":
             return True
@@ -267,10 +268,7 @@ class ServicoTarefa:
             return data_fim < agora and tarefa["estado_atual"] != "finalizado"
 
         if filtro_prazo == "hoje":
-            fim_de_hoje = datetime.combine(
-                agora.date(), time.max, tzinfo=timezone.utc
-            )
-            return agora <= data_fim <= fim_de_hoje
+            return data_fim.astimezone(fuso).date() == agora.astimezone(fuso).date()
 
         if filtro_prazo == "sete_dias":
             return agora <= data_fim <= agora + timedelta(days=7)
@@ -298,6 +296,7 @@ class ServicoTarefa:
         )
         tarefas = []
         agora = datetime.now(timezone.utc)
+        fuso = self._fuso_casa(id_casa) if prazo == "hoje" else None
         for tarefa in resposta.data:
             tarefa_resposta = self._montar_resposta(tarefa)
             if (
@@ -311,7 +310,7 @@ class ServicoTarefa:
                 and str(responsavel) not in tarefa_resposta["usuarios_atribuidos"]
             ):
                 continue
-            if not self._corresponde_prazo(tarefa_resposta, prazo, agora):
+            if not self._corresponde_prazo(tarefa_resposta, prazo, agora, fuso):
                 continue
             tarefas.append(tarefa_resposta)
         return tarefas
