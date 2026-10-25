@@ -153,11 +153,7 @@ export function CalendarioTarefas({
               return (
                 <View key={dia ?? `vazio-${indice}`} style={styles.daySlot}>
                   {dia && (
-                    <MotionPressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${formatadorDia.format(new Date(`${dia}T12:00:00Z`))}${dia === hoje ? ", hoje" : ""}, ${contarTarefas(tarefasData.length)}`}
-                      accessibilityState={{ selected: selecionada }}
-                      onPress={() => onSelecionarDia(dia)}
+                    <View
                       style={[
                         styles.day,
                         compacto && styles.dayCompact,
@@ -165,34 +161,47 @@ export function CalendarioTarefas({
                         selecionada && styles.selectedDay,
                       ]}
                     >
-                      <Text style={styles.dayNumber}>
+                      <MotionPressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${formatadorDia.format(new Date(`${dia}T12:00:00Z`))}${dia === hoje ? ", hoje" : ""}, ${contarTarefas(tarefasData.length)}`}
+                        accessibilityState={{ selected: selecionada }}
+                        onPress={() => onSelecionarDia(dia)}
+                        style={StyleSheet.absoluteFill}
+                      />
+                      <Text pointerEvents="none" style={styles.dayNumber}>
                         {Number(dia.slice(-2))}
                       </Text>
                       {compacto ? (
                         tarefasData.length > 0 && (
-                          <Text style={styles.dayCount}>
+                          <Text pointerEvents="none" style={styles.dayCount}>
                             {tarefasData.length}
                           </Text>
                         )
                       ) : (
                         <>
                           {tarefasData.slice(0, 2).map((tarefa) => (
-                            <Text
+                            <MotionPressable
                               key={tarefa.id}
-                              numberOfLines={1}
-                              style={styles.dayTask}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Ver detalhes de ${tarefa.nome} no calendário`}
+                              onPress={() => {
+                                onSelecionarDia(dia);
+                                onSelecionarTarefa(tarefa.id);
+                              }}
                             >
-                              {tarefa.nome}
-                            </Text>
+                              <Text numberOfLines={1} style={styles.dayTask}>
+                                {tarefa.nome}
+                              </Text>
+                            </MotionPressable>
                           ))}
                           {tarefasData.length > 2 && (
-                            <Text style={styles.caption}>
+                            <Text pointerEvents="none" style={styles.caption}>
                               +{tarefasData.length - 2}
                             </Text>
                           )}
                         </>
                       )}
-                    </MotionPressable>
+                    </View>
                   )}
                 </View>
               );

@@ -15,9 +15,9 @@ horizontal compacto, com quantidade e rótulo.
   cadastrada; os demais prazos e o dia atual usam o `timezone` da casa.
 - É possível navegar entre meses, voltar para hoje e selecionar um dia para
   consultar nome, descrição, responsável, horário limite e status das tarefas.
-- Tocar no cartão de uma tarefa da agenda abre o detalhe existente, com peso,
-  prazo, responsáveis e as ações permitidas para o usuário. Ao voltar, o dia e
-  o mês selecionados são preservados.
+- Tocar no nome de uma tarefa dentro do quadrinho do dia ou no cartão da
+  agenda abre o detalhe existente, com peso, prazo, responsáveis e as ações
+  permitidas para o usuário. Ao voltar, o dia e o mês da tarefa são preservados.
 - O filtro **Somente minhas tarefas**, desativado por padrão, restringe a grade,
   as contagens e a agenda às tarefas atribuídas à conta logada, inclusive as
   compartilhadas. A seleção do dia e do mês é preservada ao alternar o filtro.
@@ -65,6 +65,10 @@ conjunto completo, permitindo abrir uma tarefa do calendário mesmo quando os
 filtros da lista a excluem. A seleção de data fica na tela, associada à casa,
 ao fuso e ao usuário, para sobreviver à abertura e ao fechamento do detalhe.
 
+Na grade mensal, o botão de seleção do dia e os botões dos nomes das tarefas
+são irmãos, evitando botões aninhados. Tocar em um nome seleciona o dia antes
+de abrir o detalhe; tocar na área livre mantém a consulta da agenda do dia.
+
 ## Validação executada
 
 Na abertura de detalhes pela agenda, a partir de `src/frontend`, com Node.js
@@ -81,6 +85,12 @@ finalizadas. Os filtros foram preservados ao voltar; o filtro pessoal manteve
 o dia selecionado e restringiu a agenda ao usuário. O botão de finalizar
 apareceu para a responsável e ficou ausente na tarefa de outro morador.
 Esta alteração não foi validada em dispositivo Android/iOS.
+
+Na correção do clique nos nomes da grade, TypeScript, ESLint do componente e
+os mesmos 69 testes unitários passaram. Com API fictícia local no navegador,
+foram confirmados o clique direto no nome sem selecionar o dia antes, a
+abertura por Enter, o retorno ao dia da tarefa e a seleção pela área livre do
+quadrinho sem abrir detalhes. Não houve validação Android/iOS.
 
 Na integração do calendário à aba Tarefas, a partir de `src/frontend`:
 
