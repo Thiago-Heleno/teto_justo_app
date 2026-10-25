@@ -442,6 +442,13 @@ Ao terminar, baixe `TetoJusto-Android` e `TetoJusto-iOS-unsigned` em
 **Artifacts** da execução e extraia os arquivos. Não precisa de `EXPO_TOKEN`,
 EAS ou certificados Apple para gerar esses builds.
 
+Para habilitar notificações no APK Android, siga o
+[guia de configuração Firebase/FCM](contexto/sprint_4/notificacoes_push.md#configuração-fcm-pelo-github-actions).
+Ele descreve os dois arquivos necessários, o cadastro das credenciais no Expo
+e a preparação do arquivo Android no workflow a partir do secret
+`GOOGLE_SERVICES_JSON`. Compilar no GitHub dispensa EAS Build, mas o envio de
+push pelo Expo exige a credencial FCM V1 cadastrada no EAS.
+
 - O APK usa a configuração Release com a chave de teste padrão do template
   Expo e inclui o JavaScript; funciona sem Metro. Uma instalação anterior
   assinada pelo EAS precisa ser desinstalada antes (isso apaga os dados locais).
