@@ -33,7 +33,7 @@ jobs:
         shell: bash
         working-directory: src/frontend
     env:
-      CI: '1'
+      CI: "1"
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
     steps:
       - uses: actions/checkout@v5
@@ -47,12 +47,24 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
       - name: Select Xcode
         if: matrix.platform == 'ios'
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
       - name: Install dependencies
         run: npm ci
+      - name: Prepare Firebase config for Android
+        if: matrix.platform == 'android'
+        env:
+          FIREBASE_CONFIG_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_CONFIG_JSON" ]; then
+            echo "::error::Cadastre o secret GOOGLE_SERVICES_JSON."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_CONFIG_JSON" > "$RUNNER_TEMP/google-services.json"
+          printf 'GOOGLE_SERVICES_JSON=%s\n' "$RUNNER_TEMP/google-services.json" >> "$GITHUB_ENV"
       - name: Generate native project
         run: npx expo prebuild --platform ${{ matrix.platform }} --no-install
       - name: Build APK
