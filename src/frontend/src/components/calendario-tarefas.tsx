@@ -25,6 +25,8 @@ type DadosCalendario = {
   moradores: Morador[];
   tarefas: Tarefa[];
   usuarioAtualId: string;
+  somenteMinhas: boolean;
+  onSomenteMinhasChange: (valor: boolean) => void;
 };
 
 function contarTarefas(quantidade: number) {
@@ -36,12 +38,13 @@ export function CalendarioTarefas({
   moradores,
   tarefas,
   usuarioAtualId,
+  somenteMinhas,
+  onSomenteMinhasChange,
 }: DadosCalendario) {
   const { width } = useWindowDimensions();
   const compacto = width < 600;
   const hoje = dataNoFuso(new Date(), casa.timezone);
   const [selecionado, setSelecionado] = useState(hoje);
-  const [somenteMinhas, setSomenteMinhas] = useState(false);
   const mes = selecionado.slice(0, 7);
   const porDia = useMemo(
     () =>
@@ -80,7 +83,7 @@ export function CalendarioTarefas({
         <Switch
           accessibilityLabel="Somente minhas tarefas"
           value={somenteMinhas}
-          onValueChange={setSomenteMinhas}
+          onValueChange={onSomenteMinhasChange}
           trackColor={{ false: Caldera.obsidian, true: Caldera.ember }}
           thumbColor={Caldera.chalk}
           ios_backgroundColor={Caldera.obsidian}

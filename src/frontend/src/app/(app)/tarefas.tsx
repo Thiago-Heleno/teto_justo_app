@@ -496,6 +496,13 @@ export default function TarefasScreen() {
               moradores={moradores}
               tarefas={todasTarefas}
               usuarioAtualId={usuarioAtual.id}
+              somenteMinhas={responsavel === usuarioAtual.id}
+              onSomenteMinhasChange={(valor) =>
+                setFiltros((atuais) => ({
+                  ...atuais,
+                  responsavel: valor ? usuarioAtual.id : "todos",
+                }))
+              }
             />
             <View style={styles.hero}>
               <View style={styles.heroCopy}>
