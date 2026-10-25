@@ -38,8 +38,8 @@ import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
 function ErroCampo({ mensagem }: { mensagem?: string }) {
   if (!mensagem) return null;
   return (
-    <Text style={styles.help} accessibilityLiveRegion="polite">
-      Atenção: {mensagem}
+    <Text style={styles.aviso} accessibilityLiveRegion="polite">
+      ⚠ {mensagem}
     </Text>
   );
 }
@@ -915,8 +915,8 @@ export default function NovaTarefaScreen() {
                   )}
                 </View>
                 {erroEnvio && (
-                  <Text accessibilityLiveRegion="polite" style={styles.help}>
-                    {erroEnvio}
+                  <Text accessibilityLiveRegion="polite" style={styles.aviso}>
+                    ⚠ {erroEnvio}
                   </Text>
                 )}
                 <MotionPressable
@@ -984,6 +984,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500",
+  },
+  aviso: {
+    color: "#b3001b",
+    backgroundColor: "#ffe3e6",
+    borderLeftWidth: 4,
+    borderLeftColor: "#b3001b",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
   },
   badge: {
     alignSelf: "flex-start",
