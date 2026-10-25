@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Platform,
   StyleSheet,
@@ -25,6 +25,9 @@ type DadosCalendario = {
   moradores: Morador[];
   tarefas: Tarefa[];
   usuarioAtualId: string;
+  diaSelecionado: string;
+  onSelecionarDia: (dia: string) => void;
+  onSelecionarTarefa: (id: string) => void;
   somenteMinhas: boolean;
   onSomenteMinhasChange: (valor: boolean) => void;
 };
@@ -38,14 +41,16 @@ export function CalendarioTarefas({
   moradores,
   tarefas,
   usuarioAtualId,
+  diaSelecionado,
+  onSelecionarDia,
+  onSelecionarTarefa,
   somenteMinhas,
   onSomenteMinhasChange,
 }: DadosCalendario) {
   const { width } = useWindowDimensions();
   const compacto = width < 600;
   const hoje = dataNoFuso(new Date(), casa.timezone);
-  const [selecionado, setSelecionado] = useState(hoje);
-  const mes = selecionado.slice(0, 7);
+  const mes = diaSelecionado.slice(0, 7);
   const porDia = useMemo(
     () =>
       agruparTarefasAtivas(
@@ -59,7 +64,7 @@ export function CalendarioTarefas({
     [tarefas, casa.timezone, somenteMinhas, usuarioAtualId],
   );
   const dias = diasDoMes(mes);
-  const tarefasDoDia = porDia.get(selecionado) ?? [];
+  const tarefasDoDia = porDia.get(diaSelecionado) ?? [];
   const quantidadeMes = dias.reduce(
     (total, dia) => total + (dia ? (porDia.get(dia)?.length ?? 0) : 0),
     0,
@@ -107,7 +112,7 @@ export function CalendarioTarefas({
               <MotionPressable
                 accessibilityRole="button"
                 accessibilityLabel="Mês anterior"
-                onPress={() => setSelecionado(`${mudarMes(mes, -1)}-01`)}
+                onPress={() => onSelecionarDia(`${mudarMes(mes, -1)}-01`)}
                 style={styles.arrow}
               >
                 <Text style={styles.arrowText}>‹</Text>
@@ -115,7 +120,7 @@ export function CalendarioTarefas({
               <MotionPressable
                 accessibilityRole="button"
                 onPress={() =>
-                  setSelecionado(dataNoFuso(new Date(), casa.timezone))
+                  onSelecionarDia(dataNoFuso(new Date(), casa.timezone))
                 }
                 style={styles.button}
               >
@@ -124,7 +129,7 @@ export function CalendarioTarefas({
               <MotionPressable
                 accessibilityRole="button"
                 accessibilityLabel="Próximo mês"
-                onPress={() => setSelecionado(`${mudarMes(mes, 1)}-01`)}
+                onPress={() => onSelecionarDia(`${mudarMes(mes, 1)}-01`)}
                 style={styles.arrow}
               >
                 <Text style={styles.arrowText}>›</Text>
@@ -144,7 +149,7 @@ export function CalendarioTarefas({
           <View style={styles.grid}>
             {dias.map((dia, indice) => {
               const tarefasData = dia ? (porDia.get(dia) ?? []) : [];
-              const selecionada = dia === selecionado;
+              const selecionada = dia === diaSelecionado;
               return (
                 <View key={dia ?? `vazio-${indice}`} style={styles.daySlot}>
                   {dia && (
@@ -152,7 +157,7 @@ export function CalendarioTarefas({
                       accessibilityRole="button"
                       accessibilityLabel={`${formatadorDia.format(new Date(`${dia}T12:00:00Z`))}${dia === hoje ? ", hoje" : ""}, ${contarTarefas(tarefasData.length)}`}
                       accessibilityState={{ selected: selecionada }}
-                      onPress={() => setSelecionado(dia)}
+                      onPress={() => onSelecionarDia(dia)}
                       style={[
                         styles.day,
                         compacto && styles.dayCompact,
@@ -201,7 +206,7 @@ export function CalendarioTarefas({
             accessibilityLiveRegion="polite"
             style={styles.sectionTitle}
           >
-            {formatadorDia.format(new Date(`${selecionado}T12:00:00Z`))}
+            {formatadorDia.format(new Date(`${diaSelecionado}T12:00:00Z`))}
           </Text>
           {tarefasDoDia.length === 0 ? (
             <Text style={styles.body}>
@@ -227,7 +232,13 @@ export function CalendarioTarefas({
                     hour12: false,
                   });
               return (
-                <View key={tarefa.id} style={styles.task}>
+                <MotionPressable
+                  key={tarefa.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver detalhes de ${tarefa.nome}`}
+                  onPress={() => onSelecionarTarefa(tarefa.id)}
+                  style={styles.task}
+                >
                   <View style={styles.taskHeader}>
                     <Text style={styles.caption}>Até {horario}</Text>
                     <Text
@@ -246,7 +257,8 @@ export function CalendarioTarefas({
                   {tarefa.descricao && (
                     <Text style={styles.body}>{tarefa.descricao}</Text>
                   )}
-                </View>
+                  <Text style={styles.caption}>Ver detalhes →</Text>
+                </MotionPressable>
               );
             })
           )}

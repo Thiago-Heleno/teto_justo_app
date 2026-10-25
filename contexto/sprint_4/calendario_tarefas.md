@@ -15,6 +15,9 @@ horizontal compacto, com quantidade e rótulo.
   cadastrada; os demais prazos e o dia atual usam o `timezone` da casa.
 - É possível navegar entre meses, voltar para hoje e selecionar um dia para
   consultar nome, descrição, responsável, horário limite e status das tarefas.
+- Tocar no cartão de uma tarefa da agenda abre o detalhe existente, com peso,
+  prazo, responsáveis e as ações permitidas para o usuário. Ao voltar, o dia e
+  o mês selecionados são preservados.
 - O filtro **Somente minhas tarefas**, desativado por padrão, restringe a grade,
   as contagens e a agenda às tarefas atribuídas à conta logada, inclusive as
   compartilhadas. A seleção do dia e do mês é preservada ao alternar o filtro.
@@ -56,7 +59,28 @@ O filtro pessoal reutiliza `carregarUsuarioAtual` (`GET /usuarios/eu`) e
 `filtrarTarefas`, aplicando o responsável antes do agrupamento por dia. Alternar
 o filtro usa os dados já carregados e não faz novas requisições.
 
+A agenda usa `MotionPressable` e encaminha o ID para a seleção de tarefa da
+própria tela. A consulta do detalhe aceita tarefas da lista filtrada e do
+conjunto completo, permitindo abrir uma tarefa do calendário mesmo quando os
+filtros da lista a excluem. A seleção de data fica na tela, associada à casa,
+ao fuso e ao usuário, para sobreviver à abertura e ao fechamento do detalhe.
+
 ## Validação executada
+
+Na abertura de detalhes pela agenda, a partir de `src/frontend`, com Node.js
+24, os oito arquivos de teste de `test:tarefas` passaram: 69 testes unitários,
+sem acesso ao banco. TypeScript (`tsc --noEmit`), ESLint dos dois arquivos
+TypeScript alterados e `git diff --check`, a partir da raiz, também passaram.
+O Node padrão da máquina não suporta os parâmetros da suíte; as validações
+foram executadas com uma versão compatível já disponível no ambiente.
+
+No navegador, com API fictícia local, foram conferidos: abertura pelo cartão
+da agenda, descrição/peso/prazo/status/responsável no detalhe, retorno ao mesmo
+dia em outro mês e abertura de tarefa ativa com a lista filtrada por
+finalizadas. Os filtros foram preservados ao voltar; o filtro pessoal manteve
+o dia selecionado e restringiu a agenda ao usuário. O botão de finalizar
+apareceu para a responsável e ficou ausente na tarefa de outro morador.
+Esta alteração não foi validada em dispositivo Android/iOS.
 
 Na integração do calendário à aba Tarefas, a partir de `src/frontend`:
 

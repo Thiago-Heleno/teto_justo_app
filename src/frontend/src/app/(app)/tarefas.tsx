@@ -45,6 +45,7 @@ import {
   type UsuarioAtual,
   type TarefaAtualizar,
 } from "@/services/tarefas-api";
+import { dataNoFuso } from "@/utils/calendario-tarefas";
 import {
   formatarPrazo,
   type FiltrosTarefa,
@@ -139,6 +140,10 @@ export default function TarefasScreen() {
     prazo: "todos",
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
+  const [selecaoCalendario, setSelecaoCalendario] = useState<{
+    chave: string;
+    dia: string;
+  }>();
   const [editando, setEditando] = useState(false);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const { estado, responsavel, prazo } = filtros;
@@ -281,12 +286,16 @@ export default function TarefasScreen() {
   );
 
   useEffect(() => {
-    if (!tarefas || !tarefaSelecionadaId) return;
-    if (tarefas.some((tarefa) => tarefa.id === tarefaSelecionadaId)) return;
+    if (!contextoAtual || !todasTarefas || !tarefaSelecionadaId) return;
+    if (
+      tarefas?.some((tarefa) => tarefa.id === tarefaSelecionadaId) ||
+      todasTarefas.some((tarefa) => tarefa.id === tarefaSelecionadaId)
+    )
+      return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTarefaSelecionadaId(undefined);
     setEditando(false);
-  }, [tarefas, tarefaSelecionadaId]);
+  }, [contextoAtual, tarefas, todasTarefas, tarefaSelecionadaId]);
 
   function atualizarTarefaLocal(atualizada: Tarefa) {
     setTodasTarefas((atuais) =>
@@ -305,9 +314,10 @@ export default function TarefasScreen() {
     );
   }
 
-  const tarefaSelecionada = tarefas?.find(
-    (tarefa) => tarefa.id === tarefaSelecionadaId,
-  );
+  const tarefaSelecionada = contextoAtual
+    ? (tarefas?.find((tarefa) => tarefa.id === tarefaSelecionadaId) ??
+      todasTarefas?.find((tarefa) => tarefa.id === tarefaSelecionadaId))
+    : undefined;
 
   async function concluirTarefaSelecionada(): Promise<ResultadoFinalizacao> {
     if (!tarefaSelecionada) {
@@ -385,6 +395,7 @@ export default function TarefasScreen() {
     );
   }
 
+  const chaveCalendario = `${casa.id}-${casa.timezone}-${usuarioAtual.id}`;
   const tarefasFiltradas = [...(tarefas ?? [])].sort(
     (a, b) => new Date(a.data_fim).getTime() - new Date(b.data_fim).getTime(),
   );
@@ -491,11 +502,20 @@ export default function TarefasScreen() {
             style={[styles.content, telaPequena && styles.contentSmall]}
           >
             <CalendarioTarefas
-              key={`${casa.id}-${casa.timezone}-${usuarioAtual.id}`}
+              key={chaveCalendario}
               casa={casa}
               moradores={moradores}
               tarefas={todasTarefas}
               usuarioAtualId={usuarioAtual.id}
+              diaSelecionado={
+                selecaoCalendario?.chave === chaveCalendario
+                  ? selecaoCalendario.dia
+                  : dataNoFuso(new Date(), casa.timezone)
+              }
+              onSelecionarDia={(dia) =>
+                setSelecaoCalendario({ chave: chaveCalendario, dia })
+              }
+              onSelecionarTarefa={setTarefaSelecionadaId}
               somenteMinhas={responsavel === usuarioAtual.id}
               onSomenteMinhasChange={(valor) =>
                 setFiltros((atuais) => ({
