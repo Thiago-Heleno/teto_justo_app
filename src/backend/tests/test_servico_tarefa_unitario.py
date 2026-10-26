@@ -807,7 +807,9 @@ def test_atualizar_tarefa_aceita_dono_da_casa_como_responsavel(
     )
 
     assert resultado["usuarios_atribuidos"] == [dono_id]
-    consulta.update.assert_called_once_with({"aviso_enviado_em": None})
+    consulta.update.assert_called_once_with({
+        "aviso_enviado_em": None, "aviso_atraso_enviado_em": None
+    })
 
 
 def test_buscar_tarefa_expirada_vira_nao_feito(servico, consulta, registro_tarefa):
@@ -938,6 +940,7 @@ def test_editar_prazo_preserva_inicio_original(servico, consulta, registro_taref
             "prazo_dias": 5,
             "data_fim": (inicio + timedelta(days=5)).isoformat(),
             "aviso_enviado_em": None,
+            "aviso_atraso_enviado_em": None,
         }
     )
 
