@@ -45,7 +45,7 @@ test("combina filtros de status, responsável e prazo", () => {
   assert.deepEqual(
     filtrarTarefas(
       tarefas,
-      { estado: "todos", responsavel: "ana", prazo: "atrasadas" },
+      { estado: "todos", responsavel: "ana", prazo: "antigas" },
       agora,
     ).map(({ id }) => id),
     ["atrasada"],
@@ -62,3 +62,34 @@ test("dia fixo mostra a data da casa sem depender do fuso do aparelho", () => {
 test("prazo por intervalo usa o mesmo formato de data e inclui o ano", () => {
   assert.equal(formatarPrazo("2026-10-15T12:30:00"), "15 out. 2026, 12:30");
 });
+
+const limites = [
+  ["ontem", "2026-10-31T23:59:59.999", "finalizado"],
+  ["inicio-hoje", "2026-11-01T00:00:00", "atrasada"],
+  ["fim-hoje", "2026-11-01T23:59:59.999", "pendente"],
+  ["fim-setimo-dia", "2026-11-07T23:59:59.999", "pendente"],
+  ["oitavo-dia", "2026-11-08T00:00:00", "pendente"],
+].map(([id, data_fim, estado_atual]) => ({
+  id,
+  data_fim,
+  estado_atual,
+  usuarios_atribuidos: [],
+}));
+
+for (const [prazo, esperadas] of [
+  ["antigas", ["ontem"]],
+  ["hoje", ["inicio-hoje", "fim-hoje"]],
+  ["sete_dias", ["inicio-hoje", "fim-hoje", "fim-setimo-dia"]],
+  ["todos", limites.map(({ id }) => id)],
+]) {
+  test(`${prazo} filtra por dias completos, independentemente do estado`, () => {
+    assert.deepEqual(
+      filtrarTarefas(
+        limites,
+        { estado: "todos", responsavel: "todos", prazo },
+        new Date("2026-11-01T12:00:00"),
+      ).map(({ id }) => id),
+      esperadas,
+    );
+  });
+}

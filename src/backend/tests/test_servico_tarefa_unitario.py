@@ -194,6 +194,9 @@ def test_buscar_tarefa_por_id(servico, consulta, id_tarefa, registro_tarefa):
 
 
 def test_listar_tarefas_por_casa_combina_filtros(servico, consulta, id_tarefa, ids_relacionados):
+    from zoneinfo import ZoneInfo
+
+    servico._fuso_casa = MagicMock(return_value=ZoneInfo("America/Sao_Paulo"))
     segunda_tarefa = uuid4()
     responsavel = ids_relacionados["usuarios_atribuidos"][0]
     consulta.execute.return_value = SimpleNamespace(
@@ -290,8 +293,8 @@ def test_listar_hoje_considera_dia_inteiro_no_fuso_atual_da_casa(
     assert resultado == ([tarefa] if incluida else [])
 
 
-@pytest.mark.parametrize("prazo", [None, "todos", "hoje", "sete_dias", "atrasadas"])
-def test_listar_combina_filtros_e_consulta_fuso_apenas_uma_vez_para_hoje(
+@pytest.mark.parametrize("prazo", [None, "todos", "hoje", "sete_dias", "antigas", "atrasadas"])
+def test_listar_combina_filtros_e_consulta_fuso_uma_vez_para_filtros_por_dia(
     servico, banco, consulta, ids_relacionados, monkeypatch, prazo
 ):
     instante = datetime(2026, 10, 23, 15, tzinfo=timezone.utc)
@@ -325,9 +328,10 @@ def test_listar_combina_filtros_e_consulta_fuso_apenas_uma_vez_para_hoje(
         ids_relacionados["fk_casa_id"], estado="atrasada", responsavel=responsavel, prazo=prazo
     )
 
-    assert resultado == ([] if prazo == "sete_dias" else tarefas[:2])
-    assert banco.table.call_args_list.count(call("casa")) == (1 if prazo == "hoje" else 0)
-    assert consulta.execute.call_count == (2 if prazo == "hoje" else 1)
+    assert resultado == ([] if prazo == "antigas" else tarefas[:2])
+    usa_fuso = prazo in ("hoje", "sete_dias", "antigas")
+    assert banco.table.call_args_list.count(call("casa")) == int(usa_fuso)
+    assert consulta.execute.call_count == (2 if usa_fuso else 1)
 
 
 def test_atualizar_tarefa_envia_apenas_campos_informados(
@@ -1242,3 +1246,51 @@ def test_encerramento_na_leitura_so_notifica_quando_esta_execucao_altera_estado(
     servico._buscar_tarefa_bruta = MagicMock(return_value=encerrada)
     assert servico._sincronizar_estado_por_atraso(expirada) == encerrada
     assert servico.notificacoes.tarefas_fundo.tasks == []
+
+
+@pytest.mark.parametrize("fuso", ["America/Sao_Paulo", "Asia/Tokyo", "America/New_York"])
+@pytest.mark.parametrize("prazo,indices", [
+    ("antigas", [0, 1]),
+    ("hoje", [2, 3]),
+    ("sete_dias", [2, 3, 4]),
+    ("todos", [0, 1, 2, 3, 4, 5]),
+])
+def test_listar_prazos_por_dias_completos_no_fuso_da_casa(
+    servico, consulta, ids_relacionados, monkeypatch, fuso, prazo, indices
+):
+    from zoneinfo import ZoneInfo
+
+    inicio = datetime(2026, 11, 1, tzinfo=ZoneInfo(fuso))
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return (inicio + timedelta(hours=12)).astimezone(timezone.utc)
+
+    monkeypatch.setattr("services.tarefa.datetime", Relogio)
+    datas = [
+        inicio - timedelta(microseconds=1),
+        inicio - timedelta(days=2),
+        inicio,
+        inicio + timedelta(days=1, microseconds=-1),
+        inicio + timedelta(days=7, microseconds=-1),
+        inicio + timedelta(days=7),
+    ]
+    tarefas = [
+        {
+            "id": str(indice),
+            "estado_atual": "finalizado" if indice == 0 else "pendente",
+            "data_fim": data.astimezone(timezone.utc).isoformat(),
+            "usuarios_atribuidos": [],
+        }
+        for indice, data in enumerate(datas)
+    ]
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=tarefas),
+        SimpleNamespace(data=[{"timezone": fuso}]),
+    ]
+    servico._montar_resposta = lambda registro: registro
+
+    resultado = servico.listar_tarefas_por_casa(ids_relacionados["fk_casa_id"], prazo=prazo)
+
+    assert resultado == [tarefas[indice] for indice in indices]
