@@ -609,6 +609,7 @@ def test_aviso_de_vencimento_nao_e_enviado_antes_do_inicio_da_tarefa(monkeypatch
 def test_push_inclui_categoria_de_acoes_para_notificacoes_de_prazo(banco, dispositivo, expo):
     usuario = uuid4()
     dispositivo(usuario)
+    expo.side_effect = None
     expo.return_value = resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}]})
 
     ServicoNotificacao(banco).enviar_push(
