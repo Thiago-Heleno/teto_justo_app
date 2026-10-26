@@ -16,10 +16,9 @@ import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
   carregarExtrato,
   carregarPlacar,
-  carregarRanking,
+  carregarUsuarioAtual,
   type Extrato,
   type Placar,
-  type Ranking,
 } from "@/services/tarefas-api";
 import {
   periodosPlacar,
@@ -35,9 +34,11 @@ const dataHora = new Intl.DateTimeFormat("pt-BR", {
 
 export default function PontuacaoScreen() {
   const [placar, setPlacar] = useState<Placar>();
-  const [ranking, setRanking] = useState<Ranking>();
+  const [usuarioId, setUsuarioId] = useState<string>();
   const [extrato, setExtrato] = useState<Extrato>();
   const [periodo, setPeriodo] = useState<PeriodoPlacar>("semanal");
+  const [ajudaAberta, setAjudaAberta] = useState(false);
+  const [movimentacoesVisiveis, setMovimentacoesVisiveis] = useState(5);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string>();
   const [tentativa, setTentativa] = useState(0);
@@ -53,14 +54,14 @@ export default function PontuacaoScreen() {
         .then(() =>
           Promise.all([
             carregarPlacar(controlador.signal),
-            carregarRanking(controlador.signal),
             carregarExtrato(controlador.signal),
+            carregarUsuarioAtual(controlador.signal).catch(() => undefined),
           ]),
         )
-        .then(([dadosPlacar, dadosRanking, dadosExtrato]) => {
+        .then(([dadosPlacar, dadosExtrato, usuario]) => {
           if (controlador.signal.aborted) return;
           setPlacar(dadosPlacar);
-          setRanking(dadosRanking);
+          setUsuarioId(usuario?.id);
           setExtrato(dadosExtrato);
         })
         .catch((falha: unknown) => {
@@ -95,81 +96,29 @@ export default function PontuacaoScreen() {
         ]}
       >
         <View style={styles.content}>
-          <View style={[styles.hero, width < 600 && styles.heroSmall]}>
-            <View
-              style={[styles.heroCopy, width < 600 && styles.heroItemSmall]}
-            >
-              <Text style={styles.eyebrow}>CADA TAREFA CONTA</Text>
-              <Text
-                accessibilityRole="header"
-                style={[styles.title, width < 600 && styles.titleSmall]}
-              >
-                PONTUAÇÃO DA CASA
+          <View style={styles.sectionRow}>
+            <View style={styles.headerCopy}>
+              <Text accessibilityRole="header" style={styles.title}>
+                PONTUAÇÃO
               </Text>
-              <Text style={styles.subtitle}>
-                Acompanhe os pontos e a contribuição de cada morador para a
-                casa.
-              </Text>
-            </View>
-            {resumo && (
-              <View
-                style={[styles.statCard, width < 600 && styles.heroItemSmall]}
-              >
-                <Text style={styles.statLabel}>
-                  TOTAL DA CASA · {rotulo.toUpperCase()}
-                </Text>
-                <Text style={styles.statValue}>
-                  {numero.format(resumo.total)}
-                </Text>
-                <Text style={styles.statLabel}>
-                  pontos de {resumo.moradores.length} moradores
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.sectionRow}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>
-                PERÍODO
-              </Text>
-              <MotionPressable
-                accessibilityRole="button"
-                accessibilityState={{ disabled: carregando }}
-                disabled={carregando}
-                onPress={() => setTentativa((valor) => valor + 1)}
-                style={styles.action}
-              >
+              {resumo && (
                 <Text style={styles.body}>
-                  {carregando ? "Atualizando…" : "Atualizar"}
+                  Total da casa: {numero.format(resumo.total)} pts ·{" "}
+                  {rotulo.toLowerCase()}
                 </Text>
-              </MotionPressable>
+              )}
             </View>
-            <View style={styles.pills}>
-              {periodosPlacar.map((opcao) => (
-                <MotionPressable
-                  key={opcao.valor}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: periodo === opcao.valor }}
-                  onPress={() => setPeriodo(opcao.valor)}
-                  style={[
-                    styles.pill,
-                    periodo === opcao.valor && styles.pillSelected,
-                  ]}
-                >
-                  <Text style={styles.body}>{opcao.rotulo}</Text>
-                </MotionPressable>
-              ))}
-            </View>
-            <Text style={styles.caption}>
-              Semana, mês e ano atuais. O acumulado representa o saldo total de
-              cada morador.
-            </Text>
-            {placar && (
-              <Text style={styles.caption}>
-                Períodos calculados no fuso {placar.fuso_horario}.
+            <MotionPressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: carregando, busy: carregando }}
+              disabled={carregando}
+              onPress={() => setTentativa((valor) => valor + 1)}
+              style={styles.action}
+            >
+              <Text style={styles.body}>
+                {carregando ? "Atualizando…" : "Atualizar"}
               </Text>
-            )}
+            </MotionPressable>
           </View>
 
           {carregando && (
@@ -201,20 +150,58 @@ export default function PontuacaoScreen() {
 
           {resumo && (
             <View style={styles.card}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>
-                CLASSIFICAÇÃO
-              </Text>
-              <Text style={styles.caption}>
-                Maior pontuação primeiro. Pontuações iguais compartilham a mesma
-                posição.
-              </Text>
+              <View style={styles.sectionRow}>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>
+                  PLACAR DA CASA
+                </Text>
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: ajudaAberta }}
+                  onPress={() => setAjudaAberta((aberta) => !aberta)}
+                  style={styles.helpAction}
+                >
+                  <Text style={styles.caption}>Como funciona</Text>
+                </MotionPressable>
+              </View>
+              {ajudaAberta && (
+                <Text style={styles.caption}>
+                  Semana, mês e ano atuais, no fuso {placar?.fuso_horario}. O
+                  acumulado soma todo o histórico, incluindo estornos por
+                  reabertura. A maior pontuação aparece primeiro e empates
+                  compartilham a mesma posição. O período altera apenas o placar
+                  e o total da casa.
+                </Text>
+              )}
+              <View style={styles.pills}>
+                {periodosPlacar.map((opcao) => (
+                  <MotionPressable
+                    key={opcao.valor}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: periodo === opcao.valor }}
+                    onPress={() => setPeriodo(opcao.valor)}
+                    style={[
+                      styles.pill,
+                      periodo === opcao.valor && styles.pillSelected,
+                    ]}
+                  >
+                    <Text style={styles.body}>{opcao.rotulo}</Text>
+                  </MotionPressable>
+                ))}
+              </View>
               {resumo.moradores.length === 0 ? (
                 <Text style={styles.body}>
                   Ainda não há moradores no placar desta casa.
                 </Text>
               ) : (
                 resumo.moradores.map((morador) => (
-                  <View key={morador.usuario_id} style={styles.resident}>
+                  <View
+                    key={morador.usuario_id}
+                    style={[
+                      styles.resident,
+                      morador.usuario_id === usuarioId &&
+                        styles.residentCurrent,
+                    ]}
+                  >
                     <View
                       style={[
                         styles.position,
@@ -223,109 +210,75 @@ export default function PontuacaoScreen() {
                     >
                       <Text style={styles.body}>{morador.posicao}º</Text>
                     </View>
-                    <View style={styles.residentCopy}>
-                      <Text style={styles.name}>{morador.nome}</Text>
-                      <Text style={styles.caption}>
-                        Saldo acumulado: {numero.format(morador.acumulado)} pts
-                      </Text>
-                    </View>
-                    <View style={styles.pointsBlock}>
-                      <Text style={styles.points}>
-                        {numero.format(morador.pontos)}
-                      </Text>
-                      <Text style={styles.caption}>
-                        pontos · {rotulo.toLowerCase()}
-                      </Text>
-                    </View>
+                    <Text style={[styles.name, styles.residentName]}>
+                      {morador.nome}
+                      {morador.usuario_id === usuarioId ? " · Você" : ""}
+                    </Text>
+                    <Text style={styles.points}>
+                      {numero.format(morador.pontos)}{" "}
+                      <Text style={styles.caption}>pts</Text>
+                    </Text>
                   </View>
                 ))
               )}
             </View>
           )}
 
-          {ranking && (
-            <View style={styles.card}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>
-                RANKING GERAL
-              </Text>
-              <Text style={styles.caption}>
-                Pontos de todo o histórico da casa, já descontadas as tarefas
-                reabertas.
-              </Text>
-              {ranking.moradores.map((morador) => (
-                <View key={morador.usuario_id} style={styles.eventRow}>
-                  <Text style={styles.name}>
-                    {morador.posicao}º {morador.nome}
-                  </Text>
-                  <Text style={styles.name}>
-                    {numero.format(morador.pontos)} pts
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {placar && (
-            <View style={styles.card}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>
-                PLACAR DA CASA
-              </Text>
-              <Text style={styles.caption}>
-                Períodos no fuso {placar.fuso_horario}
-              </Text>
-              <View style={styles.placarGrid}>
-                {placar.moradores.map((morador) => (
-                  <View key={morador.usuario_id} style={styles.placarMorador}>
-                    <Text style={styles.placarNome}>{morador.nome}</Text>
-                    <Text style={styles.body}>Semana: {morador.semanal}</Text>
-                    <Text style={styles.body}>Mês: {morador.mensal}</Text>
-                    <Text style={styles.body}>Ano: {morador.anual}</Text>
-                    <Text style={styles.body}>Total: {morador.acumulado}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
           {extrato && (
             <View style={styles.card}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>
-                EXTRATO
+                MOVIMENTAÇÕES RECENTES
               </Text>
               {extrato.eventos.length === 0 ? (
                 <Text style={styles.body}>
                   Ainda não há movimentações de pontos nesta casa.
                 </Text>
               ) : (
-                extrato.eventos.map((evento) => {
-                  const nome = placar?.moradores.find(
-                    (morador) => morador.usuario_id === evento.fk_usuario_id,
-                  )?.nome;
-                  return (
-                    <View key={evento.id} style={styles.eventRow}>
-                      <View style={styles.residentCopy}>
+                extrato.eventos
+                  .slice(0, movimentacoesVisiveis)
+                  .map((evento) => {
+                    const nome = placar?.moradores.find(
+                      (morador) => morador.usuario_id === evento.fk_usuario_id,
+                    )?.nome;
+                    return (
+                      <View key={evento.id} style={styles.eventRow}>
+                        <View style={styles.residentCopy}>
+                          <Text style={styles.name}>
+                            {evento.tipo === "reversal"
+                              ? "Estorno por reabertura"
+                              : "Tarefa concluída"}
+                            {nome ? ` · ${nome}` : ""}
+                          </Text>
+                          <Text style={styles.caption}>
+                            {dataHora.format(new Date(evento.criado_em))}
+                          </Text>
+                        </View>
                         <Text style={styles.name}>
-                          {evento.tipo === "reversal"
-                            ? "Estorno por reabertura"
-                            : "Tarefa concluída"}
-                          {nome ? ` · ${nome}` : ""}
-                        </Text>
-                        <Text style={styles.caption}>
-                          {dataHora.format(new Date(evento.criado_em))}
+                          {evento.pontuacao > 0 ? "+" : ""}
+                          {numero.format(evento.pontuacao)} pts
                         </Text>
                       </View>
-                      <Text style={styles.name}>
-                        {evento.pontuacao > 0 ? "+" : ""}
-                        {numero.format(evento.pontuacao)} pts
-                      </Text>
-                    </View>
-                  );
-                })
+                    );
+                  })
               )}
-              {extrato.total > extrato.eventos.length && (
-                <Text style={styles.caption}>
-                  Mostrando as {extrato.eventos.length} movimentações mais
-                  recentes de {extrato.total}.
+              {extrato.eventos.length > movimentacoesVisiveis && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver mais movimentações"
+                  onPress={() =>
+                    setMovimentacoesVisiveis((quantidade) => quantidade + 5)
+                  }
+                  style={styles.action}
+                >
+                  <Text style={styles.body}>Ver mais</Text>
+                </MotionPressable>
+              )}
+              {extrato.total >
+                Math.min(movimentacoesVisiveis, extrato.eventos.length) && (
+                <Text style={styles.caption} accessibilityLiveRegion="polite">
+                  Mostrando as{" "}
+                  {Math.min(movimentacoesVisiveis, extrato.eventos.length)}{" "}
+                  movimentações mais recentes de {extrato.total}.
                 </Text>
               )}
             </View>
@@ -345,69 +298,26 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.six,
   },
   pageSmallWeb: { paddingTop: 160, paddingHorizontal: Spacing.three },
-  content: { width: "100%", maxWidth: 1280, alignSelf: "center", gap: 32 },
-  hero: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
-  heroSmall: { flexDirection: "column", flexWrap: "nowrap" },
-  heroItemSmall: { flexBasis: "auto", flexGrow: 0, flexShrink: 0 },
-  heroCopy: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 320,
-    justifyContent: "center",
-    gap: Spacing.three,
+  content: {
+    width: "100%",
+    maxWidth: 1280,
+    alignSelf: "center",
+    gap: Spacing.four,
   },
-  eyebrow: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
+  headerCopy: { flexShrink: 1, gap: Spacing.two },
   title: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
-    fontSize: 64,
-    lineHeight: 64,
-    letterSpacing: 1.28,
-  },
-  titleSmall: { fontSize: 48, lineHeight: 50, letterSpacing: 0.96 },
-  subtitle: {
-    color: Caldera.obsidian,
-    fontSize: 18,
-    lineHeight: 28,
-    fontWeight: "500",
-    maxWidth: 620,
-  },
-  statCard: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 240,
-    borderRadius: 40,
-    backgroundColor: Caldera.ember,
-    padding: Spacing.five,
-    justifyContent: "space-between",
-    gap: Spacing.three,
-  },
-  statLabel: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
-  statValue: {
-    color: Caldera.obsidian,
-    fontFamily: CompactFont,
-    fontSize: 80,
-    lineHeight: 88,
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: 0.8,
   },
   card: {
     backgroundColor: Caldera.limestone,
-    borderRadius: 40,
-    padding: Spacing.four,
+    borderRadius: 24,
+    padding: Spacing.three,
     gap: Spacing.three,
   },
-  placarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
-  placarMorador: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 180,
-    minWidth: 0,
-    maxWidth: "100%",
-    gap: 6,
-    padding: Spacing.three,
-    backgroundColor: Caldera.pumice,
-    borderRadius: 20,
-  },
-  placarNome: { color: Caldera.obsidian, fontSize: 18, fontWeight: "600" },
   sectionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -418,9 +328,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
-    fontSize: 32,
-    lineHeight: 36,
-    letterSpacing: 0.64,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: 0.56,
   },
   body: {
     color: Caldera.obsidian,
@@ -441,6 +351,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: 12,
   },
+  helpAction: { minHeight: 44, justifyContent: "center" },
   pills: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   pill: {
     borderRadius: 800,
@@ -453,16 +364,19 @@ const styles = StyleSheet.create({
   notice: { flexDirection: "row", alignItems: "center", gap: Spacing.three },
   resident: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
-    gap: Spacing.three,
+    gap: Spacing.two,
     backgroundColor: Caldera.pumice,
-    borderRadius: 40,
-    padding: Spacing.four,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "transparent",
+    padding: Spacing.three,
   },
+  residentCurrent: { borderColor: Caldera.obsidian },
+  residentName: { flex: 1, minWidth: 0 },
   position: {
-    width: 48,
-    height: 48,
+    width: 36,
+    height: 36,
     borderRadius: 800,
     backgroundColor: Caldera.limestone,
     alignItems: "center",
@@ -486,11 +400,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: Spacing.three,
   },
-  pointsBlock: { gap: 4 },
   points: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
-    fontSize: 40,
-    lineHeight: 44,
+    fontSize: 28,
+    lineHeight: 32,
   },
 });
