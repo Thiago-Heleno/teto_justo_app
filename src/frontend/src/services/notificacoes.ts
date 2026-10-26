@@ -11,8 +11,7 @@ import type { Tarefa } from "./tarefas-api.ts";
 
 const CHAVE_TOKEN_PUSH = "teto_justo_push_token";
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function notificacoesAtivas() {
   if (Platform.OS === "web") return false;
@@ -44,26 +43,18 @@ export async function ativarNotificacoes() {
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
 
   if (!projectId) {
-    throw new Error(
-      "Projeto Expo não configurado para notificações."
-    );
+    throw new Error("Projeto Expo não configurado para notificações.");
   }
 
-  const token = (
-    await Notifications.getExpoPushTokenAsync({ projectId })
-  ).data;
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 
   const anterior = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
 
   if (anterior && anterior !== token) {
-    await requisitar<void>(
-      "/usuarios/eu/dispositivos",
-      undefined,
-      {
-        method: "DELETE",
-        body: { token: anterior },
-      }
-    );
+    await requisitar<void>("/usuarios/eu/dispositivos", undefined, {
+      method: "DELETE",
+      body: { token: anterior },
+    });
   }
 
   await requisitar("/usuarios/eu/dispositivos", undefined, {
@@ -86,14 +77,10 @@ export async function removerNotificacoesDoDispositivo() {
 
   if (!token) return;
 
-  await requisitar<void>(
-    "/usuarios/eu/dispositivos",
-    undefined,
-    {
-      method: "DELETE",
-      body: { token },
-    }
-  );
+  await requisitar<void>("/usuarios/eu/dispositivos", undefined, {
+    method: "DELETE",
+    body: { token },
+  });
 
   await SecureStore.deleteItemAsync(CHAVE_TOKEN_PUSH);
 }
@@ -103,10 +90,7 @@ export async function abrirTarefaNotificada(
   tokenDaSessao: string,
   acao = Notifications.DEFAULT_ACTION_IDENTIFIER,
 ) {
-  const tarefaId =
-    typeof dados.tarefa_id === "string"
-      ? dados.tarefa_id
-      : "";
+  const tarefaId = typeof dados.tarefa_id === "string" ? dados.tarefa_id : "";
 
   const casaId = dados.casa_id;
 
@@ -139,9 +123,7 @@ export async function abrirTarefaNotificada(
   }
 
   try {
-    const tarefa = await requisitar<Tarefa>(
-      `/tarefas/${tarefaId}`
-    );
+    const tarefa = await requisitar<Tarefa>(`/tarefas/${tarefaId}`);
 
     if (
       tarefa.fk_casa_id !== casaId ||
@@ -153,19 +135,12 @@ export async function abrirTarefaNotificada(
     // Conclui a tarefa quando essa ação for selecionada.
     if (
       acao === "concluir_tarefa" &&
-      (
-        dados.tipo === "tarefa_vence_hoje" ||
-        dados.tipo === "tarefa_atrasada"
-      )
+      (dados.tipo === "tarefa_vence_hoje" || dados.tipo === "tarefa_atrasada")
     ) {
       try {
-        await requisitar<Tarefa>(
-          `/tarefas/${tarefaId}/conclusoes`,
-          undefined,
-          {
-            method: "POST",
-          }
-        );
+        await requisitar<Tarefa>(`/tarefas/${tarefaId}/conclusoes`, undefined, {
+          method: "POST",
+        });
       } catch {
         // Se a conclusão falhar, permite abrir a tarefa
         // para que o usuário confira seu estado.

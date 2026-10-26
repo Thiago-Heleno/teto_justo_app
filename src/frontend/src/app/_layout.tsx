@@ -76,8 +76,7 @@ export default function RootLayout() {
     let montado = true;
 
     async function abrir(response: Notifications.NotificationResponse) {
-      const identificador =
-        `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      const identificador = `${response.notification.request.identifier}:${response.actionIdentifier}`;
       if (ultimaResposta.current === identificador) return;
       ultimaResposta.current = identificador;
       try {
