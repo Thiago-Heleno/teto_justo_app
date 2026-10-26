@@ -11,7 +11,7 @@ from services.score import ServicoScore
 from services.notificacao import ServicoNotificacao
 
 _ESTADOS_FINAIS = ("finalizado", "nao_feito")
-_FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "atrasadas")
+_FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "antigas", "atrasadas")
 _MAX_TENTATIVAS_CAS = 5
 
 
@@ -267,11 +267,16 @@ class ServicoTarefa:
         if filtro_prazo == "atrasadas":
             return data_fim < agora and tarefa["estado_atual"] != "finalizado"
 
+        dia_prazo = data_fim.astimezone(fuso).date()
+        hoje = agora.astimezone(fuso).date()
+        if filtro_prazo == "antigas":
+            return dia_prazo < hoje
+
         if filtro_prazo == "hoje":
-            return data_fim.astimezone(fuso).date() == agora.astimezone(fuso).date()
+            return dia_prazo == hoje
 
         if filtro_prazo == "sete_dias":
-            return agora <= data_fim <= agora + timedelta(days=7)
+            return hoje <= dia_prazo <= hoje + timedelta(days=6)
 
         return False
 
@@ -296,7 +301,10 @@ class ServicoTarefa:
         )
         tarefas = []
         agora = datetime.now(timezone.utc)
-        fuso = self._fuso_casa(id_casa) if prazo == "hoje" else None
+        fuso = (
+            self._fuso_casa(id_casa)
+            if prazo in ("antigas", "hoje", "sete_dias") else None
+        )
         for tarefa in resposta.data:
             tarefa_resposta = self._montar_resposta(tarefa)
             if (

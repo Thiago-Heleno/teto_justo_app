@@ -1,6 +1,6 @@
 import type { EstadoTarefa } from "@/constants/tarefa";
 
-export type FiltroPrazo = "todos" | "hoje" | "sete_dias" | "atrasadas";
+export type FiltroPrazo = "todos" | "hoje" | "sete_dias" | "antigas";
 
 type TarefaFiltravel = {
   estado_atual: EstadoTarefa;
@@ -19,11 +19,14 @@ export function filtrarTarefas<T extends TarefaFiltravel>(
   filtros: FiltrosTarefa,
   agora = new Date(),
 ) {
+  const inicioDeHoje = new Date(agora);
+  inicioDeHoje.setHours(0, 0, 0, 0);
+
   const fimDeHoje = new Date(agora);
   fimDeHoje.setHours(23, 59, 59, 999);
 
-  const fimDeSeteDias = new Date(agora);
-  fimDeSeteDias.setDate(fimDeSeteDias.getDate() + 7);
+  const fimDeSeteDias = new Date(fimDeHoje);
+  fimDeSeteDias.setDate(fimDeSeteDias.getDate() + 6);
 
   return tarefas.filter((tarefa) => {
     const prazo = new Date(tarefa.data_fim);
@@ -35,13 +38,13 @@ export function filtrarTarefas<T extends TarefaFiltravel>(
 
     const correspondePrazo =
       filtros.prazo === "todos" ||
-      (filtros.prazo === "hoje" && prazo >= agora && prazo <= fimDeHoje) ||
+      (filtros.prazo === "hoje" &&
+        prazo >= inicioDeHoje &&
+        prazo <= fimDeHoje) ||
       (filtros.prazo === "sete_dias" &&
-        prazo >= agora &&
+        prazo >= inicioDeHoje &&
         prazo <= fimDeSeteDias) ||
-      (filtros.prazo === "atrasadas" &&
-        prazo < agora &&
-        tarefa.estado_atual !== "finalizado");
+      (filtros.prazo === "antigas" && prazo < inicioDeHoje);
 
     return correspondeEstado && correspondeResponsavel && correspondePrazo;
   });

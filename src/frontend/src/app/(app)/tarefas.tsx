@@ -90,10 +90,10 @@ function FilterPill({ label, selected, onPress }: FilterPillProps) {
 }
 
 const opcoesPrazo: { valor: FiltroPrazo; rotulo: string }[] = [
-  { valor: "todos", rotulo: "Qualquer prazo" },
+  { valor: "antigas", rotulo: "Antigas" },
   { valor: "hoje", rotulo: "Hoje" },
   { valor: "sete_dias", rotulo: "Próximos 7 dias" },
-  { valor: "atrasadas", rotulo: "Prazo vencido" },
+  { valor: "todos", rotulo: "Todas" },
 ];
 
 function iniciais(nome: string) {
@@ -137,7 +137,7 @@ export default function TarefasScreen() {
   const [filtros, setFiltros] = useState<FiltrosTarefa>({
     estado: "todos",
     responsavel: "todos",
-    prazo: "todos",
+    prazo: "sete_dias",
   });
   const [tarefaSelecionadaId, setTarefaSelecionadaId] = useState<string>();
   const [selecaoCalendario, setSelecaoCalendario] = useState<{
@@ -185,19 +185,13 @@ export default function TarefasScreen() {
 
   useEffect(() => {
     if (!contextoAtual || !todasTarefas || typeof abrir !== "string") return;
-    if (filtrosAtivos) {
-      // A navegação por push precisa mostrar a tarefa fora dos filtros anteriores.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFiltros({ estado: "todos", responsavel: "todos", prazo: "todos" });
-      return;
-    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTarefaSelecionadaId(
       todasTarefas.some((tarefa) => tarefa.id === abrir) ? abrir : undefined,
     );
     setEditando(false);
     router.setParams({ abrir: undefined });
-  }, [abrir, contextoAtual, filtrosAtivos, todasTarefas]);
+  }, [abrir, contextoAtual, todasTarefas]);
 
   useFocusEffect(
     useCallback(() => {
