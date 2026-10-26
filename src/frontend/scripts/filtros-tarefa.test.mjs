@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { filtrarTarefas, formatarPrazo } from "../src/utils/filtros-tarefa.ts";
+import {
+  filtrarTarefas,
+  formatarPrazo,
+  ordenarTarefas,
+} from "../src/utils/filtros-tarefa.ts";
 
 const agora = new Date("2026-09-20T12:00:00-03:00");
 const tarefas = [
@@ -40,7 +44,7 @@ test("combina filtros de status, responsável e prazo", () => {
       { estado: "todos", responsavel: "todos", prazo: "sete_dias" },
       agora,
     ).map(({ id }) => id),
-    ["hoje", "semana"],
+    ["hoje", "semana", "atrasada"],
   );
   assert.deepEqual(
     filtrarTarefas(
@@ -90,6 +94,110 @@ for (const [prazo, esperadas] of [
         new Date("2026-11-01T12:00:00"),
       ).map(({ id }) => id),
       esperadas,
+    );
+  });
+}
+
+const tarefasPorPeriodo = [
+  ["semana", "pendente", "2026-11-05T12:00:00"],
+  ["finalizada-antiga", "finalizado", "2026-10-20T12:00:00"],
+  ["pendente-antiga", "pendente", "2026-10-22T12:00:00"],
+  ["atrasada-recente", "atrasada", "2026-10-31T12:00:00"],
+  ["nao-feita-antiga", "nao_feito", "2026-10-21T12:00:00"],
+  ["finalizada-hoje", "finalizado", "2026-11-01T08:00:00"],
+  ["pendente-hoje", "pendente", "2026-11-01T18:00:00"],
+  ["atrasada-antiga", "atrasada", "2026-10-23T12:00:00"],
+  ["futura", "pendente", "2026-11-08T12:00:00"],
+].map(([id, estado_atual, data_fim]) => ({
+  id,
+  estado_atual,
+  data_fim,
+  usuarios_atribuidos: ["ana"],
+}));
+
+for (const [prazo, esperadas] of [
+  [
+    "hoje",
+    [
+      "atrasada-antiga",
+      "atrasada-recente",
+      "pendente-antiga",
+      "pendente-hoje",
+      "finalizada-hoje",
+    ],
+  ],
+  [
+    "sete_dias",
+    [
+      "atrasada-antiga",
+      "atrasada-recente",
+      "pendente-antiga",
+      "pendente-hoje",
+      "semana",
+      "finalizada-hoje",
+    ],
+  ],
+  [
+    "antigas",
+    [
+      "finalizada-antiga",
+      "nao-feita-antiga",
+      "pendente-antiga",
+      "atrasada-antiga",
+      "atrasada-recente",
+    ],
+  ],
+  [
+    "todos",
+    [
+      "finalizada-antiga",
+      "nao-feita-antiga",
+      "pendente-antiga",
+      "atrasada-antiga",
+      "atrasada-recente",
+      "finalizada-hoje",
+      "pendente-hoje",
+      "semana",
+      "futura",
+    ],
+  ],
+]) {
+  test(`${prazo} inclui e ordena tarefas conforme a prioridade do periodo`, () => {
+    const filtradas = filtrarTarefas(
+      tarefasPorPeriodo,
+      { estado: "todos", responsavel: "todos", prazo },
+      new Date("2026-11-01T12:00:00"),
+    );
+    const original = structuredClone(filtradas);
+    assert.deepEqual(
+      ordenarTarefas(filtradas, prazo).map(({ id }) => id),
+      esperadas,
+    );
+    assert.deepEqual(filtradas, original);
+  });
+}
+
+for (const prazo of ["hoje", "sete_dias"]) {
+  test(`${prazo} respeita status e responsavel ao incluir pendencias antigas`, () => {
+    const tarefas = [
+      ...tarefasPorPeriodo,
+      {
+        id: "outra-pessoa",
+        estado_atual: "pendente",
+        data_fim: "2026-10-21T12:00:00",
+        usuarios_atribuidos: ["bruno"],
+      },
+    ];
+    const filtradas = filtrarTarefas(
+      tarefas,
+      { estado: "pendente", responsavel: "ana", prazo },
+      new Date("2026-11-01T12:00:00"),
+    );
+    assert.deepEqual(
+      ordenarTarefas(filtradas, prazo).map(({ id }) => id),
+      prazo === "hoje"
+        ? ["pendente-antiga", "pendente-hoje"]
+        : ["pendente-antiga", "pendente-hoje", "semana"],
     );
   });
 }

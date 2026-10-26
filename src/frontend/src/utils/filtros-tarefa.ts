@@ -36,18 +36,41 @@ export function filtrarTarefas<T extends TarefaFiltravel>(
       filtros.responsavel === "todos" ||
       tarefa.usuarios_atribuidos.includes(filtros.responsavel);
 
+    const pendenciaAnterior =
+      prazo < inicioDeHoje &&
+      (tarefa.estado_atual === "pendente" ||
+        tarefa.estado_atual === "atrasada");
     const correspondePrazo =
       filtros.prazo === "todos" ||
       (filtros.prazo === "hoje" &&
-        prazo >= inicioDeHoje &&
+        (prazo >= inicioDeHoje || pendenciaAnterior) &&
         prazo <= fimDeHoje) ||
       (filtros.prazo === "sete_dias" &&
-        prazo >= inicioDeHoje &&
+        (prazo >= inicioDeHoje || pendenciaAnterior) &&
         prazo <= fimDeSeteDias) ||
       (filtros.prazo === "antigas" && prazo < inicioDeHoje);
 
     return correspondeEstado && correspondeResponsavel && correspondePrazo;
   });
+}
+
+export function ordenarTarefas<
+  T extends Pick<TarefaFiltravel, "estado_atual" | "data_fim">,
+>(tarefas: T[], prazo: FiltroPrazo): T[] {
+  const priorizarAbertas = prazo === "hoje" || prazo === "sete_dias";
+  const prioridade: Record<EstadoTarefa, number> = {
+    atrasada: 0,
+    pendente: 1,
+    finalizado: 2,
+    nao_feito: 2,
+  };
+
+  return [...tarefas].sort(
+    (a, b) =>
+      (priorizarAbertas
+        ? prioridade[a.estado_atual] - prioridade[b.estado_atual]
+        : 0) || new Date(a.data_fim).getTime() - new Date(b.data_fim).getTime(),
+  );
 }
 
 export function formatarPrazo(data: string, dataFixa?: string | null) {

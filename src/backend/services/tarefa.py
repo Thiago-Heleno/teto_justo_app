@@ -272,6 +272,13 @@ class ServicoTarefa:
         if filtro_prazo == "antigas":
             return dia_prazo < hoje
 
+        if (
+            filtro_prazo in ("hoje", "sete_dias")
+            and dia_prazo < hoje
+            and tarefa["estado_atual"] in ("pendente", "atrasada")
+        ):
+            return True
+
         if filtro_prazo == "hoje":
             return dia_prazo == hoje
 

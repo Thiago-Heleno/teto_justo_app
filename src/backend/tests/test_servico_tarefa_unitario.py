@@ -277,7 +277,7 @@ def test_listar_hoje_considera_dia_inteiro_no_fuso_atual_da_casa(
     monkeypatch.setattr("services.tarefa.datetime", Relogio)
     tarefa = {
         "id": "tarefa",
-        "estado_atual": "atrasada",
+        "estado_atual": "finalizado",
         "data_fim": data_fim,
         "timezone": "UTC",
         "usuarios_atribuidos": [],
@@ -293,9 +293,10 @@ def test_listar_hoje_considera_dia_inteiro_no_fuso_atual_da_casa(
     assert resultado == ([tarefa] if incluida else [])
 
 
+@pytest.mark.parametrize("data_fim", ["2026-10-23T11:00:00Z", "2026-10-22T11:00:00Z"])
 @pytest.mark.parametrize("prazo", [None, "todos", "hoje", "sete_dias", "antigas", "atrasadas"])
 def test_listar_combina_filtros_e_consulta_fuso_uma_vez_para_filtros_por_dia(
-    servico, banco, consulta, ids_relacionados, monkeypatch, prazo
+    servico, banco, consulta, ids_relacionados, monkeypatch, prazo, data_fim
 ):
     instante = datetime(2026, 10, 23, 15, tzinfo=timezone.utc)
 
@@ -309,7 +310,7 @@ def test_listar_combina_filtros_e_consulta_fuso_uma_vez_para_filtros_por_dia(
     tarefa = {
         "id": "selecionada",
         "estado_atual": "atrasada",
-        "data_fim": "2026-10-23T11:00:00Z",
+        "data_fim": data_fim,
         "usuarios_atribuidos": [str(responsavel)],
     }
     tarefas = [
@@ -328,7 +329,9 @@ def test_listar_combina_filtros_e_consulta_fuso_uma_vez_para_filtros_por_dia(
         ids_relacionados["fk_casa_id"], estado="atrasada", responsavel=responsavel, prazo=prazo
     )
 
-    assert resultado == ([] if prazo == "antigas" else tarefas[:2])
+    assert resultado == (
+        [] if prazo == "antigas" and data_fim.startswith("2026-10-23") else tarefas[:2]
+    )
     usa_fuso = prazo in ("hoje", "sete_dias", "antigas")
     assert banco.table.call_args_list.count(call("casa")) == int(usa_fuso)
     assert consulta.execute.call_count == (2 if usa_fuso else 1)
@@ -1250,10 +1253,10 @@ def test_encerramento_na_leitura_so_notifica_quando_esta_execucao_altera_estado(
 
 @pytest.mark.parametrize("fuso", ["America/Sao_Paulo", "Asia/Tokyo", "America/New_York"])
 @pytest.mark.parametrize("prazo,indices", [
-    ("antigas", [0, 1]),
-    ("hoje", [2, 3]),
-    ("sete_dias", [2, 3, 4]),
-    ("todos", [0, 1, 2, 3, 4, 5]),
+    ("antigas", [0, 1, 6, 7]),
+    ("hoje", [1, 2, 3, 6]),
+    ("sete_dias", [1, 2, 3, 4, 6]),
+    ("todos", [0, 1, 2, 3, 4, 5, 6, 7]),
 ])
 def test_listar_prazos_por_dias_completos_no_fuso_da_casa(
     servico, consulta, ids_relacionados, monkeypatch, fuso, prazo, indices
@@ -1275,11 +1278,15 @@ def test_listar_prazos_por_dias_completos_no_fuso_da_casa(
         inicio + timedelta(days=1, microseconds=-1),
         inicio + timedelta(days=7, microseconds=-1),
         inicio + timedelta(days=7),
+        inicio - timedelta(days=1),
+        inicio - timedelta(days=3),
     ]
     tarefas = [
         {
             "id": str(indice),
-            "estado_atual": "finalizado" if indice == 0 else "pendente",
+            "estado_atual": {0: "finalizado", 6: "atrasada", 7: "nao_feito"}.get(
+                indice, "pendente"
+            ),
             "data_fim": data.astimezone(timezone.utc).isoformat(),
             "usuarios_atribuidos": [],
         }

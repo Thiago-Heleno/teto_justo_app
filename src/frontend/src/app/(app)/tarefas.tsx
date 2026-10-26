@@ -48,6 +48,7 @@ import {
 import { dataNoFuso } from "@/utils/calendario-tarefas";
 import {
   formatarPrazo,
+  ordenarTarefas,
   type FiltrosTarefa,
   type FiltroPrazo,
 } from "@/utils/filtros-tarefa";
@@ -390,9 +391,7 @@ export default function TarefasScreen() {
   }
 
   const chaveCalendario = `${casa.id}-${casa.timezone}-${usuarioAtual.id}`;
-  const tarefasFiltradas = [...(tarefas ?? [])].sort(
-    (a, b) => new Date(a.data_fim).getTime() - new Date(b.data_fim).getTime(),
-  );
+  const tarefasFiltradas = ordenarTarefas(tarefas ?? [], prazo);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
