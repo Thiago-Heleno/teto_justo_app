@@ -250,7 +250,8 @@ export default function PontuacaoScreen() {
                             {nome ? ` · ${nome}` : ""}
                           </Text>
                           <Text style={styles.body} numberOfLines={2}>
-                            {evento.nome_tarefa?.trim() || "Tarefa sem nome disponível"}
+                            {evento.nome_tarefa?.trim() ||
+                              "Tarefa sem nome disponível"}
                           </Text>
                           <Text style={styles.caption}>
                             {dataHora.format(new Date(evento.criado_em))}

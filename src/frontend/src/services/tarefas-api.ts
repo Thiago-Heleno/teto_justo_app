@@ -1,4 +1,3 @@
-
 import { requisitar } from "./api.ts";
 import { listarMoradoresCasa, type MoradorCasa } from "./casas-api.ts";
 import { sessao } from "./sessao-store.ts";
