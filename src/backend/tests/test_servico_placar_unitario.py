@@ -381,7 +381,7 @@ def test_extrato_filtra_usuario_e_casa_e_pagina_em_ordem_estavel():
         casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id, inicio=4, limite=2)
     )
 
-    assert primeira["eventos"] == [{**eventos[2], "nome_tarefa": None}, 
+    assert primeira["eventos"] == [{**eventos[2], "nome_tarefa": None},
                                    {**eventos[1], "nome_tarefa": None}]
     assert segunda["eventos"] == [{**eventos[0], "nome_tarefa": None}]
     assert esgotada["eventos"] == []
