@@ -4,7 +4,8 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "release"
     }
   }
 }
