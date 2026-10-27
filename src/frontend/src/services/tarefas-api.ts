@@ -1,3 +1,4 @@
+
 import { requisitar } from "./api.ts";
 import { listarMoradoresCasa, type MoradorCasa } from "./casas-api.ts";
 import { sessao } from "./sessao-store.ts";
@@ -82,6 +83,7 @@ export type EventoExtrato = {
   id: string;
   fk_usuario_id: string;
   fk_tarefa_id: string;
+  nome_tarefa?: string | null;
   pontuacao: number;
   tipo: "credito" | "reversal";
   criado_em: string;
