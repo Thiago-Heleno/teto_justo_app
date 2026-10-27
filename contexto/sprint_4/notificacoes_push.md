@@ -7,8 +7,9 @@ push em um APK, siga [Configuração FCM pelo GitHub Actions](#configuração-fc
 
 Cadastrar dispositivos e emitir avisos normais de atribuição, mudança de prazo
 ou responsável, início próximo, rodízio e encerramento do prazo de execução.
-O aviso existente de vencimento nas próximas 25 horas é preservado. O app
-Android permite ativação no perfil e abre a tarefa ou a lista ao tocar no aviso.
+O app Android permite ativação no perfil e abre a tarefa ou a lista ao tocar
+no aviso. Os lembretes de vencimento no dia e de atraso ainda tolerado oferecem
+as ações Concluir e Ver tarefa.
 
 - `docs/migrations/29.sql`: tabela `dispositivo_push`, UUID automático, FK para
   usuário com exclusão em cascata, token único, plataforma Android/iOS,
@@ -70,13 +71,22 @@ diferentes e respostas malformadas preservam o cadastro. A limpeza também
 confere o usuário, preservando um token reassociado a outra conta durante o
 envio.
 
-O cron consulta tarefas `pendente` ou `atrasada` cujo `data_fim` está entre o
-instante da execução e as próximas 25 horas. Busca os responsáveis em
-`atribuida`, marca `aviso_enviado_em` com comparação atômica de estado, prazo e
-marcação nula, então envia uma mensagem genérica com `tarefa_id` e `casa_id`.
-Repetir o job não duplica o aviso. Mudar o vencimento ou os responsáveis limpa a
-marcação para permitir novo aviso. A marcação é feita antes do envio: uma falha
-posterior pode perder o aviso, mas não cria duplicatas.
+O cron busca tarefas `pendente` ou `atrasada` com vencimento futuro nas próximas
+36 horas e filtra pelo dia atual no fuso da casa. Não avisa tarefas cujo início
+ainda está no futuro. Para as vencidas, avisa quando os dias de atraso calculados
+pelo serviço de score estão entre 1 e `atraso_maximo`, inclusive. Busca os
+responsáveis em `atribuida` e reserva separadamente `aviso_enviado_em` ou
+`aviso_atraso_enviado_em`, comparando estado, prazo e marcação nula antes do envio.
+Repetir o job não duplica o mesmo aviso. A marcação registra tentativa: uma falha
+posterior pode perder o aviso. Os payloads usam `tarefa_vence_hoje` ou
+`tarefa_atrasada`, com `tarefa_id`, `casa_id` e categoria `tarefa_pendente`.
+
+O layout do app registra os botões Concluir e Ver tarefa para essa categoria.
+As duas ações abrem o app e verificam sessão, casa e tarefa. Concluir chama
+`POST /tarefas/{id}/conclusoes` e depois abre o detalhe; se a conclusão falhar,
+o detalhe também é aberto para conferência. Ver tarefa e o toque normal abrem
+o detalhe. A apresentação e a execução desses botões em aparelho continuam sem
+validação documentada.
 
 ### Eventos de notificação normal
 
@@ -132,14 +142,14 @@ e abre o detalhe; se a tarefa não existir ou não for acessível, abre a lista.
 
 ### Estado e arquivos necessários
 
-Guia revisado em 25/10/2026. O fluxo existente é **backend → Expo Push
+Guia revisado em 27/10/2026. O fluxo existente é **backend → Expo Push
 Service → FCM → Android**. O app já solicita permissão, cria o canal Android
 e registra o `ExpoPushToken` pela API. O backend envia pelo Expo, sem SDK
 Firebase ou credencial Google no servidor.
 
 O passo de preparação Firebase foi acrescentado ao workflow manual
-`.github/workflows/mobile-build.yml`. Antes de executá-lo, conferir o bloqueio
-registrado em [Revisão dos workflows FCM](#revisão-dos-workflows-fcm--25102026).
+`.github/workflows/mobile-build.yml`, no mesmo nível dos demais passos e antes
+do Prebuild. O bloqueio de indentação da revisão de 25/10/2026 já foi corrigido.
 As contas externas, os secrets e a entrega em aparelho não foram verificados.
 
 | Item | Onde fornecer e para quê |
@@ -239,8 +249,8 @@ a configuração Android ao build. Ver [variáveis de ambiente no EAS](https://d
 
 ### 5. Gerar o APK e verificar o recebimento
 
-Após resolver o bloqueio da revisão, abrir **Actions → Build APK e IPA unsigned → Run
-workflow**, selecionar a branch atualizada e informar a URL pública HTTPS da
+Abrir **Actions → Build APK e IPA unsigned → Run workflow**, selecionar a
+branch atualizada e informar a URL pública HTTPS da
 API. Baixar **Artifacts → TetoJusto-Android**, extrair e instalar o APK em um
 Android com Google Play Services. O APK inclui JavaScript e dispensa Metro.
 A mudança de configuração Firebase exige um novo build; Expo Go não oferece
@@ -279,7 +289,23 @@ O backend ainda não consulta esses recibos automaticamente.
 | Expo retorna `UNAUTHORIZED` | Segurança adicional de push exige autenticação ainda ausente no backend. |
 | Cadastro existe, mas o aviso não aparece | Permissão e canal Android, configuração de bateria/rede e recibo Expo; cadastro e ticket não comprovam entrega. |
 
-## Revisão dos workflows FCM — 25/10/2026
+## Atualização documental — 27/10/2026
+
+- Conferidos `src/backend/services/notificacao.py`,
+  `src/frontend/src/app/_layout.tsx`, `src/frontend/src/services/notificacoes.ts`
+  e `.github/workflows/mobile-build.yml`.
+- Corrigidas as descrições dos lembretes de vencimento e atraso, da categoria
+  `tarefa_pendente` e das ações Concluir e Ver tarefa já presentes no código.
+- Removido o bloqueio de workflow das orientações atuais; a revisão abaixo é
+  histórica e seu erro de indentação já foi corrigido no arquivo atual.
+- Mantidas as pendências reais de configuração externa e validação em aparelho.
+- Validação a partir da raiz: PyYAML leu o workflow e confirmou a preparação
+  Firebase antes do Prebuild; `git diff --check` passou. Nenhum teste da aplicação,
+  build ou envio real foi executado nesta etapa exclusivamente documental.
+
+## Revisão histórica dos workflows FCM — 25/10/2026
+
+O bloqueio descrito nesta revisão foi corrigido no workflow atual.
 
 - Base: alterações locais em relação a `32f9b67`, restritas ao workflow manual,
   README e este contexto. Os outros workflows foram lidos como contexto.
@@ -362,8 +388,8 @@ configurado no projeto.
   real nesta implementação.
 - A configuração externa e o teste real continuam pendentes de confirmação.
   Seguir [Configuração FCM pelo GitHub Actions](#configuração-fcm-pelo-github-actions).
-  A inserção do passo no workflow ainda depende da correção de sintaxe registrada
-  na revisão de 25/10/2026. Nenhum APK ou envio real foi realizado nesta revisão.
+  O passo Firebase já está alinhado aos demais passos do workflow. Nenhum APK
+  ou envio real foi realizado nesta revisão documental.
 - O cron gratuito da Vercel roda no máximo uma vez ao dia e pode atrasar até
   uma hora. A janela de início é de 24 horas: tarefas criadas depois da
   execução ou com início entre duas execuções podem ficar sem esse lembrete.
@@ -375,6 +401,5 @@ configurado no projeto.
   A consulta posterior de recibos não foi implementada; erros que apareçam
   somente neles não são limpos por este serviço. Tickets aceitos não comprovam
   entrega no aparelho. Ver a [documentação do Expo](https://docs.expo.dev/push-notifications/sending-notifications/).
-- Os botões interativos na própria notificação não foram adicionados. As
-  categorias do Expo permitem implementá-los sem assinatura paga do Expo; iOS
-  exigirá credenciais de uma conta Apple Developer paga.
+- Os botões Concluir e Ver tarefa já estão implementados para os lembretes de
+  vencimento no dia e atraso; falta confirmar seu funcionamento em aparelho.
