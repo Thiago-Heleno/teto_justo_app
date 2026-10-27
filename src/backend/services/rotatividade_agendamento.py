@@ -8,6 +8,7 @@ from postgrest.exceptions import APIError
 
 from schemas.rotatividade import RotatividadeAtualizar, RotatividadeCriar
 from services.autorizacao import ServicoAutorizacaoCasa
+from services.ciclo_vida_tarefa import instante_utc, janela_dia_fixo
 from services.rotatividade import TarefaDistribuicao, distribuir_tarefas
 from services.score import ServicoScore
 
@@ -36,10 +37,7 @@ def datas_ocorrencias(configuracao: dict, ate: date) -> list[date]:
 
 
 def data_local_ocorrencia(valor: str, fuso: ZoneInfo) -> date:
-    instante = datetime.fromisoformat(valor)
-    if instante.tzinfo is None or instante.utcoffset() is None:
-        instante = instante.replace(tzinfo=timezone.utc)
-    return instante.astimezone(fuso).date()
+    return instante_utc(valor).astimezone(fuso).date()
 
 
 class ServicoAgendamentoRotatividade:
@@ -375,10 +373,7 @@ class ServicoAgendamentoRotatividade:
         ocorrencia_local = datetime.combine(dia, time.min, tzinfo=fuso)
 
         if configuracao["modo_prazo"] == "dia_fixo":
-            data_fim = datetime.combine(dia, time.max, tzinfo=fuso).astimezone(
-                timezone.utc
-            )
-            data_inicio = data_fim - timedelta(days=configuracao["prazo_dias"])
+            data_inicio, data_fim = janela_dia_fixo(dia, configuracao["prazo_dias"], fuso)
         else:
             data_inicio = ocorrencia_local.astimezone(timezone.utc)
             data_fim = data_inicio + timedelta(days=configuracao["prazo_dias"])

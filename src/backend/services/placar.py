@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
+from services.ciclo_vida_tarefa import instante_utc
 
 
 class ServicoPlacar:
@@ -12,35 +13,6 @@ class ServicoPlacar:
 
     def __init__(self, supabase):
         self.supabase = supabase
-
-    def garantir_acesso(self, id_casa: UUID, id_usuario: UUID) -> None:
-        casa = (
-            self.supabase.table("casa")
-            .select("fk_usuario_id")
-            .eq("id", str(id_casa))
-            .execute()
-        ).data
-        if not casa:
-            raise HTTPException(status_code=404, detail="Casa não encontrada.")
-        if str(casa[0]["fk_usuario_id"]) == str(id_usuario):
-            return
-        vinculo = (
-            self.supabase.table("pertencer")
-            .select("fk_usuario_id")
-            .eq("fk_casa_id", str(id_casa))
-            .eq("fk_usuario_id", str(id_usuario))
-            .eq("ativo", True)
-            .execute()
-        ).data
-        if not vinculo:
-            raise HTTPException(status_code=403, detail="Acesso restrito aos moradores da casa.")
-
-    @staticmethod
-    def _instante_utc(valor: str | datetime) -> datetime:
-        instante = datetime.fromisoformat(valor) if isinstance(valor, str) else valor
-        if instante.tzinfo is None:
-            return instante.replace(tzinfo=timezone.utc)
-        return instante.astimezone(timezone.utc)
 
     @staticmethod
     def _meia_noite_utc(dia: date, fuso: ZoneInfo) -> datetime:
@@ -132,7 +104,7 @@ class ServicoPlacar:
         vinculos, nomes = self._vinculos_e_nomes(id_casa, incluir_inativos)
         ids = [str(vinculo["fk_usuario_id"]) for vinculo in vinculos]
 
-        agora_utc = self._instante_utc(agora)
+        agora_utc = instante_utc(agora)
         hoje = agora_utc.astimezone(fuso).date()
         primeiro_dia_semana = hoje - timedelta(days=(hoje.weekday() + 1) % 7)
         primeiro_dia_mes = hoje.replace(day=1)
@@ -159,7 +131,7 @@ class ServicoPlacar:
             totais[id_usuario]["acumulado"] += pontos
             if evento["criado_em"] is None:
                 raise HTTPException(status_code=500, detail="Evento de score sem data.")
-            instante = self._instante_utc(evento["criado_em"])
+            instante = instante_utc(evento["criado_em"])
             if instante <= agora_utc:
                 for periodo, inicio in limites.items():
                     if instante >= inicio:

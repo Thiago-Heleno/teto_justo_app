@@ -234,8 +234,9 @@ def test_listar_casas_filtra_usuario_e_pagina_apos_buscar_vinculos(
     servico, consulta, id_usuario, registro_casa, foto
 ):
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[registro_casa]),
+        SimpleNamespace(data=[{"id": registro_casa["id"]}]),
         SimpleNamespace(data=[]),
+        SimpleNamespace(data=[registro_casa]),
     ]
 
     resultado = servico.listar_casas(id_usuario, inicio=0, limite=1)
@@ -249,8 +250,9 @@ def test_listar_casas_filtra_usuario_e_pagina_apos_buscar_vinculos(
         call("fk_usuario_id", str(id_usuario)),
         call("ativo", True),
     ]
-    assert consulta.order.call_args_list == [call("id"), call("fk_casa_id")]
-    assert consulta.range.call_args_list == [call(0, 499), call(0, 499)]
+    consulta.in_.assert_called_once_with("id", [registro_casa["id"]])
+    assert consulta.order.call_args_list == [call("id"), call("fk_casa_id"), call("id")]
+    assert consulta.range.call_args_list == [call(0, 499), call(0, 499), call(0, 499)]
 
 def test_atualizar_casa_envia_apenas_campos_informados(
     servico, consulta, id_casa, id_usuario, registro_casa

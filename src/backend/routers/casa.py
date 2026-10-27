@@ -87,7 +87,7 @@ def buscar_casa(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoPlacar(supabase).garantir_acesso(id_casa, usuario_atual.id)
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoCasa(supabase)
     return servico.buscar_casa(id_casa)
 
@@ -160,7 +160,7 @@ def listar_moradores(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoPlacar(supabase).garantir_acesso(id_casa, usuario_atual.id)
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     return ServicoCasa(supabase).listar_moradores(id_casa)
 
 
@@ -170,8 +170,8 @@ def obter_placar(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoPlacar(supabase)
-    servico.garantir_acesso(id_casa, usuario_atual.id)
     return servico.obter_placar(id_casa)
 
 
@@ -182,8 +182,8 @@ def obter_saldo(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoPlacar(supabase)
-    servico.garantir_acesso(id_casa, usuario_atual.id)
     return servico.obter_saldo(id_casa, fk_usuario_id)
 
 
@@ -194,8 +194,8 @@ def obter_extrato(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoPlacar(supabase)
-    servico.garantir_acesso(id_casa, usuario_atual.id)
     return servico.obter_extrato(id_casa, filtros)
 
 
@@ -206,8 +206,8 @@ def obter_ranking(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoPlacar(supabase)
-    servico.garantir_acesso(id_casa, usuario_atual.id)
     return servico.obter_ranking(id_casa, filtros)
 
 

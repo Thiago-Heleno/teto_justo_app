@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from postgrest.exceptions import APIError
 
 from schemas.tarefa import TarefaAtualizar, TarefaCriar, TarefaResposta
+from services.autorizacao import ServicoAutorizacaoCasa
 from services.tarefa import ServicoTarefa
 
 
@@ -324,7 +325,7 @@ def test_listar_combina_filtros_e_consulta_fuso_uma_vez_para_filtros_por_dia(
         SimpleNamespace(data=tarefas),
         SimpleNamespace(data=[{"timezone": "America/Sao_Paulo"}]),
     ]
-    servico._montar_resposta = lambda registro: registro
+    servico._montar_resposta = lambda registro, agora: registro
 
     resultado = servico.listar_tarefas_por_casa(
         ids_relacionados["fk_casa_id"], estado="atrasada", responsavel=responsavel, prazo=prazo
@@ -386,6 +387,7 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
     responsavel = ids_relacionados["usuarios_atribuidos"][0]
     tarefa = {
         **registro_tarefa,
+        "estado_atual": "atrasada" if horas_atraso > 0 else "pendente",
         "dificuldade": 3,
         "pontuacao": 50,  # precisa bater com dificuldade=3
         "atraso_maximo": 2,
@@ -406,8 +408,8 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
         SimpleNamespace(data=[{"score": 100}]),  # 5. pertencer.select (score atual)
         SimpleNamespace(data=[{"score": saldo_final}]),  # 6. pertencer.update (CAS)
         SimpleNamespace(data=[finalizada]),  # 7. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. atribuida (resposta)
-        SimpleNamespace(data=[{"score": saldo_final}]),  # 9. _buscar_saldo
+        SimpleNamespace(data=[{"score": saldo_final}]),  # saldo da conclusão
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # responsáveis na resposta
     ]
 
     resultado = servico.atualizar_tarefa(
@@ -443,7 +445,7 @@ def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa,
     consulta.update.assert_not_called()
 
 
-def test_endpoint_de_conclusao_usa_responsavel_e_persistencia_atomica(
+def test_endpoint_de_conclusao_usa_responsavel_e_registra_pontos(
     servico, banco, consulta, id_tarefa, registro_tarefa, ids_relacionados, monkeypatch
 ):
     agora = datetime(2030, 1, 10, tzinfo=timezone.utc)
@@ -473,8 +475,8 @@ def test_endpoint_de_conclusao_usa_responsavel_e_persistencia_atomica(
         SimpleNamespace(data=[{"score": 0}]),  # 5. pertencer.select (score atual)
         SimpleNamespace(data=[{"score": 25}]),  # 6. pertencer.update (CAS)
         SimpleNamespace(data=[finalizada]),  # 7. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 8. atribuida (resposta)
-        SimpleNamespace(data=[{"score": 25}]),  # 9. _buscar_saldo
+        SimpleNamespace(data=[{"score": 25}]),  # saldo da conclusão
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # responsáveis na resposta
     ]
 
     resultado = servico.concluir_tarefa(id_tarefa, responsavel)
@@ -534,8 +536,8 @@ def test_credito_pertencer_refaz_apos_conflito_de_concorrencia(
         SimpleNamespace(data=[{"score": 110}]),
         SimpleNamespace(data=[{"score": 135}]),  # 8. pertencer.update sucesso na 2a tentativa
         SimpleNamespace(data=[finalizada]),  # 9. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 10. atribuida (resposta)
-        SimpleNamespace(data=[{"score": 135}]),  # 11. _buscar_saldo
+        SimpleNamespace(data=[{"score": 135}]),  # saldo da conclusão
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # responsáveis na resposta
     ]
 
     resultado = servico.concluir_tarefa(id_tarefa, responsavel)
@@ -568,8 +570,8 @@ def test_score_event_duplicado_com_tarefa_pendente_apenas_finaliza(
         # 4. score_event.insert -> já creditado antes
         APIError({"code": "23505", "message": "duplicate key"}),
         SimpleNamespace(data=[finalizada]),  # 5. tarefa.update (finalizar)
-        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # 6. atribuida (resposta)
-        SimpleNamespace(data=[{"score": 25}]),  # 7. _buscar_saldo
+        SimpleNamespace(data=[{"score": 25}]),  # saldo da conclusão
+        SimpleNamespace(data=[{"fk_usuario_id": str(responsavel)}]),  # responsáveis na resposta
     ]
 
     resultado = servico.concluir_tarefa(id_tarefa, responsavel)
@@ -929,10 +931,11 @@ def test_tolerancia_preserva_pontos_ate_ultimo_dia(
 
     monkeypatch.setattr("services.tarefa.datetime", Relogio)
     tarefa = {**registro_tarefa, "data_fim": (agora - atraso).isoformat(), "atraso_maximo": 2}
-    consulta.execute.return_value = SimpleNamespace(data=[{**tarefa, "estado_atual": "nao_feito"}])
+    esperado = "nao_feito" if expirada else "atrasada"
+    consulta.execute.return_value = SimpleNamespace(data=[{**tarefa, "estado_atual": esperado}])
     resultado = servico._sincronizar_estado_por_atraso(tarefa)
     assert (resultado["estado_atual"] == "nao_feito") is expirada
-    assert consulta.update.called is expirada
+    consulta.update.assert_called_once_with({"estado_atual": esperado})
 
 
 def test_editar_prazo_preserva_inicio_original(servico, consulta, registro_tarefa):
@@ -1060,7 +1063,7 @@ def test_erro_inesperado_no_credito_nao_produz_gravacoes_separadas(
     ]
 
     with pytest.raises(APIError):
-        servico._finalizar_tarefa(registro_tarefa, [responsavel])
+        servico.ciclo_vida.concluir(registro_tarefa, [responsavel], datetime.now(timezone.utc))
 
     # o insert falhou por um motivo que não é duplicata (não 23505) -- não credita
     # pertencer nem finaliza a tarefa.
@@ -1074,7 +1077,7 @@ def test_tolerancia_ultrapassada_durante_conclusao_nao_credita(servico, banco, r
         "data_fim": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),
     }
     with pytest.raises(HTTPException) as erro:
-        servico._finalizar_tarefa(tarefa, [tarefa["fk_usuario_id"]])
+        servico.ciclo_vida.concluir(tarefa, [tarefa["fk_usuario_id"]], datetime.now(timezone.utc))
     assert erro.value.status_code == 409
     banco.rpc.assert_not_called()
 
@@ -1082,7 +1085,7 @@ def test_tolerancia_ultrapassada_durante_conclusao_nao_credita(servico, banco, r
 @pytest.mark.parametrize("responsaveis", [[], [str(uuid4()), str(uuid4())]])
 def test_conclusao_legada_exige_um_responsavel(servico, banco, registro_tarefa, responsaveis):
     with pytest.raises(HTTPException) as erro:
-        servico._finalizar_tarefa(registro_tarefa, responsaveis)
+        servico.ciclo_vida.concluir(registro_tarefa, responsaveis, datetime.now(timezone.utc))
     assert erro.value.status_code == 409
     banco.rpc.assert_not_called()
 
@@ -1101,6 +1104,31 @@ def test_responsavel_nao_finaliza_duas_vezes(servico, banco, consulta, registro_
         )
     assert erro.value.status_code == 409
     banco.rpc.assert_not_called()
+
+
+def test_proprietario_sem_vinculo_ativo_nao_recebe_pontos(
+    servico, banco, consulta, registro_tarefa,
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]),
+        SimpleNamespace(data=[]),
+    ]
+    ServicoAutorizacaoCasa(banco).garantir_administrador_da_casa(
+        registro_tarefa["fk_casa_id"], registro_tarefa["fk_usuario_id"],
+    )
+
+    with pytest.raises(HTTPException) as erro:
+        servico.ciclo_vida.concluir(
+            registro_tarefa, [registro_tarefa["fk_usuario_id"]], datetime.now(timezone.utc),
+        )
+
+    assert erro.value.status_code == 409
+    assert erro.value.detail == "O responsável precisa ter vínculo de morador na casa."
+    consulta.eq.assert_any_call("fk_casa_id", registro_tarefa["fk_casa_id"])
+    consulta.eq.assert_any_call("fk_usuario_id", registro_tarefa["fk_usuario_id"])
+    consulta.eq.assert_any_call("ativo", True)
+    consulta.insert.assert_not_called()
+    consulta.update.assert_not_called()
 
 
 def test_nao_reabre_tarefa_de_responsavel_que_saiu(
@@ -1128,7 +1156,7 @@ def test_consulta_expirada_nao_sobrescreve_conclusao_concorrente(
     consulta.execute.side_effect = [SimpleNamespace(data=[]), SimpleNamespace(data=[finalizada])]
     resultado = servico._sincronizar_estado_por_atraso(tarefa)
     assert resultado["estado_atual"] == "finalizado"
-    consulta.in_.assert_called_once_with("estado_atual", ["pendente", "atrasada"])
+    consulta.eq.assert_any_call("estado_atual", tarefa["estado_atual"])
 
 
 def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
@@ -1313,7 +1341,7 @@ def test_listar_prazos_por_dias_completos_no_fuso_da_casa(
         SimpleNamespace(data=tarefas),
         SimpleNamespace(data=[{"timezone": fuso}]),
     ]
-    servico._montar_resposta = lambda registro: registro
+    servico._montar_resposta = lambda registro, agora: registro
 
     resultado = servico.listar_tarefas_por_casa(ids_relacionados["fk_casa_id"], prazo=prazo)
 
