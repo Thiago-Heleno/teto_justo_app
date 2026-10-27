@@ -96,6 +96,7 @@ class Banco:
             "pertencer": vinculos,
             "usuario": usuarios,
             "score_event": eventos,
+            "tarefa": [],
         }
 
     def table(self, nome):
@@ -124,6 +125,23 @@ def montar_servico(fuso="America/Sao_Paulo", score=0, eventos=None):
         eventos or [],
     )
     return ServicoPlacar(banco), banco, casa_id, usuario_id
+
+
+def test_extrato_inclui_nome_da_tarefa_em_creditos_e_estornos():
+    servico, banco, casa_id, usuario_id = montar_servico()
+    credito = evento(casa_id, usuario_id, "2026-10-01T10:00:00Z", 25)
+    estorno = evento(casa_id, usuario_id, "2026-10-02T10:00:00Z", -25)
+    banco.registros["score_event"] = [credito, estorno]
+    banco.registros["tarefa"] = [
+        {"id": credito["fk_tarefa_id"], "nome": "Lavar a louça"},
+        {"id": estorno["fk_tarefa_id"], "nome": "Tirar o lixo"},
+    ]
+
+    extrato = servico.obter_extrato(casa_id, FiltroExtratoScore())
+
+    assert [evento["nome_tarefa"] for evento in extrato["eventos"]] == [
+        "Tirar o lixo", "Lavar a louça"
+    ]
 
 
 def test_placar_respeita_semana_domingo_e_virada_de_ano_no_fuso_da_casa():
@@ -363,8 +381,9 @@ def test_extrato_filtra_usuario_e_casa_e_pagina_em_ordem_estavel():
         casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id, inicio=4, limite=2)
     )
 
-    assert primeira["eventos"] == [eventos[2], eventos[1]]
-    assert segunda["eventos"] == [eventos[0]]
+    assert primeira["eventos"] == [{**eventos[2], "nome_tarefa": None},
+                                   {**eventos[1], "nome_tarefa": None}]
+    assert segunda["eventos"] == [{**eventos[0], "nome_tarefa": None}]
     assert esgotada["eventos"] == []
     assert primeira["total"] == segunda["total"] == esgotada["total"] == 3
 

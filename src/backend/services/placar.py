@@ -235,12 +235,25 @@ class ServicoPlacar:
             .range(filtros.inicio, filtros.inicio + filtros.limite - 1)
             .execute()
         )
+        eventos = resposta.data
+        if eventos:
+            tarefas = (
+                self.supabase.table("tarefa")
+                .select("id,nome")
+                .in_("id", list({str(evento["fk_tarefa_id"]) for evento in eventos}))
+                .execute()
+            ).data
+            nomes_tarefas = {str(tarefa["id"]): tarefa["nome"] for tarefa in tarefas}
+            eventos = [
+                {**evento, "nome_tarefa": nomes_tarefas.get(str(evento["fk_tarefa_id"]))}
+                for evento in eventos
+            ]
         return {
             "casa_id": str(id_casa),
             "fuso_horario": nome_fuso,
             **filtros.model_dump(),
             "total": resposta.count,
-            "eventos": resposta.data,
+            "eventos": eventos,
         }
 
     def obter_ranking(self, id_casa: UUID, filtros: FiltroPeriodoScore) -> dict:
