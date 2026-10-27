@@ -82,6 +82,7 @@ export type EventoExtrato = {
   id: string;
   fk_usuario_id: string;
   fk_tarefa_id: string;
+  nome_tarefa?: string | null;
   pontuacao: number;
   tipo: "credito" | "reversal";
   criado_em: string;

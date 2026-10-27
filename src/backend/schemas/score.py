@@ -37,6 +37,7 @@ class ScoreEventResposta(BaseModel):
     fk_casa_id: UUID
     fk_usuario_id: UUID
     fk_tarefa_id: UUID
+    nome_tarefa: str | None = None
     pontuacao: int
     tipo: Literal["credito", "reversal"]
     criado_em: datetime

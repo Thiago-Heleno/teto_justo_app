@@ -72,6 +72,11 @@ apenas a simulação dos testes; não modifica o código de produção.
 Os 25 testes afetados e o Ruff foram reexecutados após o ajuste e aprovados.
 As duas revisões confirmaram ausência de achados pendentes.
 
+Na preparação do PR, integrada a `main` até `7de0f90`, preservando os nomes de
+tarefas no extrato de pontos. A suíte completa passou com **599 testes** após
+a integração; Ruff e Bandit também passaram. Os três arquivos sobrepostos
+mantêm as terminações de linha da `main`, sem alterações de formatação no PR.
+
 ## Limitações
 
 As chamadas PostgREST continuam sendo transações separadas. A unicidade impede
