@@ -493,7 +493,8 @@ class ServicoTarefa:
             or usuarios_foram_informados
         ):
             dados["aviso_enviado_em"] = None
-            dados["aviso_atraso_enviado_em"] = None
+            if "aviso_atraso_enviado_em" in tarefa_atual:
+                dados["aviso_atraso_enviado_em"] = None
 
         if dados:
             resposta = (

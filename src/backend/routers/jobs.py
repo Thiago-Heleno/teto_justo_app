@@ -4,6 +4,7 @@ import os
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response
 
 from core.database import get_supabase
+from schemas.notificacao import RecibosPushConsultar
 from schemas.penalidade import ProcessamentoPenalidadesResposta
 from schemas.rotatividade import ResultadoJobRotatividade
 from services.penalidade import ServicoPenalidade
@@ -53,6 +54,13 @@ def processar_notificacoes_cron(supabase=Depends(get_supabase)):
 @router.get("/notificacoes-avisos", dependencies=[Depends(validar_cron)])
 def processar_avisos_inicio_cron(supabase=Depends(get_supabase)):
     return ServicoNotificacao(supabase).avisar_inicios()
+
+
+@router.post("/notificacoes-recibos", dependencies=[Depends(validar_cron)])
+def consultar_recibos_notificacoes(
+    dados: RecibosPushConsultar, supabase=Depends(get_supabase)
+):
+    return ServicoNotificacao(supabase).consultar_recibos(dados.tickets)
 
 
 @router.post(

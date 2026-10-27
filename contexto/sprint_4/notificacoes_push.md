@@ -18,7 +18,7 @@ as ações Concluir e Ver tarefa.
   plataformas; resposta de cadastro sem token. Campos extras são recusados.
 - `src/backend/routers/usuario.py`: `POST` e `DELETE /usuarios/eu/dispositivos`,
   ambos autenticados por `UsuarioAtual`.
-- `src/backend/services/notificacao.py`: cadastro, remoção e `enviar_push`.
+- `src/backend/services/notificacao.py`: cadastro, remoção, envio e consulta de recibos.
 - `src/backend/services/usuario.py`: limpeza dos dispositivos na anonimização
   de contas, que não dispara a exclusão em cascata.
 - `src/backend/tests/test_notificacao_unitario.py` e
@@ -27,6 +27,7 @@ as ações Concluir e Ver tarefa.
 - `docs/migrations/30.sql`: marca a tentativa de aviso por tarefa.
 - `docs/migrations/31.sql`: marca separadamente a tentativa do aviso de início
   e indexa as tarefas pendentes ainda não processadas.
+- `docs/migrations/32.sql`: marca separadamente a tentativa do aviso de atraso.
 - `src/backend/services/tarefa.py` e `src/backend/services/penalidade.py`:
   conectam os eventos aos avisos após as operações confirmadas.
 - `src/backend/routers/tarefa.py`: fornece `BackgroundTasks` aos serviços para
@@ -60,7 +61,7 @@ em lotes sequenciais de até 100, usando `httpx` e timeout de 10 segundos. Todas
 as páginas são carregadas antes da limpeza para não pular dispositivos ao
 excluir registros. Usuários sem dispositivos não geram requisição ao Expo.
 
-O retorno separa `aceitos` (ID do dispositivo e do ticket), `invalidos` (IDs
+O retorno separa `aceitos` (IDs do dispositivo, do usuário original e do ticket), `invalidos` (IDs
 dos dispositivos com `DeviceNotRegistered`) e `falhas` (ID do dispositivo e
 código genérico). Não inclui tokens nem mensagens de erro externas. Um lote
 com falha preserva os resultados dos outros lotes. Não há retry automático,
@@ -70,6 +71,85 @@ Somente `DeviceNotRegistered` provoca remoção. Falhas HTTP, erros individuais
 diferentes e respostas malformadas preservam o cadastro. A limpeza também
 confere o usuário, preservando um token reassociado a outra conta durante o
 envio.
+
+### Consulta posterior de recibos — 27/10/2026
+
+`POST /jobs/notificacoes-recibos` reutiliza a autenticação dos jobs internos:
+`Authorization: Bearer <CRON_SECRET>`. Sem configuração responde `503`; sem
+autorização válida, `401`, antes de acessar o banco ou o Expo. A resposta
+autorizada usa `Cache-Control: no-store`.
+
+O corpo contém `tickets`, com 1 a 1000 itens no formato de `aceitos` retornado
+por `enviar_push`. Cada item tem `dispositivo_id`, `usuario_id` e `ticket_id`,
+todos UUIDs. Campos extras e tickets repetidos são recusados com `422`.
+O operador deve preservar a associação original; não deve consultar o usuário
+atual do dispositivo para preencher um ticket antigo.
+
+O serviço consulta `https://exp.host/--/api/v2/push/getReceipts`, em lotes de
+até 1000 IDs e timeout de 10 segundos. Correlaciona resultados pelo ticket,
+independentemente da ordem da resposta, e ignora IDs não solicitados. Retorna:
+
+- `confirmados`: recibos `ok`, que confirmam aceitação pelo FCM/APNs;
+- `invalidos`: recibos `DeviceNotRegistered`; a limpeza filtra simultaneamente
+  pelo ID do dispositivo e pelo usuário do envio original. Cadastros
+  reassociados ou recriados são preservados;
+- `pendentes`: tickets ausentes da resposta, disponíveis para nova consulta;
+- `falhas`: consulta, recibo ou limpeza não confirmados. Erros conhecidos usam
+  `MessageTooBig`, `MessageRateExceeded`, `MismatchSenderId` ou
+  `InvalidCredentials`; outros recebem códigos genéricos. Mensagens externas
+  e tokens de push não são retornados.
+
+Consultar novamente não reenvia notificações. Falhas de um lote ou da limpeza
+de um dispositivo não descartam os demais resultados. O chamador pode reutilizar
+os identificadores retornados em `pendentes` e `falhas`, retirando `erro` destes
+últimos, para repetir somente a consulta ou limpeza necessária.
+
+A consulta é sob demanda: os envios normais e os jobs existentes não armazenam
+os tickets nem disparam essa rota. Não foram adicionados fila, agendamento,
+migration ou dependência. O chamador interno precisa conservar os tickets e
+acionar a consulta. Segundo o [contrato do Expo](https://docs.expo.dev/push-notifications/sending-notifications/#check-push-receipts-for-errors),
+é recomendado consultar após cerca de 15 minutos; os recibos são descartados
+após 24 horas. Mesmo `ok` não garante exibição no aparelho.
+
+Alterados `src/backend/services/notificacao.py`,
+`src/backend/schemas/notificacao.py`, `src/backend/routers/jobs.py` e
+`src/backend/tests/test_notificacao_unitario.py`. Os testes são unitários, com
+Supabase e Expo simulados.
+
+### Compatibilidade da edição de responsáveis — 27/10/2026
+
+O check de integração reportado falhou com `500` ao trocar o responsável por
+um morador válido. A edição escrevia `aviso_atraso_enviado_em` mesmo quando a
+coluna ainda não existia. Uma consulta local sem leitura de linhas confirmou
+o erro PostgREST `42703` para essa coluna; o estado do banco do CI não foi
+consultado. Um teste unitário reproduziu a falha antes da correção.
+
+`src/backend/services/tarefa.py` agora reinicia a marca de atraso somente se
+ela estiver presente no registro bruto da tarefa, obtido com `select("*")`.
+A marca de vencimento continua sendo reiniciada. Não há captura genérica de
+erros nem alteração de permissões. Atualizado
+`src/backend/tests/test_servico_tarefa_unitario.py` para verificar a troca de
+responsável com e sem a coluna. A migration `32.sql` continua necessária para
+o funcionamento completo do job de avisos de atraso; nenhuma migration foi
+aplicada nesta tarefa.
+
+### Validação do backend — 27/10/2026
+
+- Antes da correção, o teste de regressão unitário passou com a coluna e falhou
+  sem ela, reproduzindo o erro `42703`. Depois, os 106 testes unitários do serviço
+  de tarefas passaram.
+- A partir de `src/backend`, usando o Python de `.venv`:
+  `..\..\.venv\Scripts\python.exe -m pytest -q tests --ignore-glob='*_integracao.py'`:
+  **573 aprovados**, com dois avisos de depreciação do TestClient/AnyIO.
+- A suíte de notificações e jobs passou com **120 aprovados**. A ausência local
+  de `tzdata` causou três falhas na execução anterior à mudança; instalada a versão
+  `2025.3`, já declarada em `requirements.txt`, sem alterar o manifesto.
+- Ruff nos seis arquivos Python alterados e `git diff --check`, a partir da
+  raiz: aprovados.
+- Sem testes de integração contra banco real, build ou envio/consulta real ao
+  Expo. O check de integração do GitHub ainda precisa ser reexecutado.
+
+### Avisos de vencimento e atraso
 
 O cron busca tarefas `pendente` ou `atrasada` com vencimento futuro nas próximas
 36 horas e filtra pelo dia atual no fuso da casa. Não avisa tarefas cujo início
@@ -259,7 +339,7 @@ push remoto Android nesta versão do SDK. Ver [configuração de push no Expo](h
 Se a instalação anterior tiver assinatura diferente, será necessário
 desinstalá-la antes, apagando os dados locais. Em seguida:
 
-1. Conferir com a equipe que as migrations `29.sql`, `30.sql` e `31.sql` foram
+1. Conferir com a equipe que as migrations `29.sql`, `30.sql`, `31.sql` e `32.sql` foram
    aplicadas nessa ordem e que o backend com notificações está disponível.
 2. Entrar no APK, selecionar uma casa e ativar notificações no perfil,
    concedendo a permissão Android. Confirmar sucesso de
@@ -275,9 +355,9 @@ desinstalá-la antes, apagando os dados locais. Em seguida:
 
 Concluir a configuração funcional somente após observar recebimento e abertura
 em aparelho. Um ticket aceito confirma recebimento pelo Expo, não entrega ao
-Android. Se necessário, consultar manualmente o recibo pelo ID do ticket,
-conforme [tickets e recibos Expo](https://docs.expo.dev/push-notifications/sending-notifications/#check-push-receipts-for-errors).
-O backend ainda não consulta esses recibos automaticamente.
+Android. O operador interno pode preservar os itens de `aceitos` do envio e
+usar a [consulta posterior de recibos](#consulta-posterior-de-recibos--27102026).
+Não há consulta automática dos envios normais nem garantia de exibição no aparelho.
 
 ### Diagnóstico por etapa
 
@@ -383,9 +463,10 @@ configurado no projeto.
 
 ## Limites e pendências
 
-- A migration `31.sql` deve ser aplicada depois de `29.sql` e `30.sql`, antes
-  de habilitar o novo job. Nenhuma migration foi aplicada ou validada em banco
-  real nesta implementação.
+- As migrations `31.sql` e `32.sql` devem ser aplicadas depois de `29.sql` e
+  `30.sql`, antes de habilitar os respectivos avisos. Nenhuma migration foi
+  aplicada nesta implementação; a ausência local da coluna de `32.sql` foi
+  confirmada apenas por consulta sem leitura de linhas.
 - A configuração externa e o teste real continuam pendentes de confirmação.
   Seguir [Configuração FCM pelo GitHub Actions](#configuração-fcm-pelo-github-actions).
   O passo Firebase já está alinhado aos demais passos do workflow. Nenhum APK
@@ -397,9 +478,9 @@ configurado no projeto.
 - As marcações registram tentativas, não entrega confirmada. Falhas depois
   da reserva podem perder o aviso; não há retry automático nem fila persistente.
   Eventos em segundo plano também podem ser perdidos se o processo encerrar.
-- Esta etapa remove `DeviceNotRegistered` retornado nos tickets imediatos.
-  A consulta posterior de recibos não foi implementada; erros que apareçam
-  somente neles não são limpos por este serviço. Tickets aceitos não comprovam
-  entrega no aparelho. Ver a [documentação do Expo](https://docs.expo.dev/push-notifications/sending-notifications/).
+- `DeviceNotRegistered` é tratado nos tickets imediatos e na consulta posterior
+  sob demanda. Não existe armazenamento ou consulta automática dos tickets dos
+  envios normais. Tickets aceitos e recibos `ok` não comprovam exibição no
+  aparelho. Ver a [documentação do Expo](https://docs.expo.dev/push-notifications/sending-notifications/).
 - Os botões Concluir e Ver tarefa já estão implementados para os lembretes de
   vencimento no dia e atraso; falta confirmar seu funcionamento em aparelho.
