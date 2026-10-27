@@ -19,6 +19,7 @@ os.environ.setdefault("SUPABASE_KEY", "unit-test-placeholder")
 from core.autenticacao import obter_usuario_atual  # noqa: E402
 from core.database import get_supabase  # noqa: E402
 from main import app  # noqa: E402
+from services.autorizacao import ServicoAutorizacaoCasa  # noqa: E402
 from services.limite_login import get_limitador_login  # noqa: E402
 
 
@@ -274,7 +275,12 @@ def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, mo
     assert cliente.get("/casas/", headers=nova_sessao).json() == [criada]
 
 
-def test_listagem_filtra_antes_de_paginar_ordena_e_remove_duplicatas(ambiente):
+@pytest.mark.parametrize("tamanho_pagina,tamanho_lote", [(500, 100), (2, 1)])
+def test_listagem_filtra_antes_de_paginar_ordena_e_remove_duplicatas(
+    ambiente, monkeypatch, tamanho_pagina, tamanho_lote,
+):
+    monkeypatch.setattr(ServicoAutorizacaoCasa, "TAMANHO_PAGINA", tamanho_pagina)
+    monkeypatch.setattr(ServicoAutorizacaoCasa, "TAMANHO_LOTE", tamanho_lote)
     cliente, _, casas, _, _ = ambiente
 
     resposta = cliente.get("/casas/", params={"inicio": 1, "limite": 2})

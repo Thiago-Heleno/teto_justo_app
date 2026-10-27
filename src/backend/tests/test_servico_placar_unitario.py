@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
 from services.placar import ServicoPlacar
@@ -48,6 +47,9 @@ class Consulta:
     def range(self, inicio, fim):
         self.intervalo = (inicio, fim)
         return self
+
+    def limit(self, quantidade):
+        return self.range(0, quantidade - 1)
 
     def execute(self):
         registros = [
@@ -227,16 +229,6 @@ def test_auditoria_aponta_evento_sem_vinculo():
     }]
 
 
-def test_placar_restrito_a_moradores():
-    servico, _, casa_id, usuario_id = montar_servico()
-    servico.garantir_acesso(casa_id, usuario_id)
-
-    with pytest.raises(HTTPException) as erro:
-        servico.garantir_acesso(casa_id, uuid4())
-
-    assert erro.value.status_code == 403
-
-
 def test_morador_inativo_sai_do_placar_mas_preserva_saldo_e_auditoria():
     servico, banco, casa_id, usuario_id = montar_servico(score=25)
     banco.registros["casa"][0]["fk_usuario_id"] = str(uuid4())
@@ -249,9 +241,6 @@ def test_morador_inativo_sai_do_placar_mas_preserva_saldo_e_auditoria():
     assert servico.obter_ranking(casa_id, FiltroPeriodoScore())["moradores"] == []
     assert servico.obter_saldo(casa_id, usuario_id)["saldo_atual"] == 25
     assert servico.auditar_saldos(casa_id) == []
-    with pytest.raises(HTTPException) as erro:
-        servico.garantir_acesso(casa_id, usuario_id)
-    assert erro.value.status_code == 403
 
 
 def test_saldo_consulta_o_vinculo_exato_sem_recalcular_ou_alterar_pontos():

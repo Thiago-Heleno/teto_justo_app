@@ -1,7 +1,7 @@
 from uuid import UUID
 from fastapi import HTTPException
 from schemas.pertencer import PertencerCriar
-from services.autorizacao import ServicoAutorizacaoCasa
+from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
 
 
 class ServicoPertencer:
@@ -103,7 +103,7 @@ class ServicoPertencer:
                 status_code=404,
                 detail="Vínculo não encontrado ou já deletado.",
             )
-        if str(casa[0]["fk_usuario_id"]) == str(fk_usuario_id):
+        if papel_na_casa(fk_usuario_id, casa[0]["fk_usuario_id"], False) == "administrador":
             raise HTTPException(
                 status_code=409,
                 detail="O proprietário não pode sair da própria casa.",

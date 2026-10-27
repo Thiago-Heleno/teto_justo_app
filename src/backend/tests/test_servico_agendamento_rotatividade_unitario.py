@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
+from fastapi import HTTPException
 
 from schemas.rotatividade import RotatividadeCriar
 from services.rotatividade_agendamento import (
@@ -176,6 +177,31 @@ class BancoFalso:
 
     def rpc(self, *_args, **_kwargs):
         raise AssertionError("O serviço não deve chamar funções do banco.")
+
+
+@pytest.mark.parametrize("vinculo", ["ausente", "inativo"])
+def test_proprietario_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
+    banco = BancoFalso()
+    id_proprietario, id_casa, id_rotatividade = str(uuid4()), str(uuid4()), str(uuid4())
+    configuracao = {"id": id_rotatividade, "fk_casa_id": id_casa,
+                    "fk_usuario_id": id_proprietario}
+    banco.registros.update({
+        "casa": [{"id": id_casa, "fk_usuario_id": id_proprietario}],
+        "rotatividade_participante": [{
+            "fk_rotatividade_id": id_rotatividade,
+            "fk_usuario_id": id_proprietario,
+            "ordem": 1,
+        }],
+        "pertencer": [] if vinculo == "ausente" else [{
+            "fk_casa_id": id_casa, "fk_usuario_id": id_proprietario, "ativo": False,
+        }],
+    })
+
+    with pytest.raises(HTTPException) as erro:
+        ServicoAgendamentoRotatividade(banco)._membros_elegiveis(configuracao)
+
+    assert erro.value.status_code == 409
+    assert erro.value.detail == "O rodízio não possui participantes vinculados à casa."
 
 
 def test_ocorrencia_atribui_sem_duplicar_e_repara_responsavel_ausente():

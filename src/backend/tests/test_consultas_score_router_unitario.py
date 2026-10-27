@@ -67,28 +67,32 @@ def test_extrato_e_ranking_aplicam_periodo_informado_na_url(consulta_score):
     }
 
 
-@pytest.mark.parametrize("rota", ["saldo", "extrato", "ranking"])
+@pytest.mark.parametrize("rota", ["placar", "saldo", "extrato", "ranking"])
 @pytest.mark.parametrize("acesso,status", [
     ("sem_sessao", 401), ("fora_da_casa", 403), ("casa_inexistente", 404),
-    ("morador", 200), ("proprietario_sem_vinculo", 200),
+    ("morador", 200), ("morador_inativo", 403),
+    ("proprietario_sem_vinculo", 200), ("proprietario_com_vinculo_inativo", 200),
 ])
 def test_consultas_exigem_sessao_e_acesso_a_casa(consulta_score, monkeypatch, rota, acesso, status):
     cliente, banco, casa_id, usuario_id = consulta_score
     if acesso == "sem_sessao":
         monkeypatch.delitem(app.dependency_overrides, obter_usuario_atual)
-    elif acesso in {"fora_da_casa", "morador", "proprietario_sem_vinculo"}:
+    elif acesso in {
+        "fora_da_casa", "morador", "morador_inativo", "proprietario_sem_vinculo",
+        "proprietario_com_vinculo_inativo",
+    }:
         solicitante_id = uuid4()
         monkeypatch.setitem(
             app.dependency_overrides, obter_usuario_atual,
             lambda: SimpleNamespace(id=solicitante_id),
         )
-        if acesso == "morador":
+        if acesso in {"morador", "morador_inativo", "proprietario_com_vinculo_inativo"}:
             banco.registros["usuario"].append({"id": str(solicitante_id), "nome": "Bia"})
             banco.registros["pertencer"].append({
                 "fk_casa_id": str(casa_id), "fk_usuario_id": str(solicitante_id),
-                "score": 0, "ativo": True,
+                "score": 0, "ativo": acesso == "morador",
             })
-        elif acesso == "proprietario_sem_vinculo":
+        if acesso in {"proprietario_sem_vinculo", "proprietario_com_vinculo_inativo"}:
             banco.registros["casa"][0]["fk_usuario_id"] = str(solicitante_id)
     elif acesso == "casa_inexistente":
         casa_id = uuid4()
