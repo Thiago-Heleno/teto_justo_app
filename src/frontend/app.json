@@ -46,6 +46,12 @@
         "projectId": "cd351611-8c57-490c-a328-34e1e2bb58d2"
       }
     },
-    "owner": "teto-justo-app"
+    "owner": "teto-justo-app",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cd351611-8c57-490c-a328-34e1e2bb58d2"
+    }
   }
 }
