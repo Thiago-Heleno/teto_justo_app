@@ -59,6 +59,7 @@ def registro_tarefa(id_tarefa, ids_relacionados):
         "dificuldade": 2,
         "pontuacao": 25,
         "atraso_maximo": 5,
+        "aviso_atraso_enviado_em": None,
         "data_fim": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
         "fk_casa_id": str(ids_relacionados["fk_casa_id"]),
         "fk_usuario_id": str(ids_relacionados["fk_usuario_id"]),
@@ -779,10 +780,22 @@ def test_atualizar_tarefa_rejeita_responsavel_de_outra_casa(
     consulta.delete.assert_not_called()
 
 
-def test_atualizar_tarefa_aceita_dono_da_casa_como_responsavel(
-    servico, consulta, id_tarefa, registro_tarefa
+@pytest.mark.parametrize("tem_aviso_atraso", [True, False])
+def test_atualizar_responsavel_aceita_dono_com_e_sem_coluna_de_aviso_atraso(
+    servico, consulta, id_tarefa, registro_tarefa, tem_aviso_atraso
 ):
     dono_id = registro_tarefa["fk_usuario_id"]
+    if not tem_aviso_atraso:
+        registro_tarefa.pop("aviso_atraso_enviado_em")
+
+    def atualizar(dados):
+        if not tem_aviso_atraso and "aviso_atraso_enviado_em" in dados:
+            raise APIError({
+                "code": "42703", "message": "column aviso_atraso_enviado_em does not exist",
+            })
+        return consulta
+
+    consulta.update.side_effect = atualizar
 
     # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (dono),
     # 4. busca 'pertencer', 5. lê os responsáveis anteriores, 6. reabre o aviso,
@@ -807,9 +820,10 @@ def test_atualizar_tarefa_aceita_dono_da_casa_como_responsavel(
     )
 
     assert resultado["usuarios_atribuidos"] == [dono_id]
-    consulta.update.assert_called_once_with({
-        "aviso_enviado_em": None, "aviso_atraso_enviado_em": None
-    })
+    avisos = {"aviso_enviado_em": None}
+    if tem_aviso_atraso:
+        avisos["aviso_atraso_enviado_em"] = None
+    consulta.update.assert_called_once_with(avisos)
 
 
 def test_buscar_tarefa_expirada_vira_nao_feito(servico, consulta, registro_tarefa):

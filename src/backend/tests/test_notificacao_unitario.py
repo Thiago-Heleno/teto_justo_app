@@ -17,8 +17,9 @@ os.environ.setdefault("SUPABASE_KEY", "unit-test-placeholder")
 
 from core.autenticacao import obter_usuario_atual  # noqa: E402
 from core.database import get_supabase  # noqa: E402
+from routers.jobs import router as jobs_router  # noqa: E402
 from routers.usuario import router  # noqa: E402
-from schemas.notificacao import DispositivoPushRegistrar  # noqa: E402
+from schemas.notificacao import DispositivoPushRegistrar, TicketPush  # noqa: E402
 from services.notificacao import ServicoNotificacao  # noqa: E402
 import services.notificacao as modulo_notificacao  # noqa: E402
 
@@ -134,6 +135,7 @@ def dispositivo(banco):
 def ambiente(banco):
     app = FastAPI()
     app.include_router(router)
+    app.include_router(jobs_router)
     usuario = uuid4()
     app.dependency_overrides[get_supabase] = lambda: banco
     app.dependency_overrides[obter_usuario_atual] = lambda: SimpleNamespace(id=usuario)
@@ -316,7 +318,10 @@ def test_sucesso_parcial_remove_apenas_device_not_registered(banco, dispositivo,
     resultado = ServicoNotificacao(banco).enviar_push([usuario], "Aviso", "Mensagem")
 
     assert resultado == {
-        "aceitos": [{"dispositivo_id": ordenados[0]["id"], "ticket_id": ticket_id}],
+        "aceitos": [{
+            "dispositivo_id": ordenados[0]["id"], "usuario_id": str(usuario),
+            "ticket_id": ticket_id,
+        }],
         "invalidos": [ordenados[1]["id"]],
         "falhas": [{"dispositivo_id": ordenados[2]["id"], "erro": "EnvioRecusado"}],
     }
@@ -397,9 +402,301 @@ def test_limpeza_do_primeiro_lote_nao_pula_dispositivos_da_proxima_pagina(
     resultado = ServicoNotificacao(banco).enviar_push([usuario], "Aviso", "Mensagem")
 
     assert len(resultado["invalidos"]) == 100
-    assert resultado["aceitos"] == [{"dispositivo_id": ultimo["id"], "ticket_id": ticket_id}]
+    assert resultado["aceitos"] == [{
+        "dispositivo_id": ultimo["id"], "usuario_id": str(usuario), "ticket_id": ticket_id,
+    }]
     assert resultado["falhas"] == []
     assert banco.dispositivos == [ultimo]
+
+
+def ticket_push(dispositivo):
+    return TicketPush(
+        dispositivo_id=dispositivo["id"], usuario_id=dispositivo["fk_usuario_id"],
+        ticket_id=uuid4(),
+    )
+
+
+def test_consulta_correlaciona_por_id_os_recibos_dos_tickets_aceitos(banco, dispositivo, expo):
+    usuario = uuid4()
+    for _ in range(2):
+        dispositivo(usuario)
+    ids = [str(uuid4()), str(uuid4())]
+    expo.side_effect = [
+        resposta_expo({"data": [{"status": "ok", "id": id_} for id_ in ids]}),
+        resposta_expo({"data": {
+            ids[1]: {"status": "error", "details": {"error": "InvalidCredentials"}},
+            ids[0]: {"status": "ok"},
+        }}),
+    ]
+    servico = ServicoNotificacao(banco)
+    aceitos = servico.enviar_push([usuario], "Aviso", "Mensagem")["aceitos"]
+
+    resultado = servico.consultar_recibos([TicketPush(**ticket) for ticket in aceitos])
+
+    assert resultado == {
+        "confirmados": [aceitos[0]], "invalidos": [], "pendentes": [],
+        "falhas": [{**aceitos[1], "erro": "InvalidCredentials"}],
+    }
+    assert len(banco.dispositivos) == 2
+    assert expo.call_args.args == ("https://exp.host/--/api/v2/push/getReceipts",)
+    assert expo.call_args.kwargs == {"json": {"ids": ids}, "timeout": 10}
+
+
+def test_recibo_device_not_registered_remove_apenas_dispositivo_original(banco, dispositivo, expo):
+    original = dispositivo()
+    outro = dispositivo(UUID(original["fk_usuario_id"]))
+    ticket = ticket_push(original)
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": {
+        str(ticket.ticket_id): {"status": "error", "details": {"error": "DeviceNotRegistered"}},
+    }})
+
+    resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
+
+    assert resultado == {
+        "confirmados": [], "invalidos": [ticket.model_dump(mode="json")],
+        "pendentes": [], "falhas": [],
+    }
+    assert banco.dispositivos == [outro]
+
+
+def test_recibo_antigo_preserva_dispositivo_reassociado_durante_consulta(banco, dispositivo, expo):
+    original = dispositivo()
+    ticket = ticket_push(original)
+    atual = uuid4()
+
+    def consultar(*_args, **_kwargs):
+        ServicoNotificacao(banco).registrar_dispositivo(
+            atual, DispositivoPushRegistrar(token=original["token"], plataforma="android")
+        )
+        return resposta_expo({"data": {
+            str(ticket.ticket_id): {
+                "status": "error", "details": {"error": "DeviceNotRegistered"},
+            },
+        }})
+
+    expo.side_effect = consultar
+    ServicoNotificacao(banco).consultar_recibos([ticket])
+
+    assert len(banco.dispositivos) == 1
+    assert banco.dispositivos[0]["fk_usuario_id"] == str(atual)
+
+
+def test_recibo_antigo_preserva_novo_cadastro_do_mesmo_token(banco, dispositivo, expo):
+    original = dispositivo()
+    ticket = ticket_push(original)
+    servico = ServicoNotificacao(banco)
+    servico.remover_dispositivo(original["fk_usuario_id"], original["token"])
+    novo = servico.registrar_dispositivo(
+        UUID(original["fk_usuario_id"]),
+        DispositivoPushRegistrar(token=original["token"], plataforma="android"),
+    )
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": {
+        str(ticket.ticket_id): {"status": "error", "details": {"error": "DeviceNotRegistered"}},
+    }})
+
+    servico.consultar_recibos([ticket])
+
+    assert banco.dispositivos == [novo]
+
+
+def test_recibo_ausente_pode_ser_consultado_novamente_sem_reenvio(banco, dispositivo, expo):
+    original = dispositivo()
+    ticket = ticket_push(original)
+    expo.side_effect = [
+        resposta_expo({"data": {str(uuid4()): {
+            "status": "error", "details": {"error": "DeviceNotRegistered"},
+        }}}),
+        resposta_expo({"data": {str(ticket.ticket_id): {"status": "ok"}}}),
+    ]
+    servico = ServicoNotificacao(banco)
+
+    primeira = servico.consultar_recibos([ticket])
+    segunda = servico.consultar_recibos([ticket])
+
+    assert primeira == {
+        "confirmados": [], "invalidos": [], "pendentes": [ticket.model_dump(mode="json")],
+        "falhas": [],
+    }
+    assert segunda["confirmados"] == [ticket.model_dump(mode="json")]
+    assert segunda["pendentes"] == []
+    assert banco.dispositivos == [original]
+    assert expo.call_count == 2
+    assert all(c.args == ("https://exp.host/--/api/v2/push/getReceipts",)
+               for c in expo.call_args_list)
+
+
+@pytest.mark.parametrize("erro", [
+    "MessageTooBig", "MessageRateExceeded", "MismatchSenderId", "InvalidCredentials",
+    "ErroDesconhecido", [],
+])
+def test_erro_de_recibo_preserva_dispositivo_sem_expor_mensagem_externa(
+    banco, dispositivo, expo, erro
+):
+    original = dispositivo()
+    ticket = ticket_push(original)
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": {str(ticket.ticket_id): {
+        "status": "error", "details": {"error": erro}, "message": original["token"],
+    }}})
+
+    resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
+
+    codigo = "ReciboRecusado" if erro in ("ErroDesconhecido", []) else erro
+    assert resultado == {
+        "confirmados": [], "invalidos": [], "pendentes": [],
+        "falhas": [{**ticket.model_dump(mode="json"), "erro": codigo}],
+    }
+    assert original["token"] not in str(resultado)
+    assert banco.dispositivos == [original]
+
+
+@pytest.mark.parametrize("recibo", [None, [], {"status": "desconhecido"}])
+def test_recibo_malformado_nao_remove_dispositivo(banco, dispositivo, expo, recibo):
+    original = dispositivo()
+    ticket = ticket_push(original)
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": {str(ticket.ticket_id): recibo}})
+
+    resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
+
+    assert resultado["falhas"] == [{**ticket.model_dump(mode="json"), "erro": "ReciboInvalido"}]
+    assert banco.dispositivos == [original]
+
+
+@pytest.mark.parametrize("falha", [
+    httpx.ReadTimeout("timeout simulado"), resposta_expo({}, 429), resposta_expo({}, 503),
+    resposta_expo([]), resposta_expo({"data": []}), resposta_expo({}),
+    resposta_expo({"data": {}, "errors": [{"code": "UNAUTHORIZED"}]}),
+    httpx.Response(200, text="nao e JSON", request=httpx.Request("POST", "https://exp.host")),
+])
+def test_falha_na_consulta_preserva_dispositivo_sem_retry(banco, dispositivo, expo, falha):
+    original = dispositivo()
+    ticket = ticket_push(original)
+    expo.side_effect = falha if isinstance(falha, Exception) else None
+    expo.return_value = falha
+
+    resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
+
+    assert resultado["falhas"] == [{
+        **ticket.model_dump(mode="json"), "erro": "ConsultaNaoConfirmada",
+    }]
+    assert banco.dispositivos == [original]
+    expo.assert_called_once()
+
+
+def test_falha_na_limpeza_nao_descarta_outros_recibos(banco, dispositivo, expo, monkeypatch):
+    ticket, outro = ticket_push(dispositivo()), ticket_push(dispositivo())
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": {
+        str(ticket.ticket_id): {"status": "error", "details": {"error": "DeviceNotRegistered"}},
+        str(outro.ticket_id): {"status": "ok"},
+    }})
+    monkeypatch.setattr(banco, "table", Mock(side_effect=RuntimeError("falha simulada")))
+
+    resultado = ServicoNotificacao(banco).consultar_recibos([ticket, outro])
+
+    assert resultado["falhas"] == [{
+        **ticket.model_dump(mode="json"), "erro": "LimpezaNaoConfirmada",
+    }]
+    assert resultado["confirmados"] == [outro.model_dump(mode="json")]
+
+
+def test_consulta_em_lotes_de_mil_preserva_resultados_quando_outro_lote_falha(
+    banco, dispositivo, expo
+):
+    original = dispositivo()
+    tickets = [ticket_push(original) for _ in range(1001)]
+    expo.side_effect = [
+        resposta_expo({"data": {str(t.ticket_id): {"status": "ok"} for t in tickets[:1000]}}),
+        httpx.ReadTimeout("timeout simulado"),
+    ]
+
+    resultado = ServicoNotificacao(banco).consultar_recibos(tickets)
+
+    assert [c.kwargs["json"]["ids"] for c in expo.call_args_list] == [
+        [str(t.ticket_id) for t in tickets[:1000]], [str(tickets[-1].ticket_id)],
+    ]
+    assert resultado["confirmados"] == [t.model_dump(mode="json") for t in tickets[:1000]]
+    assert resultado["falhas"] == [{
+        **tickets[-1].model_dump(mode="json"), "erro": "ConsultaNaoConfirmada",
+    }]
+
+
+@pytest.mark.parametrize("authorization", [None, "Bearer incorreto", "Basic incorreto"])
+def test_rota_recibos_rejeita_autenticacao_antes_do_banco(
+    ambiente, monkeypatch, expo, authorization
+):
+    cliente, _, app = ambiente
+    monkeypatch.setenv("CRON_SECRET", uuid4().hex)
+    obter_banco = Mock()
+    app.dependency_overrides[get_supabase] = obter_banco
+    headers = {} if authorization is None else {"Authorization": authorization}
+
+    resposta = cliente.post("/jobs/notificacoes-recibos", json={"tickets": []}, headers=headers)
+
+    assert resposta.status_code == 401
+    obter_banco.assert_not_called()
+    expo.assert_not_called()
+
+
+def test_rota_recibos_sem_segredo_nao_consulta_expo(ambiente, monkeypatch, expo):
+    cliente, _, _ = ambiente
+    monkeypatch.delenv("CRON_SECRET", raising=False)
+
+    resposta = cliente.post("/jobs/notificacoes-recibos", json={"tickets": []})
+
+    assert resposta.status_code == 503
+    expo.assert_not_called()
+
+
+def test_rota_recibos_autenticada_consulta_tickets_sem_cache(
+    ambiente, dispositivo, expo, monkeypatch
+):
+    cliente, _, _ = ambiente
+    segredo = uuid4().hex
+    monkeypatch.setenv("CRON_SECRET", segredo)
+    ticket = ticket_push(dispositivo()).model_dump(mode="json")
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": {ticket["ticket_id"]: {"status": "ok"}}})
+
+    resposta = cliente.post(
+        "/jobs/notificacoes-recibos", json={"tickets": [ticket]},
+        headers={"Authorization": f"Bearer {segredo}"},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.headers["Cache-Control"] == "no-store"
+    assert resposta.json() == {
+        "confirmados": [ticket], "invalidos": [], "pendentes": [], "falhas": [],
+    }
+
+
+@pytest.mark.parametrize("caso", ["vazio", "limite", "duplicado", "id-invalido", "campo-extra"])
+def test_rota_recibos_valida_corpo_antes_de_consultar_expo(
+    ambiente, dispositivo, expo, monkeypatch, caso
+):
+    cliente, _, _ = ambiente
+    segredo = uuid4().hex
+    monkeypatch.setenv("CRON_SECRET", segredo)
+    original = dispositivo()
+    ticket = ticket_push(original).model_dump(mode="json")
+    tickets = {
+        "vazio": [],
+        "limite": [ticket_push(original).model_dump(mode="json") for _ in range(1001)],
+        "duplicado": [ticket, ticket],
+        "id-invalido": [{**ticket, "dispositivo_id": "invalido"}],
+        "campo-extra": [{**ticket, "plataforma": "android"}],
+    }[caso]
+
+    resposta = cliente.post(
+        "/jobs/notificacoes-recibos", json={"tickets": tickets},
+        headers={"Authorization": f"Bearer {segredo}"},
+    )
+
+    assert resposta.status_code == 422
+    expo.assert_not_called()
 
 
 class BancoAvisos:

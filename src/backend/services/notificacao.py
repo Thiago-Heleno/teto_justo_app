@@ -6,14 +6,19 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import BackgroundTasks, HTTPException
 
-from schemas.notificacao import DispositivoPushRegistrar
+from schemas.notificacao import DispositivoPushRegistrar, TicketPush
 from services.score import ServicoScore
 
 
 _URL_EXPO = "https://exp.host/--/api/v2/push/send"
+_URL_RECIBOS_EXPO = "https://exp.host/--/api/v2/push/getReceipts"
 _LIMITE_LOTE = 100
+_LIMITE_LOTE_RECIBOS = 1000
 _TIMEOUT_SEGUNDOS = 10
 _LOGGER = logging.getLogger(__name__)
+_ERROS_RECIBO = {
+    "MessageTooBig", "MessageRateExceeded", "MismatchSenderId", "InvalidCredentials",
+}
 _MENSAGENS_TAREFA = {
     "tarefa_atribuida": ("Nova tarefa para você", "Uma tarefa foi atribuída a você."),
     "prazo_alterado": ("Prazo da tarefa alterado", "O prazo de uma tarefa sua foi atualizado."),
@@ -419,7 +424,11 @@ class ServicoNotificacao:
                 status = ticket.get("status") if isinstance(ticket, dict) else None
                 if status == "ok" and isinstance(ticket.get("id"), str) and ticket["id"]:
                     resultado["aceitos"].append(
-                        {"dispositivo_id": dispositivo["id"], "ticket_id": ticket["id"]}
+                        {
+                            "dispositivo_id": dispositivo["id"],
+                            "usuario_id": dispositivo["fk_usuario_id"],
+                            "ticket_id": ticket["id"],
+                        }
                     )
                     continue
 
@@ -441,5 +450,59 @@ class ServicoNotificacao:
                             "erro": "EnvioRecusado" if status == "error" else "EnvioNaoConfirmado",
                         }
                     )
+
+        return resultado
+
+    def consultar_recibos(self, tickets: list[TicketPush]) -> dict:
+        resultado = {"confirmados": [], "invalidos": [], "pendentes": [], "falhas": []}
+        for inicio in range(0, len(tickets), _LIMITE_LOTE_RECIBOS):
+            lote = {
+                str(ticket.ticket_id): ticket.model_dump(mode="json")
+                for ticket in tickets[inicio : inicio + _LIMITE_LOTE_RECIBOS]
+            }
+            try:
+                resposta = httpx.post(
+                    _URL_RECIBOS_EXPO, json={"ids": list(lote)}, timeout=_TIMEOUT_SEGUNDOS
+                )
+                resposta.raise_for_status()
+                conteudo = resposta.json()
+                recibos = conteudo.get("data") if isinstance(conteudo, dict) else None
+                if not isinstance(recibos, dict) or conteudo.get("errors"):
+                    raise ValueError("Resposta de recibos inválida.")
+            except (httpx.HTTPError, ValueError):
+                resultado["falhas"].extend(
+                    {**ticket, "erro": "ConsultaNaoConfirmada"} for ticket in lote.values()
+                )
+                continue
+
+            for ticket_id, ticket in lote.items():
+                if ticket_id not in recibos:
+                    resultado["pendentes"].append(ticket)
+                    continue
+                recibo = recibos[ticket_id]
+                status = recibo.get("status") if isinstance(recibo, dict) else None
+                if status == "ok":
+                    resultado["confirmados"].append(ticket)
+                    continue
+                detalhes = recibo.get("details") if isinstance(recibo, dict) else None
+                erro = detalhes.get("error") if isinstance(detalhes, dict) else None
+                if status == "error" and erro == "DeviceNotRegistered":
+                    try:
+                        (
+                            self.supabase.table("dispositivo_push").delete()
+                            .eq("id", ticket["dispositivo_id"])
+                            .eq("fk_usuario_id", ticket["usuario_id"]).execute()
+                        )
+                    except Exception:
+                        resultado["falhas"].append({**ticket, "erro": "LimpezaNaoConfirmada"})
+                    else:
+                        resultado["invalidos"].append(ticket)
+                else:
+                    codigo = "ReciboInvalido"
+                    if status == "error":
+                        codigo = erro if isinstance(erro, str) and erro in _ERROS_RECIBO else (
+                            "ReciboRecusado"
+                        )
+                    resultado["falhas"].append({**ticket, "erro": codigo})
 
         return resultado
