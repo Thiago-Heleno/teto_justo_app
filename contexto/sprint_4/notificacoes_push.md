@@ -378,3 +378,72 @@ configurado no projeto.
 - Os botões interativos na própria notificação não foram adicionados. As
   categorias do Expo permitem implementá-los sem assinatura paga do Expo; iOS
   exigirá credenciais de uma conta Apple Developer paga.
+
+
+## Teste manual pelo perfil — 27/10/2026
+
+### Objetivo e comportamento
+
+- Adicionado o botão **Testar notificações** no perfil, tanto no aplicativo
+  nativo quanto na web. O usuário escolhe nova tarefa, vencimento ou atraso e
+  uma tarefa atribuída a ele na casa selecionada.
+- O envio é imediato e direcionado somente aos aparelhos cadastrados do
+  usuário autenticado. A web dispara o push para esses aparelhos; não passa
+  a receber notificações de navegador.
+- Os títulos começam com **Teste:**. O teste não exige que o prazo esteja
+  vencendo ou atrasado. A rota de teste não muda tarefas, pontuação nem marcas
+  de lembretes, e não chama os jobs. A lista usa a API de tarefas existente,
+  mantendo a sincronização de estados já realizada por essa API.
+- Vencimento e atraso reutilizam a categoria com **Concluir** e **Ver tarefa**.
+  A tela e a mensagem avisam que Concluir executa a conclusão real, sujeita às
+  regras normais de autorização e prazo.
+- Sem cadastro válido, a API orienta ativar notificações no perfil do celular.
+  Falha total de envio retorna erro; sucesso parcial informa contagens. A tela
+  distingue solicitação de envio de recebimento efetivo no aparelho.
+
+### Arquivos e decisões
+
+- `src/frontend/src/components/testar-notificacoes.tsx`: botão e formulário
+  isolados, seleção de tipo/tarefa, carregamento, estado vazio, atualização da
+  lista e mensagens de resultado. Usa os componentes e estilos existentes.
+- `src/frontend/src/components/perfil.tsx`: importação e inclusão do componente.
+- `src/frontend/src/services/notificacoes.ts`: tipo e função
+  `enviarNotificacaoTeste`, usando a requisição autenticada existente.
+- `src/backend/routers/usuario.py`: `POST /usuarios/eu/notificacoes/teste`,
+  autenticado e sem parâmetro de destinatário.
+- `src/backend/schemas/notificacao.py`: entrada restrita aos três tipos e UUID
+  da tarefa; resposta contém apenas contagens, sem tokens ou tickets.
+- `src/backend/services/notificacao_teste.py`: verifica existência da tarefa,
+  acesso à casa e atribuição ao solicitante; reutiliza `enviar_push`.
+- Testes em `src/backend/tests/test_notificacao_teste_unitario.py`,
+  `src/backend/tests/test_notificacao_unitario.py` e
+  `src/frontend/scripts/notificacoes.test.mjs`.
+- Nenhuma migration, dependência, configuração ou alteração de cron foi criada.
+
+### Validação desta alteração
+
+- A partir de `src/backend`,
+  `python -m pytest tests/test_notificacao_teste_unitario.py -q --tb=short`:
+  **13 aprovados**, com banco somente de leitura e Expo simulados.
+- Seleção ampliada dos dois arquivos de testes de notificações:
+  **50 aprovados, 3 falhas e 10 não selecionados**. As três falhas são dos
+  testes existentes que usam `America/Sao_Paulo`, indisponível no Python local
+  por ausência de `tzdata`, já declarado em `requirements.txt`.
+  Os dez testes HTTP foram excluídos da seleção; a nova rota foi exercitada
+  diretamente como teste de unidade, verificando a identidade da sessão.
+- A partir de `src/frontend`,
+  `node --experimental-test-module-mocks --test scripts/notificacoes.test.mjs scripts/autenticacao-api.test.mjs`:
+  **38 aprovados**; o runner emitiu avisos de experimentalidade/depreciação.
+- `node node_modules/typescript/bin/tsc --noEmit`: aprovado.
+- ESLint dos três arquivos frontend de implementação alterados: aprovado.
+- Ruff dos cinco arquivos Python alterados: aprovado.
+- `git diff --check`: aprovado.
+- Sem build de APK, publicação, teste visual em navegador ou envio real para
+  aparelho. A configuração externa continua necessária para receber push.
+
+### Remoção do teste temporário
+
+O procedimento completo está em
+[Remoção completa do botão de teste de notificações](remocao_teste_notificacoes.md),
+com os arquivos exclusivos, trechos dos arquivos compartilhados, auxiliares de
+teste, busca de referências e verificações após a retirada.

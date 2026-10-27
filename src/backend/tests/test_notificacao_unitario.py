@@ -820,3 +820,17 @@ def test_reinicio_falhando_ou_desatualizado_nao_altera_tarefa_nem_propaga_erro(c
     banco.table.side_effect = RuntimeError(detalhe_privado)
     ServicoNotificacao(banco).reiniciar_aviso_inicio(tarefa)
     assert detalhe_privado not in caplog.text
+
+
+def test_rota_de_teste_encaminha_somente_usuario_da_sessao(monkeypatch):
+    from routers.usuario import testar_notificacao
+    from schemas.notificacao import NotificacaoTesteEntrada
+
+    usuario = SimpleNamespace(id=uuid4())
+    dados = NotificacaoTesteEntrada(tipo="tarefa_atribuida", tarefa_id=uuid4())
+    banco = object()
+    envio = Mock(return_value={"aceitos": 1, "falhas": 0, "invalidos": 0})
+    monkeypatch.setattr("routers.usuario.enviar_notificacao_teste", envio)
+
+    assert testar_notificacao(dados, usuario, banco) == envio.return_value
+    envio.assert_called_once_with(banco, usuario.id, dados)

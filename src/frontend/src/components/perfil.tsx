@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { TestarNotificacoes } from "@/components/testar-notificacoes";
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import {
@@ -282,6 +283,8 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
               </Text>
             </Pressable>
           )}
+
+          {perfil && <TestarNotificacoes usuarioId={perfil.id} />}
 
           <View style={styles.actions}>
             {onVoltar && (

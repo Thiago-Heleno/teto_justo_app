@@ -12,6 +12,7 @@ let casaAtiva;
 let tarefaDisponivel;
 let tokenDaSessao;
 let casasDisponiveis;
+let falhaTeste;
 
 mock.module("react-native", { namedExports: { Platform: { OS: "android" } } });
 mock.module("expo-constants", {
@@ -52,6 +53,10 @@ mock.module("../src/services/api.ts", {
         if (!tarefaDisponivel) throw new Error("Tarefa não encontrada");
         return { id: tarefaId, fk_casa_id: casaId };
       }
+      if (caminho === "/usuarios/eu/notificacoes/teste") {
+        if (falhaTeste) throw falhaTeste;
+        return { aceitos: 1, falhas: 0, invalidos: 0 };
+      }
       return undefined;
     },
   },
@@ -73,9 +78,11 @@ const {
   abrirTarefaNotificada,
   ativarNotificacoes,
   removerNotificacoesDoDispositivo,
+  enviarNotificacaoTeste,
 } = await import("../src/services/notificacoes.ts");
 
 beforeEach(() => {
+  falhaTeste = undefined;
   tokenSalvo = null;
   permissao = true;
   tokenExpo = "ExpoPushToken[novo]";
@@ -219,4 +226,24 @@ test("ação Ver tarefa apenas abre o detalhe sem concluir", async () => {
   assert.deepEqual(destinos, [
     { pathname: "/tarefas", params: { abrir: tarefaId } },
   ]);
+});
+
+test("teste manual envia apenas o tipo e a tarefa à rota do usuário logado", async () => {
+  const resultado = await enviarNotificacaoTeste("tarefa_atrasada", tarefaId);
+  assert.deepEqual(resultado, { aceitos: 1, falhas: 0, invalidos: 0 });
+  assert.deepEqual(pedidos, [
+    {
+      caminho: "/usuarios/eu/notificacoes/teste",
+      opcoes: {
+        method: "POST",
+        body: { tipo: "tarefa_atrasada", tarefa_id: tarefaId },
+      },
+    },
+  ]);
+});
+
+
+test("teste manual preserva a falha da API para a tela informar o problema", async () => {
+  falhaTeste = new Error("Ative as notificações no celular.");
+  await assert.rejects(enviarNotificacaoTeste("tarefa_atribuida", tarefaId), falhaTeste);
 });

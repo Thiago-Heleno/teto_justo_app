@@ -25,3 +25,16 @@ class DispositivoPushResposta(BaseModel):
     id: UUID
     plataforma: Literal["android", "ios"]
     criado_em: datetime
+
+
+class NotificacaoTesteEntrada(BaseModel):
+    tipo: Literal["tarefa_atribuida", "tarefa_vence_hoje", "tarefa_atrasada"]
+    tarefa_id: UUID
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NotificacaoTesteResposta(BaseModel):
+    aceitos: int
+    falhas: int
+    invalidos: int

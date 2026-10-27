@@ -15,6 +15,8 @@ from schemas.notificacao import (
     DispositivoPushRegistrar,
     DispositivoPushRemover,
     DispositivoPushResposta,
+    NotificacaoTesteEntrada,
+    NotificacaoTesteResposta,
 )
 from services.usuario import ServicoUsuario
 from services.autorizacao import ServicoAutorizacaoCasa
@@ -25,6 +27,7 @@ from services.limite_login import (
     get_limitador_verificacao,
 )
 from services.notificacao import ServicoNotificacao
+from services.notificacao_teste import enviar_notificacao_teste
 from services.verificacao_email import ServicoVerificacaoEmail
 
 router = APIRouter(prefix="/usuarios", tags=["Usuários"])
@@ -111,6 +114,15 @@ def remover_dispositivo(
     supabase=Depends(get_supabase),
 ):
     ServicoNotificacao(supabase).remover_dispositivo(usuario_atual.id, dados.token)
+
+
+@router.post("/eu/notificacoes/teste", response_model=NotificacaoTesteResposta)
+def testar_notificacao(
+    dados: NotificacaoTesteEntrada,
+    usuario_atual: UsuarioAtual,
+    supabase=Depends(get_supabase),
+):
+    return enviar_notificacao_teste(supabase, usuario_atual.id, dados)
 
 
 @router.get("/{id_usuario}", response_model=UsuarioResposta)

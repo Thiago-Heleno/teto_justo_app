@@ -164,3 +164,17 @@ export async function abrirTarefaNotificada(
     router.push("/tarefas");
   }
 }
+
+export type TipoNotificacaoTeste =
+  "tarefa_atribuida" | "tarefa_vence_hoje" | "tarefa_atrasada";
+
+export function enviarNotificacaoTeste(
+  tipo: TipoNotificacaoTeste,
+  tarefaId: string,
+) {
+  return requisitar<{ aceitos: number; falhas: number; invalidos: number }>(
+    "/usuarios/eu/notificacoes/teste",
+    undefined,
+    { method: "POST", body: { tipo, tarefa_id: tarefaId } },
+  );
+}
