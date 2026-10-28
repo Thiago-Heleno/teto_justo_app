@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Modal,
   Platform,
   Pressable,
@@ -14,10 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
-import {
-  ativarNotificacoes,
-  notificacoesAtivas,
-} from "@/services/notificacoes";
+import { ativarNotificacoes } from "@/services/notificacoes";
 import {
   atualizarPerfil,
   carregarPerfil,
@@ -46,7 +45,9 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
   const [pushAtivo, setPushAtivo] = useState(false);
+  const [erroPush, setErroPush] = useState<string>();
   const [ativandoPush, setAtivandoPush] = useState(false);
+  const [verificandoPush, setVerificandoPush] = useState(true);
   const emAndamento = useRef(false);
 
   useEffect(() => {
@@ -70,27 +71,56 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
     return () => controlador.abort();
   }, [tentativa]);
 
-  useEffect(() => {
-    void notificacoesAtivas()
-      .then(setPushAtivo)
-      .catch(() => {});
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      let montado = true;
+      async function atualizarPush() {
+        setVerificandoPush(true);
+        try {
+          const ativa = await ativarNotificacoes(false);
+          if (montado) {
+            setPushAtivo(ativa);
+            setErroPush(undefined);
+          }
+        } catch {
+          if (montado) {
+            setPushAtivo(false);
+            setErroPush(
+              "Não foi possível verificar as notificações. Tente ativá-las novamente.",
+            );
+          }
+        } finally {
+          if (montado) setVerificandoPush(false);
+        }
+      }
+      void atualizarPush();
+      const assinatura = AppState.addEventListener("change", (estado) => {
+        if (estado === "active") void atualizarPush();
+      });
+      return () => {
+        montado = false;
+        assinatura.remove();
+      };
+    }, []),
+  );
 
   async function ativarPush() {
-    if (ativandoPush) return;
+    if (ativandoPush || verificandoPush) return;
     setAtivandoPush(true);
-    setErro(undefined);
+    setErroPush(undefined);
     try {
       if (await ativarNotificacoes()) {
         setPushAtivo(true);
-        setAviso("Notificações ativadas neste aparelho.");
       } else {
-        setErro(
+        setErroPush(
           "Permita notificações nas configurações do aparelho para ativar os avisos.",
         );
       }
     } catch (falha) {
-      setErro(mensagemDe(falha, "Não foi possível ativar as notificações."));
+      setErroPush(
+        mensagemDe(falha, "Não foi possível ativar as notificações."),
+      );
     } finally {
       setAtivandoPush(false);
     }
@@ -263,22 +293,31 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
             </Pressable>
           )}
 
-          {perfil && Platform.OS !== "web" && (
+          {erroPush && (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {erroPush}
+            </Text>
+          )}
+          {Platform.OS !== "web" && (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{
-                disabled: pushAtivo || ativandoPush,
-                busy: ativandoPush,
+                disabled: pushAtivo || ativandoPush || verificandoPush,
+                busy: ativandoPush || verificandoPush,
               }}
-              disabled={pushAtivo || ativandoPush}
+              disabled={pushAtivo || ativandoPush || verificandoPush}
               onPress={() => void ativarPush()}
               style={[
                 styles.button,
-                (pushAtivo || ativandoPush) && styles.dimmed,
+                (pushAtivo || ativandoPush || verificandoPush) && styles.dimmed,
               ]}
             >
               <Text style={styles.buttonText}>
-                {pushAtivo ? "Notificações ativas" : "Ativar notificações"}
+                {ativandoPush || verificandoPush
+                  ? "Verificando notificações…"
+                  : pushAtivo
+                    ? "Notificações ativas"
+                    : "Ativar notificações"}
               </Text>
             </Pressable>
           )}

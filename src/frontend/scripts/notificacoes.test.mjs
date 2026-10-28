@@ -12,8 +12,40 @@ let casaAtiva;
 let tarefaDisponivel;
 let tokenDaSessao;
 let casasDisponiveis;
+let podePedir;
+let permissaoSolicitada;
+let pedidosPermissao;
+let configuracoesAbertas;
+let alertas;
+let aoMudarEstado;
+let falhaCadastro;
+let statusIos;
+let antesDeObterToken;
+const plataforma = { OS: "android" };
+const appState = {
+  currentState: "active",
+  addEventListener: (_evento, callback) => {
+    aoMudarEstado = callback;
+    return {
+      remove: () => {
+        aoMudarEstado = undefined;
+      },
+    };
+  },
+};
 
-mock.module("react-native", { namedExports: { Platform: { OS: "android" } } });
+mock.module("react-native", {
+  namedExports: {
+    Platform: plataforma,
+    AppState: appState,
+    Alert: { alert: (...args) => alertas.push(args) },
+    Linking: {
+      openSettings: async () => {
+        configuracoesAbertas++;
+      },
+    },
+  },
+});
 mock.module("expo-constants", {
   defaultExport: {
     expoConfig: { extra: { eas: { projectId: "projeto-teste" } } },
@@ -22,12 +54,24 @@ mock.module("expo-constants", {
 mock.module("expo-notifications", {
   namedExports: {
     AndroidImportance: { HIGH: 4 },
+    IosAuthorizationStatus: { PROVISIONAL: 3 },
     setNotificationChannelAsync: async () => {},
     setNotificationCategoryAsync: async () => {},
     DEFAULT_ACTION_IDENTIFIER: "expo.modules.notifications.actions.DEFAULT",
-    getPermissionsAsync: async () => ({ granted: permissao }),
-    requestPermissionsAsync: async () => ({ granted: permissao }),
-    getExpoPushTokenAsync: async () => ({ data: tokenExpo }),
+    getPermissionsAsync: async () => ({
+      granted: permissao,
+      canAskAgain: podePedir,
+      ios: { status: statusIos },
+    }),
+    requestPermissionsAsync: async () => {
+      pedidosPermissao++;
+      permissao = permissaoSolicitada;
+      return { granted: permissao, canAskAgain: podePedir };
+    },
+    getExpoPushTokenAsync: async () => {
+      await antesDeObterToken?.();
+      return { data: tokenExpo };
+    },
   },
 });
 mock.module("expo-secure-store", {
@@ -48,6 +92,13 @@ mock.module("../src/services/api.ts", {
   namedExports: {
     requisitar: async (caminho, _signal, opcoes) => {
       pedidos.push({ caminho, opcoes });
+      if (
+        opcoes?.method === "POST" &&
+        caminho === "/usuarios/eu/dispositivos" &&
+        falhaCadastro
+      ) {
+        throw new Error("Falha ao cadastrar dispositivo");
+      }
       if (caminho.startsWith("/tarefas/")) {
         if (!tarefaDisponivel) throw new Error("Tarefa não encontrada");
         return { id: tarefaId, fk_casa_id: casaId };
@@ -71,6 +122,8 @@ mock.module("../src/services/sessao-store.ts", {
 
 const {
   abrirTarefaNotificada,
+  acompanharNotificacoes,
+  notificacoesAtivas,
   ativarNotificacoes,
   removerNotificacoesDoDispositivo,
 } = await import("../src/services/notificacoes.ts");
@@ -78,6 +131,17 @@ const {
 beforeEach(() => {
   tokenSalvo = null;
   permissao = true;
+  podePedir = true;
+  permissaoSolicitada = false;
+  pedidosPermissao = 0;
+  configuracoesAbertas = 0;
+  alertas = [];
+  aoMudarEstado = undefined;
+  falhaCadastro = false;
+  statusIos = undefined;
+  antesDeObterToken = undefined;
+  plataforma.OS = "android";
+  appState.currentState = "active";
   tokenExpo = "ExpoPushToken[novo]";
   pedidos = [];
   destinos = [];
@@ -175,7 +239,6 @@ test("resumo não navega para casa inacessível, sessão trocada ou payload inv�
   assert.deepEqual(destinos, []);
 });
 
-
 test("ação Concluir chama endpoint de conclusão e abre a tarefa", async () => {
   await abrirTarefaNotificada(
     { tipo: "tarefa_vence_hoje", tarefa_id: tarefaId, casa_id: casaId },
@@ -205,7 +268,6 @@ test("ação Concluir também é válida para aviso de tarefa atrasada", async (
   assert.equal(pedidos[1].opcoes.method, "POST");
 });
 
-
 test("ação Ver tarefa apenas abre o detalhe sem concluir", async () => {
   await abrirTarefaNotificada(
     { tipo: "tarefa_atrasada", tarefa_id: tarefaId, casa_id: casaId },
@@ -219,4 +281,177 @@ test("ação Ver tarefa apenas abre o detalhe sem concluir", async () => {
   assert.deepEqual(destinos, [
     { pathname: "/tarefas", params: { abrir: tarefaId } },
   ]);
+});
+
+const concluirAssincronos = () =>
+  new Promise((resolve) => setImmediate(resolve));
+
+test("ativação solicita permissão e cadastra após o aceite", async () => {
+  permissao = false;
+  permissaoSolicitada = true;
+  assert.equal(await ativarNotificacoes(), true);
+  assert.equal(pedidosPermissao, 1);
+  assert.equal(tokenSalvo, tokenExpo);
+});
+
+test("permissão bloqueada abre configurações sem repetir pedido nativo", async () => {
+  permissao = false;
+  podePedir = false;
+  assert.equal(await ativarNotificacoes(), false);
+  assert.equal(configuracoesAbertas, 1);
+  assert.equal(pedidosPermissao, 0);
+  assert.deepEqual(pedidos, []);
+});
+
+test("verificação silenciosa não solicita permissão nem abre configurações", async () => {
+  permissao = false;
+  podePedir = false;
+  assert.equal(await ativarNotificacoes(false), false);
+  assert.equal(configuracoesAbertas, 0);
+  assert.equal(pedidosPermissao, 0);
+  assert.deepEqual(pedidos, []);
+});
+
+test("token salvo não indica notificações ativas após revogar permissão", async () => {
+  tokenSalvo = tokenExpo;
+  permissao = false;
+  assert.equal(await notificacoesAtivas(), false);
+});
+
+test("falha no cadastro não salva token como se a ativação tivesse funcionado", async () => {
+  falhaCadastro = true;
+  await assert.rejects(ativarNotificacoes(), /Falha ao cadastrar/);
+  assert.equal(tokenSalvo, null);
+});
+
+test("aviso automático permite adiar sem reaparecer ao retornar ao app", async () => {
+  permissao = false;
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  assert.equal(alertas.length, 1);
+  assert.equal(alertas[0][2][0].text, "Agora não");
+  assert.equal(pedidosPermissao, 0);
+  aoMudarEstado("active");
+  await concluirAssincronos();
+  assert.equal(alertas.length, 1);
+  parar();
+  assert.equal(aoMudarEstado, undefined);
+});
+
+test("aceitar aviso automático solicita permissão e registra dispositivo", async () => {
+  permissao = false;
+  permissaoSolicitada = true;
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  alertas[0][2][1].onPress();
+  await concluirAssincronos();
+  assert.equal(pedidosPermissao, 1);
+  assert.equal(tokenSalvo, tokenExpo);
+  parar();
+});
+
+test("retorno das configurações registra permissão concedida sem token anterior", async () => {
+  permissao = false;
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  permissao = true;
+  aoMudarEstado("active");
+  await concluirAssincronos();
+  assert.equal(tokenSalvo, tokenExpo);
+  assert.equal(pedidosPermissao, 0);
+  assert.equal(alertas.length, 1);
+  parar();
+});
+
+test("revogar permissão remove cadastro e oferece ativação ao retornar", async () => {
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  assert.equal(alertas.length, 0);
+  permissao = false;
+  aoMudarEstado("active");
+  await concluirAssincronos();
+  assert.equal(tokenSalvo, null);
+  assert.equal(pedidos.at(-1).opcoes.method, "DELETE");
+  assert.equal(alertas.length, 1);
+  parar();
+});
+
+test("aviso de sessão encerrada não solicita permissão", async () => {
+  permissao = false;
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  tokenDaSessao = null;
+  alertas[0][2][1].onPress();
+  await concluirAssincronos();
+  assert.equal(pedidosPermissao, 0);
+  assert.deepEqual(pedidos, []);
+  parar();
+});
+
+test("web não solicita notificações nem acompanha estado nativo", async () => {
+  plataforma.OS = "web";
+  const parar = acompanharNotificacoes();
+  assert.equal(await ativarNotificacoes(), false);
+  assert.equal(await notificacoesAtivas(), false);
+  assert.equal(aoMudarEstado, undefined);
+  assert.deepEqual(alertas, []);
+  parar();
+});
+
+test("permissão provisória iOS registra sem solicitar novamente", async () => {
+  plataforma.OS = "ios";
+  permissao = false;
+  statusIos = 3;
+  assert.equal(await ativarNotificacoes(false), true);
+  assert.equal(pedidosPermissao, 0);
+  assert.equal(pedidos[0].opcoes.body.plataforma, "ios");
+});
+
+test("verificações concorrentes compartilham um único cadastro", async () => {
+  const resultados = await Promise.all([
+    ativarNotificacoes(false),
+    ativarNotificacoes(false),
+  ]);
+  assert.deepEqual(resultados, [true, true]);
+  assert.equal(pedidos.filter((p) => p.opcoes?.method === "POST").length, 1);
+});
+
+test("troca de sessão durante obtenção de token impede cadastro na conta nova", async () => {
+  antesDeObterToken = () => {
+    tokenDaSessao = "nova-sessao";
+  };
+  assert.equal(await ativarNotificacoes(), false);
+  assert.deepEqual(pedidos, []);
+  assert.equal(tokenSalvo, null);
+});
+
+test("acompanhamento encerrado não exibe aviso pendente", async () => {
+  permissao = false;
+  const parar = acompanharNotificacoes();
+  parar();
+  await concluirAssincronos();
+  assert.deepEqual(alertas, []);
+});
+
+test("falha de cadastro automático informa como tentar novamente", async () => {
+  falhaCadastro = true;
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  assert.equal(alertas.length, 1);
+  assert.match(alertas[0][1], /Tente novamente pelo Perfil/);
+  assert.equal(tokenSalvo, null);
+  parar();
+});
+
+test("app em segundo plano aguarda retorno para oferecer ativação", async () => {
+  permissao = false;
+  appState.currentState = "background";
+  const parar = acompanharNotificacoes();
+  await concluirAssincronos();
+  assert.deepEqual(alertas, []);
+  appState.currentState = "active";
+  aoMudarEstado("active");
+  await concluirAssincronos();
+  assert.equal(alertas.length, 1);
+  parar();
 });

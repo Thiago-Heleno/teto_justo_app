@@ -7,7 +7,7 @@ push em um APK, siga [Configuração FCM pelo GitHub Actions](#configuração-fc
 
 Cadastrar dispositivos e emitir avisos normais de atribuição, mudança de prazo
 ou responsável, início próximo, rodízio e encerramento do prazo de execução.
-O app Android permite ativação no perfil e abre a tarefa ou a lista ao tocar
+O app oferece ativação após o login e no perfil, e abre a tarefa ou a lista ao tocar
 no aviso. Os lembretes de vencimento no dia e de atraso ainda tolerado oferecem
 as ações Concluir e Ver tarefa.
 
@@ -212,7 +212,7 @@ Não possuem categoria de botões interativos. O resumo do rodízio abre a lista
 somente após verificar a sessão e o acesso à casa, sem consultar uma tarefa
 individual. Os demais avisos mantêm a abertura do detalhe existente.
 
-No Android, o usuário ativa os avisos pelo perfil. O token é cadastrado em
+No app nativo, o usuário ativa os avisos pelo convite automático ou pelo perfil. O token é cadastrado em
 `POST /usuarios/eu/dispositivos` e removido em `DELETE` antes do logout. Ao
 reiniciar com sessão válida, o app atualiza o cadastro se o token mudou. Um
 toque consulta a tarefa pela API autenticada, troca para sua casa se necessário
@@ -368,6 +368,60 @@ Não há consulta automática dos envios normais nem garantia de exibição no a
 | Erro de autorização/credenciais ou remetente | Credencial FCM V1 do Expo, API habilitada, permissão da conta e mesmo projeto Firebase. Conferir o recibo quando o ticket for aceito. |
 | Expo retorna `UNAUTHORIZED` | Segurança adicional de push exige autenticação ainda ausente no backend. |
 | Cadastro existe, mas o aviso não aparece | Permissão e canal Android, configuração de bateria/rede e recibo Expo; cadastro e ticket não comprovam entrega. |
+
+## Permissão no aparelho — 28/10/2026
+
+- Objetivo: oferecer a ativação sem depender de um token push já salvo e
+  permitir recuperar uma permissão negada nas configurações do aparelho.
+- `src/frontend/src/services/notificacoes.ts`: consulta a permissão ao carregar
+  uma sessão autenticada e ao retornar ao primeiro plano. Se permitida,
+  registra o aparelho mesmo sem token anterior; se negada, tenta remover o
+  cadastro anterior e oferece um alerta com **Ativar** e **Agora não**.
+- O convite aparece no máximo uma vez por acompanhamento da sessão, sem
+  insistir nos retornos ao app. Reiniciar o app ou entrar novamente permite
+  outro convite. A recusa mantém o restante do app disponível.
+- Só a ação explícita solicita a permissão nativa. Quando `canAskAgain` é falso,
+  abre as configurações do app. O retorno reconsulta a permissão e tenta
+  cadastrar o dispositivo. A autorização provisória do iOS é aceita.
+- Cadastros simultâneos da mesma sessão compartilham a operação. A sessão é
+  conferida após consultas assíncronas para evitar continuar o cadastro em
+  outra conta. Falhas de ativação orientam nova tentativa pelo perfil.
+- `src/frontend/src/app/_layout.tsx`: inicia o acompanhamento autenticado e
+  remove o listener ao encerrar ou trocar a sessão.
+- `src/frontend/src/components/perfil.tsx`: mantém **Ativar notificações**
+  visível no app nativo mesmo se o carregamento do perfil falhar. Reconsulta
+  ao focar a tela e ao voltar ao app; mostra verificação em andamento e
+  **Notificações ativas** após cadastro bem-sucedido. Erros de notificações
+  ficam separados dos erros de edição do perfil. A web não oferece push.
+- `src/frontend/scripts/notificacoes.test.mjs`: testes unitários com Expo,
+  sistema operacional e API simulados; cobrem aceite, recusa, configurações,
+  retorno, revogação, falha no cadastro, sessão, concorrência e web.
+- Sem alteração de backend, banco, credenciais ou dependências.
+
+Validações executadas a partir de `src/frontend`:
+
+- `npm run test:tarefas`: **99 aprovados**, incluindo **26 de notificações**.
+  Antes da implementação, os novos casos reproduziram oito falhas.
+- `npm run test:gerenciamento`: **7 aprovados**; `npm run test:casas`:
+  **43 aprovados**. O Node emitiu avisos sobre os mocks experimentais,
+  propriedades depreciadas dos mocks e tipo de módulo não declarado.
+- `node node_modules/typescript/bin/tsc --noEmit`: aprovado.
+- ESLint dos três arquivos de produção alterados: aprovado.
+- `node node_modules/expo/bin/cli export --platform android --output-dir <diretorio-temporario>`:
+  aprovado, com bundle Hermes de 1.794 módulos. A primeira tentativa falhou
+  por falta de permissão de escrita no temporário do ambiente; a repetição
+  com `TEMP` e `TMP` apontando para um diretório permitido concluiu. Executado
+  com `EXPO_NO_DOTENV=1` e `CI=1`; não equivale a build ou execução de APK.
+- `git diff --check`, a partir da raiz: aprovado.
+
+Limites: sem validação em celular, build de APK ou teste real de entrega.
+A consulta verifica a permissão geral do app, sem diagnosticar canais
+individuais silenciados, restrições de bateria ou entrega pelo FCM. O teste
+de disparo citado no relato não foi reproduzido nem alterado nesta mudança.
+
+Referências consultadas: [permissões no Expo](https://docs.expo.dev/versions/latest/sdk/notifications/),
+[configurações do app](https://reactnative.dev/docs/linking#opensettings)
+e [retorno ao primeiro plano](https://reactnative.dev/docs/appstate).
 
 ## Atualização documental — 27/10/2026
 

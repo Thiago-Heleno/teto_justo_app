@@ -17,9 +17,7 @@ import { Caldera } from "@/constants/theme";
 import { iniciarAutenticacao } from "@/services/autenticacao-api";
 import {
   abrirTarefaNotificada,
-  ativarNotificacoes,
-  notificacoesAtivas,
-  removerNotificacoesDoDispositivo,
+  acompanharNotificacoes,
 } from "@/services/notificacoes";
 import { sessao } from "@/services/sessao-store";
 
@@ -62,12 +60,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web" || !pronta || !token) return;
-    void notificacoesAtivas()
-      .then(async (ativa) => {
-        if (ativa) await ativarNotificacoes();
-        else await removerNotificacoesDoDispositivo();
-      })
-      .catch(() => {});
+    return acompanharNotificacoes();
   }, [pronta, token]);
 
   useEffect(() => {

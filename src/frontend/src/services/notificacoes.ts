@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
-import { Platform } from "react-native";
+import { Alert, AppState, Linking, Platform } from "react-native";
 
 import { requisitar } from "./api.ts";
 import { listarCasas } from "./casas-api.ts";
@@ -13,17 +13,44 @@ const CHAVE_TOKEN_PUSH = "teto_justo_push_token";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function permissaoConcedida(
+  permissao: Notifications.NotificationPermissionsStatus,
+) {
+  return (
+    permissao.granted ||
+    permissao.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+  );
+}
+
 export async function notificacoesAtivas() {
   if (Platform.OS === "web") return false;
 
   const token = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
   const permissao = await Notifications.getPermissionsAsync();
 
-  return Boolean(token && permissao.granted);
+  return Boolean(token && permissaoConcedida(permissao));
 }
 
-export async function ativarNotificacoes() {
+let ativacaoEmAndamento: Promise<boolean> | undefined;
+let sessaoDaAtivacao: string | null;
+
+export function ativarNotificacoes(solicitarPermissao = true) {
+  const tokenDaSessao = sessao.getState().token;
+  if (!ativacaoEmAndamento || sessaoDaAtivacao !== tokenDaSessao) {
+    sessaoDaAtivacao = tokenDaSessao;
+    const operacao = registrarNotificacoes(solicitarPermissao).finally(() => {
+      if (ativacaoEmAndamento === operacao) ativacaoEmAndamento = undefined;
+    });
+    ativacaoEmAndamento = operacao;
+  }
+  return ativacaoEmAndamento;
+}
+
+async function registrarNotificacoes(solicitarPermissao: boolean) {
   if (Platform.OS === "web") return false;
+
+  const tokenDaSessao = sessao.getState().token;
+  if (!tokenDaSessao) return false;
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
@@ -33,12 +60,18 @@ export async function ativarNotificacoes() {
   }
 
   let permissao = await Notifications.getPermissionsAsync();
+  if (sessao.getState().token !== tokenDaSessao) return false;
 
-  if (!permissao.granted) {
+  if (!permissaoConcedida(permissao)) {
+    if (!solicitarPermissao) return false;
+    if (!permissao.canAskAgain) {
+      await Linking.openSettings();
+      return false;
+    }
     permissao = await Notifications.requestPermissionsAsync();
   }
 
-  if (!permissao.granted) return false;
+  if (!permissaoConcedida(permissao)) return false;
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
 
@@ -50,12 +83,16 @@ export async function ativarNotificacoes() {
 
   const anterior = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
 
+  if (sessao.getState().token !== tokenDaSessao) return false;
+
   if (anterior && anterior !== token) {
     await requisitar<void>("/usuarios/eu/dispositivos", undefined, {
       method: "DELETE",
       body: { token: anterior },
     });
   }
+
+  if (sessao.getState().token !== tokenDaSessao) return false;
 
   await requisitar("/usuarios/eu/dispositivos", undefined, {
     method: "POST",
@@ -65,9 +102,69 @@ export async function ativarNotificacoes() {
     },
   });
 
+  if (sessao.getState().token !== tokenDaSessao) return false;
   await SecureStore.setItemAsync(CHAVE_TOKEN_PUSH, token);
 
   return true;
+}
+
+export function acompanharNotificacoes() {
+  const tokenDaSessao = sessao.getState().token;
+  if (Platform.OS === "web" || !tokenDaSessao) return () => {};
+
+  let montado = true;
+  let verificando = false;
+  let avisoExibido = false;
+  const vigente = () => montado && sessao.getState().token === tokenDaSessao;
+  const informarFalha = () => {
+    if (!vigente()) return;
+    Alert.alert(
+      "Notificações",
+      "Não foi possível ativar as notificações. Tente novamente pelo Perfil.",
+    );
+  };
+
+  async function verificar() {
+    if (!vigente() || verificando || AppState.currentState === "background")
+      return;
+    verificando = true;
+    try {
+      const ativas = await ativarNotificacoes(false);
+      if (!vigente() || ativas) return;
+      await removerNotificacoesDoDispositivo().catch(() => {});
+      if (!vigente() || avisoExibido) return;
+      avisoExibido = true;
+      Alert.alert(
+        "Ativar notificações?",
+        "Receba avisos sobre suas tarefas e prazos. Se a permissão estiver bloqueada, abra as configurações do app e ative Notificações.",
+        [
+          { text: "Agora não", style: "cancel" },
+          {
+            text: "Ativar",
+            onPress: () => {
+              if (vigente()) void ativarNotificacoes().catch(informarFalha);
+            },
+          },
+        ],
+      );
+    } catch {
+      if (!avisoExibido) {
+        avisoExibido = true;
+        informarFalha();
+      }
+    } finally {
+      verificando = false;
+    }
+  }
+
+  void verificar();
+  const assinatura = AppState.addEventListener("change", (estado) => {
+    if (estado === "active") void verificar();
+  });
+  return () => {
+    montado = false;
+    assinatura.remove();
+  };
 }
 
 export async function removerNotificacoesDoDispositivo() {
