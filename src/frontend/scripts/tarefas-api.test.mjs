@@ -39,34 +39,39 @@ const {
   temConfiguracaoTarefas,
 } = await import("../src/services/tarefas-api.ts");
 
-test("envia filtros e credencial para a lista da casa", async () => {
-  process.env.EXPO_PUBLIC_API_URL = "http://api.test/";
-  process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
-  sessao.setState({ token: "sessao-valida", pronta: true });
-  const fetchOriginal = globalThis.fetch;
-  let requisicao;
+for (const estado of ["pendente", "em_aberto"]) {
+  test(`envia filtro ${estado} e credencial para a lista da casa`, async () => {
+    process.env.EXPO_PUBLIC_API_URL = "http://api.test/";
+    process.env.EXPO_PUBLIC_CASA_ID = "casa-123";
+    sessao.setState({ token: "sessao-valida", pronta: true });
+    const fetchOriginal = globalThis.fetch;
+    let requisicao;
 
-  globalThis.fetch = async (url, opcoes) => {
-    requisicao = { url, opcoes };
-    return { ok: true, json: async () => [] };
-  };
+    globalThis.fetch = async (url, opcoes) => {
+      requisicao = { url, opcoes };
+      return { ok: true, json: async () => [] };
+    };
 
-  try {
-    await carregarTarefas({
-      estado: "pendente",
-      responsavel: "morador-456",
-      prazo: "sete_dias",
-    });
-  } finally {
-    globalThis.fetch = fetchOriginal;
-  }
+    try {
+      await carregarTarefas({
+        estado,
+        responsavel: "morador-456",
+        prazo: "sete_dias",
+      });
+    } finally {
+      globalThis.fetch = fetchOriginal;
+    }
 
-  assert.equal(
-    requisicao.url,
-    "http://api.test/tarefas/casa/casa-123?estado=pendente&prazo=sete_dias&responsavel=morador-456",
-  );
-  assert.equal(requisicao.opcoes.headers.Authorization, "Bearer sessao-valida");
-});
+    assert.equal(
+      requisicao.url,
+      `http://api.test/tarefas/casa/casa-123?estado=${estado}&prazo=sete_dias&responsavel=morador-456`,
+    );
+    assert.equal(
+      requisicao.opcoes.headers.Authorization,
+      "Bearer sessao-valida",
+    );
+  });
+}
 
 test("edita a tarefa pelo endpoint autenticado", async () => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";

@@ -153,6 +153,13 @@ export default function TarefasScreen() {
   ).length;
   const filtrosAtivos = quantidadeFiltros > 0;
   const chaveFiltro = `${chaveSessao}:${estado}:${responsavel}:${prazo}`;
+  const [listaVisivel, setListaVisivel] = useState({
+    chave: chaveFiltro,
+    limite: 12,
+  });
+  if (listaVisivel.chave !== chaveFiltro) {
+    setListaVisivel({ chave: chaveFiltro, limite: 12 });
+  }
   const contextoAtual = origemContexto === chaveSessao;
   const tarefas = !contextoAtual
     ? undefined
@@ -392,6 +399,7 @@ export default function TarefasScreen() {
 
   const chaveCalendario = `${casa.id}-${casa.timezone}-${usuarioAtual.id}`;
   const tarefasFiltradas = ordenarTarefas(tarefas ?? [], prazo);
+  const tarefasVisiveis = tarefasFiltradas.slice(0, listaVisivel.limite);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -581,6 +589,16 @@ export default function TarefasScreen() {
                           }))
                         }
                       />
+                      <FilterPill
+                        label="Em aberto"
+                        selected={filtros.estado === "em_aberto"}
+                        onPress={() =>
+                          setFiltros((atuais) => ({
+                            ...atuais,
+                            estado: "em_aberto",
+                          }))
+                        }
+                      />
                       {opcoesEstadoTarefa.map((opcao) => (
                         <FilterPill
                           key={opcao.valor}
@@ -658,14 +676,15 @@ export default function TarefasScreen() {
                 TAREFAS
               </Text>
               <Animated.Text
-                key={tarefasFiltradas.length}
+                key={`${tarefasVisiveis.length}:${tarefasFiltradas.length}`}
                 accessibilityLiveRegion="polite"
                 entering={FadeIn.duration(160).reduceMotion(
                   ReduceMotion.System,
                 )}
                 style={styles.resultCount}
               >
-                {tarefasFiltradas.length} resultado(s)
+                Exibindo {tarefasVisiveis.length} de {tarefasFiltradas.length}{" "}
+                resultados
               </Animated.Text>
             </View>
 
@@ -679,7 +698,7 @@ export default function TarefasScreen() {
 
             {tarefasFiltradas.length ? (
               <View style={styles.taskGrid}>
-                {tarefasFiltradas.map((tarefa, index) => {
+                {tarefasVisiveis.map((tarefa, index) => {
                   const responsaveis = moradores.filter((morador) =>
                     tarefa.usuarios_atribuidos.includes(morador.id),
                   );
@@ -779,6 +798,20 @@ export default function TarefasScreen() {
                 </Text>
               </Animated.View>
             ) : null}
+            {tarefasVisiveis.length < tarefasFiltradas.length && (
+              <MotionPressable
+                accessibilityRole="button"
+                onPress={() =>
+                  setListaVisivel((atual) => ({
+                    ...atual,
+                    limite: atual.limite + 12,
+                  }))
+                }
+                style={[styles.retryButton, styles.loadMoreButton]}
+              >
+                <Text style={styles.retryButtonText}>Carregar mais</Text>
+              </MotionPressable>
+            )}
           </Animated.View>
         )}
       </ScrollView>
@@ -1019,4 +1052,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   retryButtonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
+  loadMoreButton: {
+    alignSelf: "center",
+    minHeight: 44,
+    justifyContent: "center",
+  },
 });

@@ -9,7 +9,7 @@ type TarefaFiltravel = {
 };
 
 export type FiltrosTarefa = {
-  estado: EstadoTarefa | "todos";
+  estado: EstadoTarefa | "todos" | "em_aberto";
   responsavel: string | "todos";
   prazo: FiltroPrazo;
 };
@@ -31,7 +31,11 @@ export function filtrarTarefas<T extends TarefaFiltravel>(
   return tarefas.filter((tarefa) => {
     const prazo = new Date(tarefa.data_fim);
     const correspondeEstado =
-      filtros.estado === "todos" || tarefa.estado_atual === filtros.estado;
+      filtros.estado === "todos" ||
+      (filtros.estado === "em_aberto"
+        ? tarefa.estado_atual === "pendente" ||
+          tarefa.estado_atual === "atrasada"
+        : tarefa.estado_atual === filtros.estado);
     const correspondeResponsavel =
       filtros.responsavel === "todos" ||
       tarefa.usuarios_atribuidos.includes(filtros.responsavel);

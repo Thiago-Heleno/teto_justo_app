@@ -40,7 +40,7 @@ def listar_tarefas_por_casa(
     id_casa: UUID,
     usuario_atual: UsuarioAtual,
     tarefas_fundo: BackgroundTasks,
-    estado: EstadoTarefa | Literal["todos"] | None = None,
+    estado: EstadoTarefa | Literal["todos", "em_aberto"] | None = None,
     responsavel: UUID | None = None,
     prazo: Literal["todos", "hoje", "sete_dias", "antigas", "atrasadas"] | None = None,
     supabase=Depends(get_supabase),
