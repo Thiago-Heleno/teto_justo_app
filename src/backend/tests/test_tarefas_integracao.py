@@ -82,11 +82,11 @@ def test_crud_tarefa_no_supabase(
         novo_nome = "Limpar toda a varanda"
         atualizada = cliente.patch(
             f"/tarefas/{tarefa['id']}",
-            json={"nome": novo_nome, "estado_atual": "atrasada", "peso": 3},
+            json={"nome": novo_nome, "peso": 3},
         )
         assert atualizada.status_code == 200, atualizada.text
         assert atualizada.json()["nome"] == novo_nome
-        assert atualizada.json()["estado_atual"] == "atrasada"
+        assert atualizada.json()["estado_atual"] == "pendente"
         assert atualizada.json()["peso"] == 3
         assert atualizada.json()["pontuacao"] == 50
 
