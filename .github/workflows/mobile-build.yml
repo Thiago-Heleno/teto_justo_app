@@ -70,7 +70,7 @@ jobs:
       - name: Build APK
         if: matrix.platform == 'android'
         working-directory: src/frontend/android
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon "-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=1024m"
       - name: Install CocoaPods
         if: matrix.platform == 'ios'
         working-directory: src/frontend/ios
