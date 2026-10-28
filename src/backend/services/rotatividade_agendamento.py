@@ -376,7 +376,13 @@ class ServicoAgendamentoRotatividade:
             data_inicio, data_fim = janela_dia_fixo(dia, configuracao["prazo_dias"], fuso)
         else:
             data_inicio = ocorrencia_local.astimezone(timezone.utc)
-            data_fim = data_inicio + timedelta(days=configuracao["prazo_dias"])
+            data_fim = (
+                datetime.combine(
+                    dia + timedelta(days=configuracao["prazo_dias"] - 1),
+                    time.max,
+                    tzinfo=fuso,
+                ).astimezone(timezone.utc)
+            )
 
         ocorrencia_em = ocorrencia_local.astimezone(timezone.utc).isoformat()
         tarefa = self._buscar_tarefa_ocorrencia(id_rotatividade, ocorrencia_em)
