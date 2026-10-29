@@ -231,6 +231,42 @@ def test_listar_tarefas_por_casa_combina_filtros(servico, consulta, id_tarefa, i
     assert [tarefa["id"] for tarefa in resultado] == [str(id_tarefa)]
 
 
+def test_listar_em_aberto_combina_filtros_apos_sincronizar_estado(
+    servico, consulta, ids_relacionados
+):
+    from zoneinfo import ZoneInfo
+
+    agora = datetime.now(timezone.utc)
+    responsavel = ids_relacionados["usuarios_atribuidos"][0]
+    base = {
+        "estado_atual": "pendente",
+        "data_fim": (agora - timedelta(days=1)).isoformat(),
+        "usuarios_atribuidos": [str(responsavel)],
+    }
+    sincronizadas = [
+        {**base, "id": "pendente-antiga"},
+        {**base, "id": "atrasada", "estado_atual": "atrasada"},
+        {**base, "id": "finalizada", "estado_atual": "finalizado"},
+        {**base, "id": "nao-feita", "estado_atual": "nao_feito"},
+        {**base, "id": "outro-responsavel", "usuarios_atribuidos": []},
+        {**base, "id": "futura", "data_fim": (agora + timedelta(days=8)).isoformat()},
+    ]
+    consulta.execute.return_value = SimpleNamespace(
+        data=[{**tarefa, "estado_atual": "pendente"} for tarefa in sincronizadas]
+    )
+    servico._fuso_casa = MagicMock(return_value=ZoneInfo("UTC"))
+    servico._montar_resposta = MagicMock(side_effect=sincronizadas)
+
+    resultado = servico.listar_tarefas_por_casa(
+        ids_relacionados["fk_casa_id"],
+        estado="em_aberto",
+        responsavel=responsavel,
+        prazo="sete_dias",
+    )
+
+    assert [tarefa["id"] for tarefa in resultado] == ["pendente-antiga", "atrasada"]
+
+
 def test_listar_tarefas_por_casa_filtra_prazos_atrasados(servico, consulta, ids_relacionados):
     consulta.execute.return_value = SimpleNamespace(data=[{"id": "atrasada"}])
     servico._montar_resposta = MagicMock(

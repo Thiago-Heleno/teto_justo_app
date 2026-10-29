@@ -56,6 +56,45 @@ test("combina filtros de status, responsável e prazo", () => {
   );
 });
 
+test("em aberto reúne pendentes e atrasadas e exclui estados finais", () => {
+  const misturadas = [
+    ...tarefas,
+    { ...tarefas[0], id: "finalizada", estado_atual: "finalizado" },
+    { ...tarefas[0], id: "nao-feita", estado_atual: "nao_feito" },
+  ];
+
+  assert.deepEqual(
+    filtrarTarefas(
+      misturadas,
+      { estado: "em_aberto", responsavel: "todos", prazo: "todos" },
+      agora,
+    ).map(({ id }) => id),
+    ["hoje", "semana", "atrasada"],
+  );
+});
+
+test("em aberto combina responsável e prazo incluindo pendências anteriores", () => {
+  const misturadas = [
+    ...tarefas,
+    {
+      ...tarefas[0],
+      id: "pendente-antiga",
+      data_fim: "2026-09-18T12:00:00-03:00",
+    },
+    { ...tarefas[0], id: "futura", data_fim: "2026-09-28T12:00:00-03:00" },
+    { ...tarefas[0], id: "finalizada", estado_atual: "finalizado" },
+  ];
+
+  assert.deepEqual(
+    filtrarTarefas(
+      misturadas,
+      { estado: "em_aberto", responsavel: "ana", prazo: "sete_dias" },
+      agora,
+    ).map(({ id }) => id),
+    ["hoje", "atrasada", "pendente-antiga"],
+  );
+});
+
 test("dia fixo mostra a data da casa sem depender do fuso do aparelho", () => {
   assert.equal(
     formatarPrazo("2026-10-03T02:59:59Z", "2026-10-02"),

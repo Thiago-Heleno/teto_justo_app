@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -225,7 +226,7 @@ class ServicoTarefa:
     def listar_tarefas_por_casa(
         self,
         id_casa: UUID,
-        estado: EstadoTarefa | None = None,
+        estado: EstadoTarefa | Literal["todos", "em_aberto"] | None = None,
         responsavel: UUID | None = None,
         prazo: str | None = None,
     ):
@@ -252,7 +253,11 @@ class ServicoTarefa:
             if (
                 estado
                 and estado != "todos"
-                and tarefa_resposta["estado_atual"] != estado
+                and (
+                    tarefa_resposta["estado_atual"] not in ("pendente", "atrasada")
+                    if estado == "em_aberto"
+                    else tarefa_resposta["estado_atual"] != estado
+                )
             ):
                 continue
             if (
