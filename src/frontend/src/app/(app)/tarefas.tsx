@@ -39,6 +39,7 @@ import {
   editarTarefa,
   finalizarTarefa,
   reabrirTarefa,
+  reportarTarefa,
   type Casa,
   type Morador,
   type Tarefa,
@@ -53,6 +54,7 @@ import {
   type FiltroPrazo,
 } from "@/utils/filtros-tarefa";
 import { podeReabrirTarefa } from "@/utils/reabertura";
+import { podeReportarTarefa } from "@/utils/pode-reportar-tarefa";
 
 type FilterPillProps = {
   label: string;
@@ -147,6 +149,7 @@ export default function TarefasScreen() {
   }>();
   const [editando, setEditando] = useState(false);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [agora, setAgora] = useState(() => Date.now());
   const { estado, responsavel, prazo } = filtros;
   const quantidadeFiltros = [estado, responsavel, prazo].filter(
     (valor) => valor !== "todos",
@@ -190,6 +193,14 @@ export default function TarefasScreen() {
     restaurarPosicaoLista.current = true;
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [tarefaSelecionadaId, editando]);
+
+  useEffect(() => {
+    if (!tarefaSelecionadaId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAgora(Date.now());
+    const temporizador = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(temporizador);
+  }, [tarefaSelecionadaId]);
 
   useEffect(() => {
     if (!contextoAtual || !todasTarefas || typeof abrir !== "string") return;
@@ -359,6 +370,12 @@ export default function TarefasScreen() {
     setTentativa((atual) => atual + 1);
   }
 
+  async function reportarTarefaSelecionada() {
+    if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
+    const tarefaReportada = await reportarTarefa(tarefaSelecionada.id);
+    atualizarTarefaLocal(tarefaReportada);
+  }
+
   function continuarAposFinalizacao() {
     setTarefaSelecionadaId(undefined);
     setTentativa((atual) => atual + 1);
@@ -493,6 +510,16 @@ export default function TarefasScreen() {
                 casa.fk_usuario_id,
               )
                 ? reabrirTarefaSelecionada
+                : undefined
+            }
+            onReportar={
+              podeReportarTarefa(
+                tarefaSelecionada,
+                usuarioAtual.id,
+                casa.fk_usuario_id,
+                agora,
+              )
+                ? reportarTarefaSelecionada
                 : undefined
             }
             onContinuar={continuarAposFinalizacao}

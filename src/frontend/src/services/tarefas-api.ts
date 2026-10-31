@@ -32,6 +32,9 @@ export type Tarefa = {
   data_fim: string;
   usuarios_atribuidos: string[];
   concluida_em?: string | null;
+  politica_reclamacao: "nenhuma" | "uma_reclamacao" | "votacao";
+  reclamacoes_count: number;
+  reclamacoes_limite: number;
   resultado_pontuacao?: {
     pontos_possiveis: number;
     pontos_ganhos: number;
@@ -181,6 +184,12 @@ export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
 
 export function reabrirTarefa(idTarefa: string, signal?: AbortSignal) {
   return requisitar<Tarefa>(`/tarefas/${idTarefa}/reaberturas`, signal, {
+    method: "POST",
+  });
+}
+
+export function reportarTarefa(idTarefa: string, signal?: AbortSignal) {
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}/reclamacoes`, signal, {
     method: "POST",
   });
 }

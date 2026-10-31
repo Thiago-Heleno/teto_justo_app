@@ -36,6 +36,7 @@ const {
   carregarExtrato,
   carregarRanking,
   reabrirTarefa,
+  reportarTarefa,
   temConfiguracaoTarefas,
 } = await import("../src/services/tarefas-api.ts");
 
@@ -206,6 +207,32 @@ test("finaliza a tarefa pelo endpoint autenticado", async () => {
       requisicao.opcoes.headers.Authorization,
       "Bearer sessao-valida",
     );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("reporta a tarefa pelo endpoint autenticado", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  sessao.setState({ token: "sessao-valida", pronta: true });
+  const original = globalThis.fetch;
+  let requisicao;
+
+  globalThis.fetch = async (url, opcoes) => {
+    requisicao = { url, opcoes };
+    return { ok: true, json: async () => ({ id: "tarefa-123" }) };
+  };
+
+  try {
+    await reportarTarefa("tarefa-123");
+
+    assert.equal(
+      requisicao.url,
+      "http://api.test/tarefas/tarefa-123/reclamacoes",
+    );
+    assert.equal(requisicao.opcoes.method, "POST");
+    assert.equal(requisicao.opcoes.body, undefined);
+    assert.ok(requisicao.opcoes.headers.Authorization);
   } finally {
     globalThis.fetch = original;
   }
