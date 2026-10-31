@@ -16,6 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { TriangleAlert } from "lucide-react-native";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
@@ -31,6 +32,7 @@ type Props = {
   onEditar?: () => void;
   onFinalizar: () => Promise<ResultadoFinalizacao>;
   onReabrir?: () => Promise<void>;
+  onReportar?: () => Promise<void>;
   onContinuar: () => void;
 };
 
@@ -58,6 +60,7 @@ export function DetalheTarefa({
   onEditar,
   onFinalizar,
   onReabrir,
+  onReportar,
   onContinuar,
 }: Props) {
   const { width } = useWindowDimensions();
@@ -66,6 +69,8 @@ export function DetalheTarefa({
   const [erroFinalizacao, setErroFinalizacao] = useState<string>();
   const [reabrindo, setReabrindo] = useState(false);
   const [erroReabertura, setErroReabertura] = useState<string>();
+  const [reportando, setReportando] = useState(false);
+  const [erroReportagem, setErroReportagem] = useState<string>();
   const [resultado, setResultado] = useState<ResultadoFinalizacao>();
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
@@ -119,6 +124,23 @@ export function DetalheTarefa({
       );
     } finally {
       setReabrindo(false);
+    }
+  }
+  async function reportarTarefa() {
+    if (!onReportar) return;
+    setReportando(true);
+    setErroReportagem(undefined);
+
+    try {
+      await onReportar();
+    } catch (erro: unknown) {
+      setErroReportagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível reportar a tarefa.",
+      );
+    } finally {
+      setReportando(false);
     }
   }
   const voltarComArraste = Gesture.Pan()
@@ -221,7 +243,9 @@ export function DetalheTarefa({
             </View>
           </View>
 
-          {(onEditar || podeFinalizar || (finalizada && onReabrir)) && (
+          {(onEditar ||
+            podeFinalizar ||
+            (finalizada && (onReabrir || onReportar))) && (
             <View style={styles.completionSection}>
               {onEditar && (
                 <MotionPressable
@@ -272,6 +296,34 @@ export function DetalheTarefa({
                   </Text>
                 </MotionPressable>
               )}
+              {finalizada && onReportar && (
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    busy: reportando,
+                    disabled: reportando,
+                  }}
+                  disabled={reportando}
+                  onPress={reportarTarefa}
+                  style={[
+                    styles.reportButton,
+                    telaPequena && styles.buttonSmall,
+                    reportando && styles.finishButtonDisabled,
+                  ]}
+                >
+                  <TriangleAlert
+                    color={Caldera.ember}
+                    size={18}
+                    strokeWidth={2.2}
+                  />
+                  <Text style={styles.reportButtonText}>
+                    {reportando ? "Reportando..." : "Reportar"}
+                  </Text>
+                  <Text style={styles.reportCount}>
+                    {tarefa.reclamacoes_count}/{tarefa.reclamacoes_limite}
+                  </Text>
+                </MotionPressable>
+              )}
               {erroFinalizacao && (
                 <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                   {erroFinalizacao}
@@ -280,6 +332,11 @@ export function DetalheTarefa({
               {erroReabertura && (
                 <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                   {erroReabertura}
+                </Text>
+              )}
+              {erroReportagem && (
+                <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                  {erroReportagem}
                 </Text>
               )}
             </View>
@@ -489,6 +546,28 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: Caldera.obsidian,
     fontSize: 16,
+    fontWeight: "500",
+  },
+  reportButton: {
+    maxWidth: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    borderWidth: 1.5,
+    borderColor: Caldera.ember,
+    borderRadius: 800,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
+  },
+  reportButtonText: {
+    textAlign: "center",
+    color: Caldera.ember,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  reportCount: {
+    color: Caldera.obsidian,
+    fontSize: 14,
     fontWeight: "500",
   },
   finishButton: {
