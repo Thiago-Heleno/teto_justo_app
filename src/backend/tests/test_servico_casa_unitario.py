@@ -67,6 +67,7 @@ def registro_casa(id_casa, id_usuario, foto):
         "foto": foto["banco"],
         "fk_usuario_id": str(id_usuario),
         "timezone": "America/Sao_Paulo",
+        "politica_reclamacao": "nenhuma",
     }
 
 def test_criar_casa_insere_dados_com_foto_convertida(
@@ -93,6 +94,7 @@ def test_criar_casa_insere_dados_com_foto_convertida(
             "endereco": "Rua Tursi, 10",
             "foto": foto["banco"],
             "timezone": "America/Sao_Paulo",
+            "politica_reclamacao": "nenhuma",
             "fk_usuario_id": str(id_usuario),
         }),
         call({
@@ -123,6 +125,7 @@ def test_criar_casa_sem_foto(
         "endereco": "Rua Tursi, 10",
         "foto": None,
         "timezone": "America/Sao_Paulo",
+        "politica_reclamacao": "nenhuma",
         "fk_usuario_id": str(id_usuario),
     })
 
@@ -183,6 +186,20 @@ def test_criar_casa_rejeita_fuso_invalido():
         CasaCriar(
             nome="Casa Azul", endereco="Rua Tursi, 10", timezone="Fuso/Inexistente"
         )
+
+
+def test_criar_casa_sem_politica_de_reclamacao_usa_nenhuma():
+    casa = CasaCriar(nome="Casa Azul", endereco="Rua Tursi, 10")
+
+    assert casa.politica_reclamacao == "nenhuma"
+
+
+@pytest.mark.parametrize("schema", [CasaCriar, CasaAtualizar])
+def test_rejeita_politica_de_reclamacao_invalida(schema):
+    dados = {"nome": "Casa Azul", "endereco": "Rua Tursi, 10"} if schema is CasaCriar else {}
+
+    with pytest.raises(ValidationError):
+        schema(**dados, politica_reclamacao="qualquer")
 
 
 def test_criar_casa_rejeita_proprietario_informado_pelo_cliente():
