@@ -86,3 +86,39 @@ antes de ajustar o saldo ainda pode exigir reconciliação; essa limitação já
 existia e está sinalizada no código. Não houve migrações ou novas funções no banco.
 
 Testes com Supabase real não foram executados.
+
+## Dia fixo: abertura somente no vencimento
+
+- `janela_dia_fixo`, em `src/backend/services/ciclo_vida_tarefa.py`, passa a
+  calcular o início à meia-noite e o vencimento no último microssegundo da
+  mesma data, no fuso informado, convertendo ambos para UTC. O cálculo não
+  recebe mais `prazo_dias` e não consulta o banco.
+- Criação de tarefas em `src/backend/services/tarefa.py`, edição de prazo e
+  geração de ocorrências em `src/backend/services/rotatividade_agendamento.py`
+  usam essa janela. Editar a data fixa também funciona em registros legados
+  sem `prazo_dias`. Intervalos, tolerância de atraso e pontuação foram preservados.
+- O contrato HTTP mantém `prazo_dias` por compatibilidade com os clientes;
+  esse campo não altera a janela de dia fixo. A remoção de “Dias para terminar”
+  no frontend permanece pendente, pois esta alteração se limita ao backend.
+- Registros e ocorrências já gravados não são recalculados automaticamente.
+  A edição de `data_fixa` ou `prazo_dias` recalcula a janela da tarefa editada;
+  executar novamente o job não altera ocorrências existentes. Não há migração.
+
+Validação desta alteração, a partir de `src/backend`, com as variáveis de
+Supabase apontando para valores fictícios de teste e sem serviços externos:
+
+- A execução inicial com o Python global encontrou ausência de `tzdata`.
+  Foi usado o ambiente virtual existente, sem alterar dependências.
+- Antes da correção, os testes de ciclo de vida e agendamento reproduziram
+  o defeito: **11 falhas e 32 aprovações**.
+- `./venv/Scripts/python.exe -B -m pytest -q -p no:cacheprovider tests/test_ciclo_vida_tarefa_unitario.py tests/test_servico_agendamento_rotatividade_unitario.py tests/test_servico_tarefa_unitario.py --tb=short`:
+  **151 testes aprovados**. Cobrem fusos (inclusive mudança de horário de
+  verão), edição sem depender da duração, bloqueio da conclusão antes da
+  meia-noite, liberação na meia-noite e ocorrência de rodízio em dia fixo.
+- `ruff check services/ciclo_vida_tarefa.py services/tarefa.py services/rotatividade_agendamento.py tests/test_ciclo_vida_tarefa_unitario.py tests/test_servico_agendamento_rotatividade_unitario.py --no-cache`:
+  aprovado. Permanece o aviso preexistente de depreciação TestClient/httpx.
+- A tentativa de executar toda a suíte unitária com
+  `./venv/Scripts/python.exe -B -m pytest -q -p no:cacheprovider tests --ignore-glob='*_integracao.py' --tb=short`
+  ficou sem retornar saída e foi interrompida. Não há resultado da suíte
+  completa para esta alteração; a causa não foi investigada.
+- `git diff --check`, a partir da raiz do repositório: aprovado.

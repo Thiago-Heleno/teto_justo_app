@@ -7,7 +7,12 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 from postgrest.exceptions import APIError
 
-from services.ciclo_vida_tarefa import estado_no_prazo, instante_utc, janela_dia_fixo
+from services.ciclo_vida_tarefa import (
+    atualizar_prazo,
+    estado_no_prazo,
+    instante_utc,
+    janela_dia_fixo,
+)
 from services.penalidade import ServicoPenalidade
 from services.tarefa import ServicoTarefa
 from test_contrato_casa_router_unitario import ConsultaEmMemoria, SupabaseEmMemoria
@@ -76,12 +81,46 @@ def test_datas_legadas_e_com_fuso_representam_o_mesmo_instante(valor):
 
 
 @pytest.mark.parametrize("nome_fuso", ["America/Sao_Paulo", "Asia/Tokyo", "America/New_York"])
-def test_dia_fixo_termina_no_ultimo_instante_do_dia_da_casa(nome_fuso):
+def test_dia_fixo_abre_e_vence_no_dia_escolhido_no_fuso_da_casa(nome_fuso):
     fuso = ZoneInfo(nome_fuso)
     dia = date(2026, 11, 1)
-    inicio, fim = janela_dia_fixo(dia, 2, fuso)
+    inicio, fim = janela_dia_fixo(dia, fuso)
     assert fim.astimezone(fuso) == datetime.combine(dia, time.max, tzinfo=fuso)
-    assert fim - inicio == timedelta(days=2)
+    assert inicio.astimezone(fuso) == datetime.combine(dia, time.min, tzinfo=fuso)
+
+
+@pytest.mark.parametrize("prazo_dias", [None, 1, 5])
+@pytest.mark.parametrize("alteracoes", [{"data_fixa": "2030-01-12"}, {"prazo_dias": 4}])
+def test_edicao_de_dia_fixo_nao_depende_da_duracao(cenario, prazo_dias, alteracoes):
+    _, _, tarefa, agora = cenario
+    tarefa.update(
+        modo_prazo="dia_fixo", prazo_dias=prazo_dias,
+        data_fim="2030-01-13T02:59:59.999999+00:00",
+    )
+
+    dados = atualizar_prazo(tarefa, alteracoes, ZoneInfo("America/Sao_Paulo"), agora)
+
+    assert dados["data_inicio"] == "2030-01-12T03:00:00+00:00"
+    assert dados["data_fim"] == "2030-01-13T02:59:59.999999+00:00"
+
+
+@pytest.mark.parametrize("deslocamento", [timedelta(microseconds=-1), timedelta(0)])
+def test_conclusao_de_dia_fixo_so_e_liberada_a_partir_da_meia_noite(cenario, deslocamento):
+    banco, servico, tarefa, _ = cenario
+    inicio, fim = janela_dia_fixo(date(2030, 1, 12), ZoneInfo("America/Sao_Paulo"))
+    tarefa.update(data_inicio=inicio.isoformat(), data_fim=fim.isoformat())
+    agora = datetime(2030, 1, 12, 3, tzinfo=timezone.utc) + deslocamento
+
+    if deslocamento < timedelta(0):
+        with pytest.raises(HTTPException) as erro:
+            servico.ciclo_vida.concluir(tarefa, [tarefa["fk_usuario_id"]], agora)
+        assert erro.value.status_code == 409
+        assert banco.registros["score_event"] == []
+        assert banco.registros["pertencer"][0]["score"] == 100
+    else:
+        resultado = servico.ciclo_vida.concluir(tarefa, [tarefa["fk_usuario_id"]], agora)
+        assert resultado["estado_atual"] == "finalizado"
+        assert resultado["resultado_pontuacao"]["pontos_ganhos"] == 25
 
 
 @pytest.mark.parametrize("origem", ["leitura", "job"])
