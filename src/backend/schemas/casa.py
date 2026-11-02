@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -14,11 +14,15 @@ def validar_timezone(valor: str) -> str:
     return valor
 
 
+PoliticaReclamacao = Literal["nenhuma", "uma_reclamacao", "votacao"]
+
+
 class CasaCriar(BaseModel):
     nome: str
     endereco: str
     foto: Optional[str] = None
     timezone: str = "America/Sao_Paulo"
+    politica_reclamacao: PoliticaReclamacao = "nenhuma"
 
     @field_validator("timezone")
     @classmethod
@@ -33,6 +37,7 @@ class CasaAtualizar(BaseModel):
     endereco: Optional[str] = None
     foto: Optional[str] = None
     timezone: Optional[str] = None
+    politica_reclamacao: Optional[PoliticaReclamacao] = None
 
     @field_validator("timezone")
     @classmethod
@@ -51,6 +56,7 @@ class CasaResposta(BaseModel):
     foto: Optional[str] = None
     fk_usuario_id: UUID
     timezone: str
+    politica_reclamacao: PoliticaReclamacao
 
 class EntrarCasaPedido(BaseModel):
     convite: str = Field(min_length=1)
