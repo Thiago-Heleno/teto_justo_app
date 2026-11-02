@@ -56,6 +56,7 @@ class ServicoCasa:
             "foto": self._foto_para_resposta(casa.get("foto")),
             "fk_usuario_id": casa["fk_usuario_id"],
             "timezone": casa.get("timezone") or "America/Sao_Paulo",
+            "politica_reclamacao": casa.get("politica_reclamacao") or "nenhuma",
         }
 
     def _buscar_casa_bruta(self, id_casa: UUID):

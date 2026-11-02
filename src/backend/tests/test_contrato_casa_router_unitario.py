@@ -140,6 +140,7 @@ def casa(numero, proprietario):
         "foto": None,
         "fk_usuario_id": str(proprietario),
         "timezone": "America/Sao_Paulo",
+        "politica_reclamacao": "nenhuma",
         "rotacao_versao": 0,
     }
 
@@ -288,7 +289,8 @@ def test_listagem_filtra_antes_de_paginar_ordena_e_remove_duplicatas(
     assert resposta.status_code == 200, resposta.text
     assert [item["id"] for item in resposta.json()] == [str(casas[2]), str(casas[4])]
     assert all(set(item) == {
-        "id", "nome", "endereco", "foto", "fk_usuario_id", "timezone"
+        "id", "nome", "endereco", "foto", "fk_usuario_id", "timezone",
+        "politica_reclamacao"
     } for item in resposta.json())
 
 
@@ -592,7 +594,8 @@ def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
     assert criacao.status_code == 201, criacao.text
     criada = criacao.json()
     assert set(criada) == {
-        "id", "nome", "endereco", "foto", "fk_usuario_id", "timezone"
+        "id", "nome", "endereco", "foto", "fk_usuario_id", "timezone",
+        "politica_reclamacao"
     }
     assert criada["fk_usuario_id"] == str(proprietario)
     assert criada["nome"] == dados["nome"]

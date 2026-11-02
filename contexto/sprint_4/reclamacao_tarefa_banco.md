@@ -20,9 +20,16 @@ notificação; esses itens ficam para as etapas seguintes.
 - `src/backend/schemas/casa.py`: `PoliticaReclamacao` (`Literal`) em
   `CasaCriar` (default `nenhuma`), `CasaAtualizar` (opcional) e `CasaResposta`.
   Valor fora dos três é rejeitado pelo próprio tipo.
+- `src/backend/services/casa.py`: `_montar_resposta` monta a resposta campo a
+  campo e passou a devolver `politica_reclamacao` (fallback `nenhuma`, como o
+  `timezone`). Sem isso, `CasaResposta` falharia em toda rota de casa.
 - `src/backend/tests/test_servico_casa_unitario.py`: fixture e testes de
   `insert` passam a incluir o campo; testes novos para o default e para valor
   inválido em `CasaCriar` e `CasaAtualizar`.
+- `src/backend/tests/test_contrato_casa_router_unitario.py`: o banco em memória
+  e os dois conjuntos exatos de chaves da resposta passam a incluir o campo.
+- `src/backend/tests/test_casa_integracao.py`: afirma o default `nenhuma` na
+  criação (exige a migration `33` aplicada no banco usado).
 
 ## Decisões técnicas
 
@@ -35,8 +42,9 @@ notificação; esses itens ficam para as etapas seguintes.
 
 ## Validação
 
-- `python -m pytest tests/test_servico_casa_unitario.py -q`, a partir de
-  `src/backend` — **27 testes aprovados**.
+- `python -m pytest tests -q --ignore-glob='*integracao*'`, a partir de
+  `src/backend` — **649 testes aprovados**. Os testes de integração não foram
+  executados (exigem banco real).
 - A migration não foi executada em banco; o SQL não foi validado contra o
   Supabase.
 

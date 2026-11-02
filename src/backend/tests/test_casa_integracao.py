@@ -55,6 +55,7 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa["fk_usuario_id"] == usuario_temporario
         assert casa["id"] is not None
         assert casa["timezone"] == "America/Sao_Paulo"
+        assert casa["politica_reclamacao"] == "nenhuma"
 
         vinculo_proprietario = (
             get_supabase().table("pertencer")
