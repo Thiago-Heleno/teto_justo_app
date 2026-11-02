@@ -28,6 +28,12 @@ _MENSAGENS_TAREFA = {
     "prazo_encerrado": (
         "Prazo de execução encerrado", "O prazo para concluir uma tarefa sua foi encerrado."
     ),
+    "tarefa_reclamada": (
+        "Sua tarefa recebeu uma reclamação", "Uma tarefa sua recebeu uma reclamação."
+    ),
+    "tarefa_reaberta": (
+        "Sua tarefa foi reaberta", "Uma tarefa sua foi reaberta e precisa de atenção."
+    ),
 }
 
 

@@ -484,3 +484,91 @@ configurado no projeto.
   aparelho. Ver a [documentação do Expo](https://docs.expo.dev/push-notifications/sending-notifications/).
 - Os botões Concluir e Ver tarefa já estão implementados para os lembretes de
   vencimento no dia e atraso; falta confirmar seu funcionamento em aparelho.
+
+## ECH-320 — notificações de reclamação e reabertura
+
+### Escopo e decisão em 2026-11-02
+
+Após o diagnóstico, foi confirmado que a Tarefa 2 ainda será implementada e
+que esta entrega prepara somente as notificações da ECH-320. “Dono” significa
+o responsável atribuído à tarefa, identificado em `atribuida.fk_usuario_id`.
+Criador da tarefa e proprietário da casa não são destinatários por esses papéis.
+
+Não existe rota `POST /tarefas/{id}/reclamacoes` ou serviço de reclamações no
+backend inspecionado. A [implementação do botão Reportar](reportar_tarefa_frontend.md)
+também documenta que essa API ainda é futura.
+
+### Implementação com Ponytail
+
+- `src/backend/services/notificacao.py`: adicionados somente os dois pares de
+  título/corpo a `_MENSAGENS_TAREFA`:
+  - `tarefa_reclamada`: “Sua tarefa recebeu uma reclamação” / “Uma tarefa sua
+    recebeu uma reclamação.”
+  - `tarefa_reaberta`: “Sua tarefa foi reaberta” / “Uma tarefa sua foi reaberta
+    e precisa de atenção.”
+- `notificar_tarefa(tipo, tarefa, ids_usuarios=None)` mantém a interface
+  existente. Sem o terceiro argumento, busca os responsáveis em `atribuida`
+  no momento da execução. Com destinatários explícitos, usa a lista fornecida.
+  O fluxo existente entrega o título/corpo e `tipo`, `tarefa_id`, `casa_id`
+  ao transporte Expo, usando os dispositivos desses usuários.
+- Foram reaproveitados `BackgroundTasks`, envio, tratamento de falhas e
+  abertura do detalhe no frontend. Nenhuma dependência, migration, abstração
+  ou alteração de interface foi necessária.
+- `src/backend/tests/test_notificacao_unitario.py`: quatro cenários combinam
+  os dois eventos com execução direta e em segundo plano. Reutilizam
+  `SupabaseEmMemoria` do contrato de casas e simulam o HTTP do Expo. Criador,
+  proprietário e responsável têm dispositivos distintos; há ainda uma
+  atribuição a outra tarefa. O teste confere que só o token do responsável
+  correto recebe o título, corpo e payload esperados. Em segundo plano,
+  confere também que não há envio antes de executar a tarefa agendada.
+
+### Integração pendente na Tarefa 2
+
+Após confirmar cada reclamação válida, o futuro serviço deve chamar:
+
+```python
+notificacoes.notificar_tarefa("tarefa_reclamada", tarefa, [id_responsavel])
+```
+
+Após uma reabertura efetivamente realizada, deve chamar:
+
+```python
+notificacoes.notificar_tarefa("tarefa_reaberta", tarefa_reaberta, [id_responsavel])
+```
+
+`id_responsavel` deve ser o ID em string do responsável atribuído. Passá-lo
+explicitamente preserva o destinatário do evento se a atribuição mudar antes
+do envio em segundo plano. Quando uma reclamação também provocar reabertura,
+os dois eventos correspondem a operações distintas. Reclamações rejeitadas
+não devem emitir aviso.
+
+O método existente `ServicoCicloVidaTarefa.reabrir` também pode retornar o
+estado de uma reabertura concorrente; somente a execução que confirmar a
+transição deve emitir esse evento, evitando duplicação. O teste dessa ligação
+pertence à Tarefa 2, juntamente com os testes de reclamação aceita/rejeitada.
+
+Os chamadores não foram alterados nesta entrega: reabrir pela rota atual
+continua sem gerar esse novo push automaticamente. O serviço está preparado
+para receber os dois eventos; o fluxo de reclamações completo ainda depende
+da Tarefa 2. O envio normal mantém as limitações existentes: não possui fila
+persistente nem retry automático e requer dispositivos cadastrados.
+
+### Validação
+
+Executado a partir de `src/backend`, usando o ambiente virtual existente:
+
+```powershell
+.\venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider tests/test_notificacao_unitario.py --tb=short
+```
+
+Resultado: **87 testes aprovados** (83 anteriores e quatro cenários novos),
+com Supabase e Expo simulados. Permanece o aviso de depreciação
+TestClient/httpx já existente.
+
+- A partir de `src/backend`,
+  `ruff check services/notificacao.py tests/test_notificacao_unitario.py --no-cache`:
+  aprovado.
+- A partir da raiz do repositório, `git diff --check`: aprovado.
+
+Não houve envio real, teste em aparelho,
+implantação, aplicação de migration ou alteração no Linear.
