@@ -22,6 +22,7 @@ from routers.usuario import router  # noqa: E402
 from schemas.notificacao import DispositivoPushRegistrar, TicketPush  # noqa: E402
 from services.notificacao import ServicoNotificacao  # noqa: E402
 import services.notificacao as modulo_notificacao  # noqa: E402
+from test_contrato_casa_router_unitario import SupabaseEmMemoria  # noqa: E402
 
 
 class BancoPush:
@@ -1079,6 +1080,55 @@ def test_aviso_de_evento_aguarda_segundo_plano_e_preserva_destinatarios(envio_no
     assert envio_normal.call_args.args[0] == [UUID(usuario)]
     assert envio_normal.call_args.args[3]["tipo"] == "tarefa_atribuida"
     assert envio_normal.call_args.args[3]["casa_id"] != tarefa["fk_casa_id"]
+
+
+@pytest.mark.parametrize("tipo,titulo,mensagem", [
+    (
+        "tarefa_reclamada", "Sua tarefa recebeu uma reclamação",
+        "Uma tarefa sua recebeu uma reclamação.",
+    ),
+    (
+        "tarefa_reaberta", "Sua tarefa foi reaberta",
+        "Uma tarefa sua foi reaberta e precisa de atenção.",
+    ),
+])
+@pytest.mark.parametrize("segundo_plano", [False, True])
+def test_reclamacao_e_reabertura_enviam_push_apenas_ao_responsavel_atribuido(
+    dispositivo, expo, tipo, titulo, mensagem, segundo_plano,
+):
+    responsavel, criador, proprietario = uuid4(), uuid4(), uuid4()
+    tarefa = {
+        "id": str(uuid4()), "fk_casa_id": str(uuid4()), "fk_usuario_id": str(criador),
+    }
+    destino = dispositivo(responsavel)
+    outros = [dispositivo(criador), dispositivo(proprietario)]
+    banco = SupabaseEmMemoria({
+        "casa": [{"id": tarefa["fk_casa_id"], "fk_usuario_id": str(proprietario)}],
+        "atribuida": [
+            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)},
+            {"fk_tarefa_id": str(uuid4()), "fk_usuario_id": str(criador)},
+        ],
+        "dispositivo_push": [destino, *outros],
+    })
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}]})
+    tarefas_fundo = BackgroundTasks() if segundo_plano else None
+
+    ServicoNotificacao(banco, tarefas_fundo).notificar_tarefa(tipo, tarefa)
+
+    if segundo_plano:
+        expo.assert_not_called()
+        assert len(tarefas_fundo.tasks) == 1
+        agendada = tarefas_fundo.tasks[0]
+        agendada.func(*agendada.args, **agendada.kwargs)
+
+    expo.assert_called_once()
+    assert expo.call_args.kwargs["json"] == [{
+        "to": destino["token"], "title": titulo, "body": mensagem,
+        "data": {
+            "tipo": tipo, "tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"],
+        },
+    }]
 
 
 def test_falha_na_preparacao_do_aviso_nao_se_propaga(envio_normal, caplog):
