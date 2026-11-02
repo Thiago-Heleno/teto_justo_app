@@ -163,7 +163,6 @@ class ServicoTarefa:
             fuso = self._fuso_casa(dados_tarefa.fk_casa_id)
             inicio, vencimento = janela_dia_fixo(
                 dados_tarefa.data_fixa,
-                dados_tarefa.prazo_dias,
                 fuso,
             )
             if vencimento <= datetime.now(timezone.utc):

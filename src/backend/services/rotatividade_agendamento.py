@@ -373,7 +373,7 @@ class ServicoAgendamentoRotatividade:
         ocorrencia_local = datetime.combine(dia, time.min, tzinfo=fuso)
 
         if configuracao["modo_prazo"] == "dia_fixo":
-            data_inicio, data_fim = janela_dia_fixo(dia, configuracao["prazo_dias"], fuso)
+            data_inicio, data_fim = janela_dia_fixo(dia, fuso)
         else:
             data_inicio = ocorrencia_local.astimezone(timezone.utc)
             data_fim = (

@@ -29,10 +29,11 @@ def estado_no_prazo(tarefa: dict, agora: datetime) -> str:
 
 
 def janela_dia_fixo(
-    data_fixa: date, prazo_dias: int, fuso: ZoneInfo,
+    data_fixa: date, fuso: ZoneInfo,
 ) -> tuple[datetime, datetime]:
+    inicio = datetime.combine(data_fixa, time.min, tzinfo=fuso).astimezone(timezone.utc)
     vencimento = datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(timezone.utc)
-    return vencimento - timedelta(days=prazo_dias), vencimento
+    return inicio, vencimento
 
 
 def corresponde_prazo(
@@ -68,13 +69,7 @@ def atualizar_prazo(
             date.fromisoformat(data_fixa) if data_fixa
             else instante_utc(tarefa["data_fim"]).astimezone(fuso).date()
         )
-        prazo = dados.get("prazo_dias", tarefa.get("prazo_dias"))
-        if prazo is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Defina prazo_dias para editar o vencimento desta tarefa legada.",
-            )
-        inicio, vencimento = janela_dia_fixo(dia, prazo, fuso)
+        inicio, vencimento = janela_dia_fixo(dia, fuso)
         if vencimento <= instante_utc(agora):
             raise HTTPException(status_code=422, detail="A data fixa deve estar no futuro.")
         dados.update(data_inicio=inicio.isoformat(), data_fim=vencimento.isoformat())

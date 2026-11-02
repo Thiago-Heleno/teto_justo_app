@@ -204,7 +204,8 @@ def test_proprietario_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
     assert erro.value.detail == "O rodízio não possui participantes vinculados à casa."
 
 
-def test_ocorrencia_atribui_sem_duplicar_e_repara_responsavel_ausente():
+@pytest.mark.parametrize("modo_prazo", ["intervalo", "dia_fixo"])
+def test_ocorrencia_atribui_sem_duplicar_e_repara_responsavel_ausente(modo_prazo):
     banco = BancoFalso()
     servico = ServicoAgendamentoRotatividade(banco)
     membros = (uuid4(), uuid4())
@@ -219,7 +220,7 @@ def test_ocorrencia_atribui_sem_duplicar_e_repara_responsavel_ausente():
         "pontuacao": 25,
         "prazo_dias": 3,
         "atraso_maximo": 2,
-        "modo_prazo": "intervalo",
+        "modo_prazo": modo_prazo,
     }
 
     servico._registrar_ocorrencia(configuracao, date(2026, 10, 1), membros)
