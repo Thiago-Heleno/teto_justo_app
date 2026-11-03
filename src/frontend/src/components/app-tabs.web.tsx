@@ -66,10 +66,6 @@ export function CustomTabList(props: TabListProps) {
   return (
     <View {...props} style={styles.tabListContainer}>
       <ThemedView style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          TETO JUSTO
-        </ThemedText>
-
         {props.children}
       </ThemedView>
     </View>
@@ -96,11 +92,6 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: Spacing.two,
     maxWidth: 1280,
-  },
-  brandText: {
-    marginRight: "auto",
-    color: Caldera.obsidian,
-    fontWeight: "500",
   },
   tabButtonView: {
     backgroundColor: Caldera.limestone,
