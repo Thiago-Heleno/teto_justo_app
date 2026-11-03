@@ -3,4 +3,4 @@
 __pycache__/
 *.pyc
 .uv-cache/
-.claude
+.claudesrc/backend/firebase-service-account.json

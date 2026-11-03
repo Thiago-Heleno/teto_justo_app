@@ -1,10 +1,14 @@
 from datetime import datetime, timedelta, timezone
 import logging
+import os
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import httpx
+import firebase_admin
 from fastapi import BackgroundTasks, HTTPException
+from firebase_admin import credentials, messaging
+from firebase_admin.exceptions import FirebaseError
 
 from schemas.notificacao import DispositivoPushRegistrar, TicketPush
 from services.score import ServicoScore
@@ -15,6 +19,7 @@ _URL_RECIBOS_EXPO = "https://exp.host/--/api/v2/push/getReceipts"
 _LIMITE_LOTE = 100
 _LIMITE_LOTE_RECIBOS = 1000
 _TIMEOUT_SEGUNDOS = 10
+_FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 _LOGGER = logging.getLogger(__name__)
 _ERROS_RECIBO = {
     "MessageTooBig", "MessageRateExceeded", "MismatchSenderId", "InvalidCredentials",
@@ -35,6 +40,24 @@ _MENSAGENS_TAREFA = {
         "Sua tarefa foi reaberta", "Uma tarefa sua foi reaberta e precisa de atenção."
     ),
 }
+
+
+def _firebase_app():
+    if not _FIREBASE_SERVICE_ACCOUNT:
+        return None
+    try:
+        return firebase_admin.get_app()
+    except ValueError:
+        pass
+    try:
+        import json
+
+        return firebase_admin.initialize_app(
+            credentials.Certificate(json.loads(_FIREBASE_SERVICE_ACCOUNT))
+        )
+    except (ValueError, TypeError, json.JSONDecodeError):
+        _LOGGER.warning("Não foi possível configurar o Firebase Admin.")
+        return None
 
 
 class ServicoNotificacao:
@@ -184,8 +207,11 @@ class ServicoNotificacao:
         resposta = (
             self.supabase.table("dispositivo_push")
             .upsert(
-                {"fk_usuario_id": str(id_usuario), **dados.model_dump()},
-                on_conflict="token",
+                {
+                    "fk_usuario_id": str(id_usuario),
+                    **dados.model_dump(exclude_none=True),
+                },
+                on_conflict="endpoint" if dados.plataforma == "web" else "token",
             )
             .execute()
         )
@@ -195,14 +221,16 @@ class ServicoNotificacao:
             )
         return resposta.data[0]
 
-    def remover_dispositivo(self, id_usuario: UUID | str, token: str) -> None:
-        (
+    def remover_dispositivo(
+        self, id_usuario: UUID | str, token: str | None = None, endpoint: str | None = None
+    ) -> None:
+        consulta = (
             self.supabase.table("dispositivo_push")
             .delete()
             .eq("fk_usuario_id", str(id_usuario))
-            .eq("token", token)
-            .execute()
         )
+        consulta = consulta.eq("endpoint", endpoint) if endpoint else consulta.eq("token", token)
+        consulta.execute()
 
     @staticmethod
     def _data_horaria(valor: str | datetime) -> datetime:
@@ -379,7 +407,7 @@ class ServicoNotificacao:
         while True:
             pagina = (
                 self.supabase.table("dispositivo_push")
-                .select("id,token,fk_usuario_id")
+                .select("id,token,fk_usuario_id,plataforma")
                 .in_("fk_usuario_id", ids)
                 .order("id")
                 .range(len(dispositivos), len(dispositivos) + _LIMITE_LOTE - 1)
@@ -392,72 +420,110 @@ class ServicoNotificacao:
         # Carrega todas as páginas antes das exclusões para não deslocar os offsets.
         for inicio in range(0, len(dispositivos), _LIMITE_LOTE):
             lote = dispositivos[inicio : inicio + _LIMITE_LOTE]
-            mensagens = [
-                {
-                    "to": dispositivo["token"],
-                    "title": titulo,
-                    "body": mensagem,
-                    **(
-                        {"categoryId": "tarefa_pendente"}
-                        if dados and dados.get("tipo") in {"tarefa_vence_hoje", "tarefa_atrasada"}
-                        else {}
-                    ),
-                    **({"data": dados} if dados is not None else {}),
-                }
-                for dispositivo in lote
-            ]
-            try:
-                resposta = httpx.post(
-                    _URL_EXPO, json=mensagens, timeout=_TIMEOUT_SEGUNDOS
-                )
-                resposta.raise_for_status()
-                conteudo = resposta.json()
-                tickets = conteudo.get("data") if isinstance(conteudo, dict) else None
-                if (
-                    not isinstance(tickets, list)
-                    or len(tickets) != len(lote)
-                    or conteudo.get("errors")
-                ):
-                    raise ValueError("Resposta de push inválida.")
-            except (httpx.HTTPError, ValueError):
-                resultado["falhas"].extend(
-                    {"dispositivo_id": d["id"], "erro": "EnvioNaoConfirmado"}
-                    for d in lote
+            expo_lote = [d for d in lote if d.get("plataforma") != "web"]
+            web_lote = [d for d in lote if d.get("plataforma") == "web"]
+            if expo_lote:
+                mensagens = [
+                    {
+                        "to": dispositivo["token"],
+                        "title": titulo,
+                        "body": mensagem,
+                        **(
+                            {"categoryId": "tarefa_pendente"}
+                            if dados
+                            and dados.get("tipo")
+                            in {"tarefa_vence_hoje", "tarefa_atrasada"}
+                            else {}
+                        ),
+                        **({"data": dados} if dados is not None else {}),
+                    }
+                    for dispositivo in expo_lote
+                ]
+                self._enviar_lote_expo(expo_lote, mensagens, resultado)
+            for dispositivo in web_lote:
+                self._enviar_fcm(dispositivo, titulo, mensagem, dados, resultado)
+        return resultado
+
+    def _enviar_lote_expo(self, lote: list[dict], mensagens: list[dict], resultado: dict) -> None:
+        try:
+            resposta = httpx.post(
+                _URL_EXPO, json=mensagens, timeout=_TIMEOUT_SEGUNDOS
+            )
+            resposta.raise_for_status()
+            conteudo = resposta.json()
+            tickets = conteudo.get("data") if isinstance(conteudo, dict) else None
+            if (
+                not isinstance(tickets, list)
+                or len(tickets) != len(lote)
+                or conteudo.get("errors")
+            ):
+                raise ValueError("Resposta de push inválida.")
+        except (httpx.HTTPError, ValueError):
+            resultado["falhas"].extend(
+                {"dispositivo_id": d["id"], "erro": "EnvioNaoConfirmado"}
+                for d in lote
+            )
+            return
+
+        for dispositivo, ticket in zip(lote, tickets):
+            status = ticket.get("status") if isinstance(ticket, dict) else None
+            if status == "ok" and isinstance(ticket.get("id"), str) and ticket["id"]:
+                resultado["aceitos"].append(
+                    {
+                        "dispositivo_id": dispositivo["id"],
+                        "usuario_id": dispositivo["fk_usuario_id"],
+                        "ticket_id": ticket["id"],
+                    }
                 )
                 continue
 
-            for dispositivo, ticket in zip(lote, tickets):
-                status = ticket.get("status") if isinstance(ticket, dict) else None
-                if status == "ok" and isinstance(ticket.get("id"), str) and ticket["id"]:
-                    resultado["aceitos"].append(
-                        {
-                            "dispositivo_id": dispositivo["id"],
-                            "usuario_id": dispositivo["fk_usuario_id"],
-                            "ticket_id": ticket["id"],
-                        }
-                    )
-                    continue
+            detalhes = ticket.get("details") if isinstance(ticket, dict) else None
+            if (
+                status == "error"
+                and isinstance(detalhes, dict)
+                and detalhes.get("error") == "DeviceNotRegistered"
+            ):
+                self.remover_dispositivo(
+                    dispositivo["fk_usuario_id"], dispositivo["token"]
+                )
+                resultado["invalidos"].append(dispositivo["id"])
+            else:
+                resultado["falhas"].append(
+                    {
+                        "dispositivo_id": dispositivo["id"],
+                        "erro": "EnvioRecusado" if status == "error" else "EnvioNaoConfirmado",
+                    }
+                )
 
-                detalhes = ticket.get("details") if isinstance(ticket, dict) else None
-                if (
-                    status == "error"
-                    and isinstance(detalhes, dict)
-                    and detalhes.get("error") == "DeviceNotRegistered"
-                ):
-                    # Um cadastro reassociado a outra conta não é apagado por envio antigo.
-                    self.remover_dispositivo(
-                        dispositivo["fk_usuario_id"], dispositivo["token"]
-                    )
-                    resultado["invalidos"].append(dispositivo["id"])
-                else:
-                    resultado["falhas"].append(
-                        {
-                            "dispositivo_id": dispositivo["id"],
-                            "erro": "EnvioRecusado" if status == "error" else "EnvioNaoConfirmado",
-                        }
-                    )
-
-        return resultado
+    def _enviar_fcm(
+        self, dispositivo: dict, titulo: str, mensagem: str, dados: dict | None, resultado: dict
+    ) -> None:
+        if _firebase_app() is None:
+            resultado["falhas"].append(
+                {"dispositivo_id": dispositivo["id"], "erro": "FirebaseNaoConfigurado"}
+            )
+            return
+        try:
+            mensagem_fcm = messaging.Message(
+                token=dispositivo["token"],
+                notification=messaging.Notification(title=titulo, body=mensagem),
+                data={str(chave): str(valor) for chave, valor in (dados or {}).items()},
+            )
+            messaging.send(mensagem_fcm)
+        except messaging.UnregisteredError:
+            self.remover_dispositivo(dispositivo["fk_usuario_id"], dispositivo["token"])
+            resultado["invalidos"].append(dispositivo["id"])
+        except (FirebaseError, ValueError, TypeError):
+            resultado["falhas"].append(
+                {"dispositivo_id": dispositivo["id"], "erro": "EnvioNaoConfirmado"}
+            )
+        else:
+            resultado["aceitos"].append(
+                {
+                    "dispositivo_id": dispositivo["id"],
+                    "usuario_id": dispositivo["fk_usuario_id"],
+                },
+            )
 
     def consultar_recibos(self, tickets: list[TicketPush]) -> dict:
         resultado = {"confirmados": [], "invalidos": [], "pendentes": [], "falhas": []}
