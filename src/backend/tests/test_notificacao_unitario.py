@@ -242,7 +242,7 @@ def test_rotas_exigem_autenticacao(ambiente, banco, metodo):
     [
         {"token": ""}, {"token": "nao-e-token-expo"},
         {"token": "ExpoPushToken[]"}, {"token": "ExpoPushToken[com espaco]"},
-        {"plataforma": "web"}, {"fk_usuario_id": str(uuid4())},
+        {"fk_usuario_id": str(uuid4())},
     ],
 )
 def test_rota_rejeita_dados_invalidos_e_usuario_escolhido_no_corpo(ambiente, banco, alteracao):
@@ -266,6 +266,20 @@ def test_rota_delete_so_remove_token_do_usuario_e_aceita_repeticao(ambiente, ban
         assert resposta.content == b""
 
     assert banco.dispositivos == [alheio]
+
+
+def test_rota_cadastra_token_fcm_web(ambiente, banco):
+    cliente, usuario, _ = ambiente
+    token = "fcm-token-web"
+
+    resposta = cliente.post(
+        "/usuarios/eu/dispositivos",
+        json={"token": token, "plataforma": "web"},
+    )
+
+    assert resposta.status_code == 200
+    assert banco.dispositivos[0]["fk_usuario_id"] == str(usuario)
+    assert banco.dispositivos[0]["plataforma"] == "web"
 
 
 @pytest.mark.parametrize("usuarios", [[], [uuid4()]])

@@ -110,7 +110,9 @@ def remover_dispositivo(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoNotificacao(supabase).remover_dispositivo(usuario_atual.id, dados.token)
+    ServicoNotificacao(supabase).remover_dispositivo(
+        usuario_atual.id, dados.token, dados.endpoint
+    )
 
 
 @router.get("/{id_usuario}", response_model=UsuarioResposta)
@@ -204,5 +206,4 @@ def redefinir_senha(
             limitador.cancelar_tentativa("codigo:" + email, "codigo:" + ip)
         raise
     limitador.confirmar_sucesso("codigo:" + email, "codigo:" + ip)
-
 
