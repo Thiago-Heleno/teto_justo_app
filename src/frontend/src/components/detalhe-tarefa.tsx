@@ -320,7 +320,7 @@ export function DetalheTarefa({
                     {reportando ? "Reportando..." : "Reportar"}
                   </Text>
                   <Text style={styles.reportCount}>
-                    {tarefa.reclamacoes_count}/{tarefa.reclamacoes_limite}
+                    {tarefa.reclamacoes_count}
                   </Text>
                 </MotionPressable>
               )}

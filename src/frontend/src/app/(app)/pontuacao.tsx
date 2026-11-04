@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
   Platform,
@@ -241,7 +241,18 @@ export default function PontuacaoScreen() {
                       (morador) => morador.usuario_id === evento.fk_usuario_id,
                     )?.nome;
                     return (
-                      <View key={evento.id} style={styles.eventRow}>
+                      <MotionPressable
+                        key={evento.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ver detalhes de ${evento.nome_tarefa?.trim() || "tarefa sem nome disponível"}`}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/tarefas",
+                            params: { abrir: evento.fk_tarefa_id },
+                          })
+                        }
+                        style={styles.eventRow}
+                      >
                         <View style={styles.residentCopy}>
                           <Text style={styles.name}>
                             {evento.tipo === "reversal"
@@ -261,7 +272,7 @@ export default function PontuacaoScreen() {
                           {evento.pontuacao > 0 ? "+" : ""}
                           {numero.format(evento.pontuacao)} pts
                         </Text>
-                      </View>
+                      </MotionPressable>
                     );
                   })
               )}
