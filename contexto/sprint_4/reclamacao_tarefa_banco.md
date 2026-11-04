@@ -1,10 +1,10 @@
-# Reclamação de tarefa: banco e schemas da casa
+# Reclamação de tarefa: banco, schemas e serviço
 
 ## Objetivo
 
-Preparar a base de dados e os schemas da casa para a política de reclamação da
-qualidade de execução de tarefas. Esta etapa não cria rota, serviço nem
-notificação; esses itens ficam para as etapas seguintes.
+Preparar a base de dados e os schemas da casa e implementar o serviço principal
+de reclamação da qualidade de execução de tarefas, com reabertura pelo ciclo de
+vida existente.
 
 ## Alterações
 
@@ -56,9 +56,63 @@ notificação; esses itens ficam para as etapas seguintes.
   `POST /tarefas/{id}/reclamacoes` sem corpo e espera `politica_reclamacao`,
   `reclamacoes_count` e `reclamacoes_limite` na tarefa. A `descricao` ainda não
   faz parte desse contrato e exige campo de texto no app e aceite no endpoint.
-- Pendentes: endpoint e serviço de reclamação (janela de 24h, limite da
-  votação, reabertura), notificações `tarefa_reclamada` e `tarefa_reaberta`, e
-  seletor de política na criação e edição da casa.
-- Decisões em aberto: limite da votação (metade exata ou metade − 1, e se o dono
-  conta), recálculo do limite quando moradores entram ou saem, e se o autor da
-  reclamação fica visível ao dono da tarefa.
+- Pendentes: notificações `tarefa_reclamada` e `tarefa_reaberta`, seletor de
+  política na criação e edição da casa e exposição dos metadados de reclamação
+  no contrato de tarefa consumido pelo frontend.
+
+## Serviço principal — 2026-11-04
+
+### Arquivos e comportamentos
+
+- `src/backend/services/reclamacao.py`: novo `ServicoReclamacao` valida tarefa
+  finalizada, conclusão entre agora e 24 horas atrás (limite inclusivo), vínculo
+  ativo na mesma casa, autor diferente do responsável atribuído e política
+  diferente de `nenhuma`. Datas sem fuso são tratadas como UTC pelo helper
+  existente `instante_utc`.
+- A reclamação é gravada com o ciclo de `tarefa.reaberturas`. Violação de
+  unicidade retorna HTTP 409; outros erros de persistência são propagados.
+- `uma_reclamacao` chama diretamente `ciclo_vida.reabrir` após registrar.
+  `votacao` conta somente as reclamações daquela tarefa no ciclo atual e chama
+  a mesma operação ao alcançar o limite.
+- `src/backend/routers/tarefa.py`: `POST /tarefas/{id_tarefa}/reclamacoes`
+  autenticado, sem corpo, retorna o `TarefaResposta` existente.
+- `src/backend/tests/test_reclamacao_unitario.py`: 33 casos de unidade com
+  Supabase em memória, incluindo validações, duplicata, ciclos independentes,
+  limiar da votação, reabertura e estorno, leitura concorrente e contrato HTTP.
+
+### Decisões técnicas
+
+- Confirmado para esta tarefa: quem não pode reclamar é o responsável em
+  `atribuida`, e não o criador da tarefa nem o proprietário da casa. O
+  proprietário pode reclamar quando tem vínculo ativo e não é o responsável.
+- O limite de votação é metade dos demais moradores ativos da casa,
+  arredondando para cima, com mínimo de uma reclamação. O responsável fica
+  fora desse total. A consulta usa a paginação existente de autorização e o
+  limite é recalculado a cada reclamação; a contagem de reclamações usa
+  `count="exact"` para não depender do limite de linhas da API.
+- A reabertura não passa pela autorização de administrador de `ServicoTarefa`.
+  O ciclo de vida mantém o CAS por `reaberturas`, o estorno único e a decisão
+  entre `pendente`, `atrasada` e `nao_feito`, incluindo a tolerância existente.
+- Foram reutilizadas as consultas e a montagem de resposta de `ServicoTarefa`.
+  Não foram adicionadas migrations, funções SQL ou dependências.
+
+### Validação desta implementação
+
+- A partir de `src/backend`, com as variáveis de Supabase configuradas para
+  teste local: `python -m pytest -q tests --ignore-glob='*_integracao.py'` —
+  **689 testes aprovados**, com dois avisos de depreciação do TestClient.
+- A partir da raiz: `ruff check src/backend/services/reclamacao.py
+  src/backend/routers/tarefa.py src/backend/tests/test_reclamacao_unitario.py`
+  e `git diff --check` — aprovados.
+- Testes de integração com banco real e execução de migrations não realizados.
+
+### Limitações e pendências do serviço
+
+- O frontend atual ainda bloqueia o proprietário da casa e aceita somente
+  intervalos menores que 24 horas; precisa ser alinhado à regra confirmada.
+- A resposta ainda usa o schema de tarefa atual, sem `politica_reclamacao`,
+  `reclamacoes_count` e `reclamacoes_limite`. A integração dos avisos preparados
+  em `notificacoes_push.md` também permanece pendente.
+- Registro da reclamação e reabertura são operações separadas. Uma falha após
+  o registro pode deixar a reclamação persistida sem concluir a reabertura;
+  esta entrega não adiciona transação nem retomada automática.
