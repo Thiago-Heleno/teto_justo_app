@@ -1,4 +1,7 @@
+
 import { requisitar } from "./api.ts";
+
+export type PoliticaReclamacao = "nenhuma" | "uma_reclamacao" | "votacao";
 
 export type Casa = {
   id: string;
@@ -7,9 +10,10 @@ export type Casa = {
   foto: string | null;
   fk_usuario_id: string;
   timezone: string;
+  politica_reclamacao: PoliticaReclamacao;
 };
 
-export type CasaCriar = Pick<Casa, "nome" | "endereco">;
+export type CasaCriar = Pick<Casa, "nome" | "endereco" | "politica_reclamacao">;
 
 export type DetalhesCasa = { casa: Casa; nomeProprietario: string | null };
 
@@ -40,7 +44,11 @@ export function criarConviteCasa(casaId: string, signal?: AbortSignal) {
 export function criarCasa(dados: CasaCriar, signal?: AbortSignal) {
   return requisitar<Casa>("/casas/", signal, {
     method: "POST",
-    body: { nome: dados.nome.trim(), endereco: dados.endereco.trim() },
+    body: {
+      nome: dados.nome.trim(),
+      endereco: dados.endereco.trim(),
+      politica_reclamacao: dados.politica_reclamacao,
+    },
   });
 }
 
