@@ -157,13 +157,16 @@ def test_tipo_e_modo_prazo_persistem_no_supabase(
     # As colunas TIMESTAMP da tarefa armazenam datas em UTC sem indicador de fuso.
     inicio = datetime.fromisoformat(registro["data_inicio"]).replace(tzinfo=timezone.utc)
     fim = datetime.fromisoformat(registro["data_fim"]).replace(tzinfo=timezone.utc)
-    assert fim - inicio == timedelta(days=2)
     if modo_prazo == "dia_fixo":
         assert registro["timezone"] == fuso.key
+        assert inicio == datetime.combine(data_fixa, time.min, tzinfo=fuso).astimezone(
+            timezone.utc
+        )
         assert fim == datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(
             timezone.utc
         )
     else:
+        assert fim - inicio == timedelta(days=2)
         assert antes <= inicio <= depois
 
 
