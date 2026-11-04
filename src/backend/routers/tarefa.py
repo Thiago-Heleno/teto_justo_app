@@ -8,6 +8,7 @@ from core.database import get_supabase
 from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar, TarefaResposta
 from services.tarefa import ServicoTarefa
 from services.autorizacao import ServicoAutorizacaoCasa
+from services.reclamacao import ServicoReclamacao
 
 router = APIRouter(prefix="/tarefas", tags=["Tarefas"])
 
@@ -83,6 +84,17 @@ def reabrir_tarefa(
 ):
     servico = ServicoTarefa(supabase, tarefas_fundo)
     return servico.reabrir_tarefa(id_tarefa, usuario_atual.id)
+
+
+@router.post("/{id_tarefa}/reclamacoes", response_model=TarefaResposta)
+def reclamar_tarefa(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
+    supabase=Depends(get_supabase),
+):
+    servico = ServicoReclamacao(supabase, tarefas_fundo)
+    return servico.reclamar_tarefa(id_tarefa, usuario_atual.id)
 
 
 @router.patch("/{id_tarefa}", response_model=TarefaResposta)

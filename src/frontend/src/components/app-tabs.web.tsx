@@ -65,9 +65,7 @@ export function TabButton({
 export function CustomTabList(props: TabListProps) {
   return (
     <View {...props} style={styles.tabListContainer}>
-      <ThemedView style={styles.innerContainer}>
-        {props.children}
-      </ThemedView>
+      <ThemedView style={styles.innerContainer}>{props.children}</ThemedView>
     </View>
   );
 }

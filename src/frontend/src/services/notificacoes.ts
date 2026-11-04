@@ -8,11 +8,7 @@ import { requisitar } from "./api.ts";
 import { listarCasas } from "./casas-api.ts";
 import { selecionarCasa, sessao } from "./sessao-store.ts";
 import type { Tarefa } from "./tarefas-api.ts";
-import {
-  ativarWebPush,
-  removerWebPush,
-  webPushAtivo,
-} from "./web-push.ts";
+import { ativarWebPush, removerWebPush, webPushAtivo } from "./web-push.ts";
 
 const CHAVE_TOKEN_PUSH = "teto_justo_push_token";
 
