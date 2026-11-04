@@ -59,12 +59,37 @@ const casa = (id) => ({
   foto: null,
   fk_usuario_id: "morador",
   timezone: "America/Sao_Paulo",
+  politica_reclamacao: "nenhuma",
 });
 const resposta = (dados) => ({
   ok: true,
   status: 200,
   json: async () => dados,
 });
+
+for (const politica of ["nenhuma", "uma_reclamacao", "votacao"]) {
+  test(`cria casa enviando a política de reclamação ${politica}`, async () => {
+    const criada = { ...casa("nova"), politica_reclamacao: politica };
+    globalThis.fetch = async (url, opcoes) => {
+      assert.equal(url, "http://api.test/casas/");
+      assert.equal(opcoes.method, "POST");
+      assert.deepEqual(JSON.parse(opcoes.body), {
+        nome: "Casa nova",
+        endereco: "Rua das Flores",
+        politica_reclamacao: politica,
+      });
+      return resposta(criada);
+    };
+    assert.deepEqual(
+      await criarCasa({
+        nome: " Casa nova ",
+        endereco: " Rua das Flores ",
+        politica_reclamacao: politica,
+      }),
+      criada,
+    );
+  });
+}
 
 test("lista moradores autenticados da casa e encaminha o cancelamento", async () => {
   const sinal = new AbortController().signal;

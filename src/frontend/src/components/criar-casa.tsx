@@ -14,7 +14,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera, CompactFont } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
-import { criarCasa, type Casa, type CasaCriar } from "@/services/casas-api";
+import {
+  criarCasa,
+  type Casa,
+  type CasaCriar,
+  type PoliticaReclamacao,
+} from "@/services/casas-api";
 
 type ErrosCampos = Partial<Record<keyof CasaCriar, string>>;
 
@@ -27,6 +32,8 @@ export function CriarCasa({
 }) {
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [politicaReclamacao, setPoliticaReclamacao] =
+    useState<PoliticaReclamacao>("nenhuma");
   const [errosCampos, setErrosCampos] = useState<ErrosCampos>({});
   const [erro, setErro] = useState<string>();
   const [enviando, setEnviando] = useState(false);
@@ -60,7 +67,10 @@ export function CriarCasa({
     let criada = casaCriada;
     try {
       if (!criada) {
-        criada = await criarCasa({ nome, endereco }, signal);
+        criada = await criarCasa(
+          { nome, endereco, politica_reclamacao: politicaReclamacao },
+          signal,
+        );
         if (signal?.aborted) return;
         setCasaCriada(criada);
       }
@@ -202,6 +212,70 @@ export function CriarCasa({
               )}
             </View>
 
+            <View style={styles.field}>
+              <Text style={styles.label}>Notificações de reclamação</Text>
+              <Text style={styles.optionDescription}>
+                Escolha quando os moradores serão notificados sobre reclamações
+                de tarefas.
+              </Text>
+              {(
+                [
+                  {
+                    value: "nenhuma",
+                    title: "Nenhuma notificação",
+                    description:
+                      "Não haverá notificação nem votação quando uma tarefa for reclamada.",
+                  },
+                  {
+                    value: "uma_reclamacao",
+                    title: "A cada reclamação",
+                    description:
+                      "Uma notificação será enviada sempre que alguém reclamar de uma tarefa.",
+                  },
+                  {
+                    value: "votacao",
+                    title: "Somente após votação",
+                    description:
+                      "A notificação será enviada somente se a votação decidir reabrir a tarefa.",
+                  },
+                ] as const
+              ).map((opcao) => {
+                const selecionada = politicaReclamacao === opcao.value;
+                return (
+                  <Pressable
+                    key={opcao.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: selecionada,
+                      disabled: !editavel,
+                    }}
+                    disabled={!editavel}
+                    onPress={() => setPoliticaReclamacao(opcao.value)}
+                    style={[
+                      styles.policyOption,
+                      selecionada && styles.policyOptionSelected,
+                      !editavel && styles.dimmed,
+                    ]}
+                  >
+                    <View style={styles.policyHeading}>
+                      <View
+                        style={[
+                          styles.radio,
+                          selecionada && styles.radioSelected,
+                        ]}
+                      >
+                        {selecionada && <View style={styles.radioDot} />}
+                      </View>
+                      <Text style={styles.policyTitle}>{opcao.title}</Text>
+                    </View>
+                    <Text style={styles.optionDescription}>
+                      {opcao.description}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             {erro && (
               <Text accessibilityRole="alert" style={styles.error}>
                 {erro}
@@ -256,6 +330,37 @@ const styles = StyleSheet.create({
   },
   description: { color: "#555", fontSize: 16, lineHeight: 24 },
   field: { gap: 8 },
+  optionDescription: { color: "#555", fontSize: 14, lineHeight: 21 },
+  policyOption: {
+    borderWidth: 1,
+    borderColor: Caldera.pumice,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    backgroundColor: Caldera.chalk,
+  },
+  policyOptionSelected: {
+    borderColor: Caldera.ember,
+    borderWidth: 2,
+  },
+  policyHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
+  policyTitle: { color: Caldera.obsidian, fontWeight: "700", fontSize: 15 },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Caldera.obsidian,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioSelected: { borderColor: Caldera.ember },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Caldera.ember,
+  },
   label: { color: Caldera.obsidian, fontWeight: "600", fontSize: 16 },
   input: {
     backgroundColor: Caldera.chalk,
