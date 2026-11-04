@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import logging
 import os
+from urllib.parse import quote
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -58,6 +59,15 @@ def _firebase_app():
     except (ValueError, TypeError, json.JSONDecodeError):
         _LOGGER.warning("Não foi possível configurar o Firebase Admin.")
         return None
+
+
+def _link_web(dados: dict | None) -> str | None:
+    # O FCM só abre a página ao tocar na notificação quando recebe um link HTTPS.
+    base = os.getenv("WEB_APP_URL", "").rstrip("/")
+    if not base.startswith("https://"):
+        return None
+    tarefa_id = (dados or {}).get("tarefa_id")
+    return f"{base}/tarefas" + (f"?abrir={quote(str(tarefa_id))}" if tarefa_id else "")
 
 
 class ServicoNotificacao:
@@ -211,7 +221,7 @@ class ServicoNotificacao:
                     "fk_usuario_id": str(id_usuario),
                     **dados.model_dump(exclude_none=True),
                 },
-                on_conflict="endpoint" if dados.plataforma == "web" else "token",
+                on_conflict="token",
             )
             .execute()
         )
@@ -221,16 +231,14 @@ class ServicoNotificacao:
             )
         return resposta.data[0]
 
-    def remover_dispositivo(
-        self, id_usuario: UUID | str, token: str | None = None, endpoint: str | None = None
-    ) -> None:
-        consulta = (
+    def remover_dispositivo(self, id_usuario: UUID | str, token: str) -> None:
+        (
             self.supabase.table("dispositivo_push")
             .delete()
             .eq("fk_usuario_id", str(id_usuario))
+            .eq("token", token)
+            .execute()
         )
-        consulta = consulta.eq("endpoint", endpoint) if endpoint else consulta.eq("token", token)
-        consulta.execute()
 
     @staticmethod
     def _data_horaria(valor: str | datetime) -> datetime:
@@ -508,6 +516,9 @@ class ServicoNotificacao:
                 token=dispositivo["token"],
                 notification=messaging.Notification(title=titulo, body=mensagem),
                 data={str(chave): str(valor) for chave, valor in (dados or {}).items()},
+                webpush=messaging.WebpushConfig(
+                    fcm_options=messaging.WebpushFCMOptions(link=_link_web(dados))
+                ),
             )
             messaging.send(mensagem_fcm)
         except messaging.UnregisteredError:

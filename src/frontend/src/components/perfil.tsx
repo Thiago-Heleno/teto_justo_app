@@ -24,6 +24,7 @@ import {
   excluirConta,
   type Perfil,
 } from "@/services/perfil-api";
+import { webPushDisponivel } from "@/services/web-push";
 import { validarPerfil, type ErrosCadastro } from "@/utils/cadastro";
 
 function mensagemDe(falha: unknown, padrao: string) {
@@ -86,7 +87,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
         setAviso("Notificações ativadas neste aparelho.");
       } else {
         setErro(
-          "Permita notificações nas configurações do aparelho para ativar os avisos.",
+          "Permita notificações nas configurações do aparelho ou do navegador para ativar os avisos.",
         );
       }
     } catch (falha) {
@@ -263,7 +264,14 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
             </Pressable>
           )}
 
-          {perfil && Platform.OS !== "web" && (
+          {perfil && Platform.OS === "web" && !webPushDisponivel() && (
+            <Text style={styles.aviso}>
+              Para receber notificações aqui, instale o app. No iPhone, toque em
+              Compartilhar e em Adicionar à Tela de Início.
+            </Text>
+          )}
+
+          {perfil && (Platform.OS !== "web" || webPushDisponivel()) && (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{

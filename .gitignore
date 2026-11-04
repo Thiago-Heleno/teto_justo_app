@@ -3,4 +3,6 @@
 __pycache__/
 *.pyc
 .uv-cache/
-.claudesrc/backend/firebase-service-account.json
+.claude
+src/backend/firebase-service-account.json
+src/frontend/public/firebase-messaging-sw.js
