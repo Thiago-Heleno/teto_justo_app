@@ -218,26 +218,28 @@ export function CriarCasa({
                 Escolha quando os moradores serão notificados sobre reclamações
                 de tarefas.
               </Text>
-              {([
-                {
-                  value: "nenhuma",
-                  title: "Nenhuma notificação",
-                  description:
-                    "Não haverá notificação nem votação quando uma tarefa for reclamada.",
-                },
-                {
-                  value: "uma_reclamacao",
-                  title: "A cada reclamação",
-                  description:
-                    "Uma notificação será enviada sempre que alguém reclamar de uma tarefa.",
-                },
-                {
-                  value: "votacao",
-                  title: "Somente após votação",
-                  description:
-                    "A notificação será enviada somente se a votação decidir reabrir a tarefa.",
-                },
-              ] as const).map((opcao) => {
+              {(
+                [
+                  {
+                    value: "nenhuma",
+                    title: "Nenhuma notificação",
+                    description:
+                      "Não haverá notificação nem votação quando uma tarefa for reclamada.",
+                  },
+                  {
+                    value: "uma_reclamacao",
+                    title: "A cada reclamação",
+                    description:
+                      "Uma notificação será enviada sempre que alguém reclamar de uma tarefa.",
+                  },
+                  {
+                    value: "votacao",
+                    title: "Somente após votação",
+                    description:
+                      "A notificação será enviada somente se a votação decidir reabrir a tarefa.",
+                  },
+                ] as const
+              ).map((opcao) => {
                 const selecionada = politicaReclamacao === opcao.value;
                 return (
                   <Pressable

@@ -1,4 +1,3 @@
-
 import { requisitar } from "./api.ts";
 
 export type PoliticaReclamacao = "nenhuma" | "uma_reclamacao" | "votacao";
