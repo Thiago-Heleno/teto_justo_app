@@ -110,9 +110,7 @@ def remover_dispositivo(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoNotificacao(supabase).remover_dispositivo(
-        usuario_atual.id, dados.token, dados.endpoint
-    )
+    ServicoNotificacao(supabase).remover_dispositivo(usuario_atual.id, dados.token)
 
 
 @router.get("/{id_usuario}", response_model=UsuarioResposta)

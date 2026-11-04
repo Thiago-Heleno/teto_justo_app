@@ -61,7 +61,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS === "web" || !pronta || !token) return;
+    if (!pronta || !token) return;
     void notificacoesAtivas()
       .then(async (ativa) => {
         if (ativa) await ativarNotificacoes();

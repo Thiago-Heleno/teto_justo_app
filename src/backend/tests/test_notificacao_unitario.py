@@ -282,6 +282,59 @@ def test_rota_cadastra_token_fcm_web(ambiente, banco):
     assert banco.dispositivos[0]["plataforma"] == "web"
 
 
+def test_token_web_repetido_nao_duplica_e_delete_remove(ambiente, banco):
+    cliente, _, _ = ambiente
+    dados = {"token": "fcm-token-web", "plataforma": "web"}
+
+    assert cliente.post("/usuarios/eu/dispositivos", json=dados).status_code == 200
+    assert cliente.post("/usuarios/eu/dispositivos", json=dados).status_code == 200
+    assert len(banco.dispositivos) == 1
+
+    resposta = cliente.request(
+        "DELETE", "/usuarios/eu/dispositivos", json={"token": dados["token"]}
+    )
+
+    assert resposta.status_code == 204
+    assert banco.dispositivos == []
+
+
+def test_envio_web_usa_fcm_com_link_para_a_tarefa(banco, monkeypatch):
+    usuario, tarefa = uuid4(), uuid4()
+    ServicoNotificacao(banco).registrar_dispositivo(
+        usuario, DispositivoPushRegistrar(token="fcm-token-web", plataforma="web")
+    )
+    envio = Mock()
+    monkeypatch.setattr(modulo_notificacao, "_firebase_app", lambda: object())
+    monkeypatch.setattr(modulo_notificacao.messaging, "send", envio)
+    monkeypatch.setenv("WEB_APP_URL", "https://app.exemplo.com/")
+
+    resultado = ServicoNotificacao(banco).enviar_push(
+        [usuario], "Aviso", "Mensagem", {"tarefa_id": str(tarefa)}
+    )
+
+    mensagem = envio.call_args.args[0]
+    assert mensagem.token == "fcm-token-web"
+    assert mensagem.webpush.fcm_options.link == (
+        f"https://app.exemplo.com/tarefas?abrir={tarefa}"
+    )
+    assert len(resultado["aceitos"]) == 1
+
+
+def test_envio_web_sem_url_https_nao_define_link(banco, monkeypatch):
+    usuario = uuid4()
+    ServicoNotificacao(banco).registrar_dispositivo(
+        usuario, DispositivoPushRegistrar(token="fcm-token-web", plataforma="web")
+    )
+    envio = Mock()
+    monkeypatch.setattr(modulo_notificacao, "_firebase_app", lambda: object())
+    monkeypatch.setattr(modulo_notificacao.messaging, "send", envio)
+    monkeypatch.setenv("WEB_APP_URL", "http://app.exemplo.com")
+
+    ServicoNotificacao(banco).enviar_push([usuario], "Aviso", "Mensagem")
+
+    assert envio.call_args.args[0].webpush.fcm_options.link is None
+
+
 @pytest.mark.parametrize("usuarios", [[], [uuid4()]])
 def test_sem_destinatarios_nao_chama_expo(banco, expo, usuarios):
     resultado = ServicoNotificacao(banco).enviar_push(usuarios, "Aviso", "Mensagem")

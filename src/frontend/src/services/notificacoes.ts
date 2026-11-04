@@ -8,13 +8,18 @@ import { requisitar } from "./api.ts";
 import { listarCasas } from "./casas-api.ts";
 import { selecionarCasa, sessao } from "./sessao-store.ts";
 import type { Tarefa } from "./tarefas-api.ts";
+import {
+  ativarWebPush,
+  removerWebPush,
+  webPushAtivo,
+} from "./web-push.ts";
 
 const CHAVE_TOKEN_PUSH = "teto_justo_push_token";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function notificacoesAtivas() {
-  if (Platform.OS === "web") return false;
+  if (Platform.OS === "web") return webPushAtivo();
 
   const token = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
   const permissao = await Notifications.getPermissionsAsync();
@@ -23,7 +28,7 @@ export async function notificacoesAtivas() {
 }
 
 export async function ativarNotificacoes() {
-  if (Platform.OS === "web") return false;
+  if (Platform.OS === "web") return ativarWebPush();
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
@@ -71,7 +76,7 @@ export async function ativarNotificacoes() {
 }
 
 export async function removerNotificacoesDoDispositivo() {
-  if (Platform.OS === "web") return;
+  if (Platform.OS === "web") return removerWebPush();
 
   const token = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
 
