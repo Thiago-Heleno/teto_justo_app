@@ -122,3 +122,10 @@ Supabase apontando para valores fictícios de teste e sem serviços externos:
   ficou sem retornar saída e foi interrompida. Não há resultado da suíte
   completa para esta alteração; a causa não foi investigada.
 - `git diff --check`, a partir da raiz do repositório: aprovado.
+- O CI (`Backend tests`, suíte de integração com Supabase) reprovou
+  `test_tipo_e_modo_prazo_persistem_no_supabase[dia_fixo]`: o teste ainda
+  exigia `fim - inicio == 2 dias`, valor do comportamento antigo. O teste foi
+  corrigido para conferir, no dia fixo, início à meia-noite e fim em
+  `time.max` da `data_fixa` no fuso da casa; a duração de 2 dias vale só no
+  modo intervalo. O código de produção não mudou. Essa correção ainda não foi
+  executada contra o Supabase real (depende de nova execução do CI).
