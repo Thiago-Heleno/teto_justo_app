@@ -3,15 +3,20 @@ import type { Tarefa } from "@/services/tarefas-api";
 const JANELA_REPORTAGEM_MS = 24 * 60 * 60 * 1000;
 
 export function podeReportarTarefa(
-  tarefa: Pick<Tarefa, "estado_atual" | "concluida_em" | "politica_reclamacao">,
+  tarefa: Pick<
+    Tarefa,
+    | "estado_atual"
+    | "concluida_em"
+    | "politica_reclamacao"
+    | "usuarios_atribuidos"
+  >,
   usuarioId: string,
-  donoDaCasaId: string,
   agora = Date.now(),
 ) {
   if (
     tarefa.estado_atual !== "finalizado" ||
     tarefa.politica_reclamacao === "nenhuma" ||
-    usuarioId === donoDaCasaId ||
+    tarefa.usuarios_atribuidos.includes(usuarioId) ||
     !tarefa.concluida_em
   ) {
     return false;
@@ -21,6 +26,6 @@ export function podeReportarTarefa(
   return (
     Number.isFinite(concluidaEm) &&
     agora >= concluidaEm &&
-    agora - concluidaEm < JANELA_REPORTAGEM_MS
+    agora - concluidaEm <= JANELA_REPORTAGEM_MS
   );
 }

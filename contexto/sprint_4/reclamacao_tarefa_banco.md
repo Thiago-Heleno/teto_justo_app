@@ -71,9 +71,9 @@ vida existente.
   existente `instante_utc`.
 - A reclamação é gravada com o ciclo de `tarefa.reaberturas`. Violação de
   unicidade retorna HTTP 409; outros erros de persistência são propagados.
-- `uma_reclamacao` chama diretamente `ciclo_vida.reabrir` após registrar.
-  `votacao` conta somente as reclamações daquela tarefa no ciclo atual e chama
-  a mesma operação ao alcançar o limite.
+- `uma_reclamacao` só registra a reclamação e avisa o responsável a cada
+  report; nunca reabre a tarefa. `votacao` conta somente as reclamações daquela
+  tarefa no ciclo atual e chama `ciclo_vida.reabrir` ao alcançar o limite.
 - `src/backend/routers/tarefa.py`: `POST /tarefas/{id_tarefa}/reclamacoes`
   autenticado, sem corpo, retorna o `TarefaResposta` existente.
 - `src/backend/tests/test_reclamacao_unitario.py`: 33 casos de unidade com

@@ -83,7 +83,7 @@ class ServicoReclamacao:
             .eq("ciclo", ciclo)
             .execute()
         )
-        reabrir = (reclamacoes.count or 0) >= limite
+        reabrir = politica == "votacao" and (reclamacoes.count or 0) >= limite
         if reabrir:
             tarefa = self.tarefas.ciclo_vida.reabrir(tarefa, responsaveis, agora)
         resultado = self.tarefas._montar_resposta(tarefa, agora)
