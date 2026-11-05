@@ -78,22 +78,26 @@ class Consulta:
             if self.operacao == "update":
                 self.banco.rotacao_versao = self.dados["rotacao_versao"]
                 return SimpleNamespace(data=[{"rotacao_versao": self.banco.rotacao_versao}])
-            return SimpleNamespace(data=[{
-                "fk_usuario_id": self.banco.proprietario,
-                "rotacao_versao": self.banco.rotacao_versao,
-            }])
+            return SimpleNamespace(
+                data=[
+                    {
+                        "fk_usuario_id": self.banco.proprietario,
+                        "rotacao_versao": self.banco.rotacao_versao,
+                    }
+                ]
+            )
         if self.tabela == "score_event":
-            return SimpleNamespace(data=[
-                evento for evento in self.banco.eventos if self._bate(evento)
-            ])
+            return SimpleNamespace(
+                data=[evento for evento in self.banco.eventos if self._bate(evento)]
+            )
         if self.tabela == "atribuida":
-            return SimpleNamespace(data=[
-                registro for registro in self.banco.atribuidas if self._bate(registro)
-            ])
+            return SimpleNamespace(
+                data=[registro for registro in self.banco.atribuidas if self._bate(registro)]
+            )
         if self.tabela == "tarefa":
-            return SimpleNamespace(data=[
-                dict(tarefa) for tarefa in self.banco.tarefas.values() if self._bate(tarefa)
-            ])
+            return SimpleNamespace(
+                data=[dict(tarefa) for tarefa in self.banco.tarefas.values() if self._bate(tarefa)]
+            )
         if self.operacao in self.banco.resultados_vazios:
             self.banco.resultados_vazios.remove(self.operacao)
             return SimpleNamespace(data=[])
@@ -114,8 +118,9 @@ class Consulta:
         if self.operacao == "select":
             if self.intervalo:
                 inicio, fim = self.intervalo
-                encontrados = encontrados[inicio: fim + 1]
+                encontrados = encontrados[inicio : fim + 1]
             return SimpleNamespace(data=[dict(v) for v in encontrados])
+
 
 class TesteServicoPertencer(unittest.TestCase):
     # Monta um ServicoPertencer com o banco em memória e dois UUIDs fixos
@@ -258,10 +263,12 @@ class TesteServicoPertencer(unittest.TestCase):
             "fk_casa_id": str(self.fk_casa_id),
             "estado_atual": "pendente",
         }
-        self.banco.atribuidas.append({
-            "fk_usuario_id": str(self.fk_usuario_id),
-            "fk_tarefa_id": id_tarefa,
-        })
+        self.banco.atribuidas.append(
+            {
+                "fk_usuario_id": str(self.fk_usuario_id),
+                "fk_tarefa_id": id_tarefa,
+            }
+        )
 
         with self.assertRaises(HTTPException) as contexto:
             self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
@@ -277,10 +284,12 @@ class TesteServicoPertencer(unittest.TestCase):
             "fk_casa_id": str(self.fk_casa_id),
             "estado_atual": "finalizado",
         }
-        self.banco.atribuidas.append({
-            "fk_usuario_id": str(self.fk_usuario_id),
-            "fk_tarefa_id": id_tarefa,
-        })
+        self.banco.atribuidas.append(
+            {
+                "fk_usuario_id": str(self.fk_usuario_id),
+                "fk_tarefa_id": id_tarefa,
+            }
+        )
 
         resultado = self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
 

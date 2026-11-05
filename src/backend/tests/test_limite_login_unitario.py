@@ -52,8 +52,7 @@ def test_chaves_nao_expoem_email_ou_ip(relogio):
     limitador.reservar_tentativa("morador@example.com", "10.0.0.1")
     assert len(limitador._contadores) == 2
     assert all(
-        "morador" not in chave and "10.0.0.1" not in chave
-        for chave in limitador._contadores
+        "morador" not in chave and "10.0.0.1" not in chave for chave in limitador._contadores
     )
 
 

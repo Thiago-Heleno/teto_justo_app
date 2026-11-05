@@ -131,9 +131,7 @@ def criar_convite_casa(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(
-        id_casa, usuario_atual.id
-    )
+    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(id_casa, usuario_atual.id)
     return ServicoConviteCasa().emitir(id_casa, usuario_atual.id)
 
 
@@ -217,9 +215,7 @@ def auditar_score(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(
-        id_casa, usuario_atual.id
-    )
+    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(id_casa, usuario_atual.id)
     return {
         "casa_id": str(id_casa),
         "divergencias": ServicoPlacar(supabase).auditar_saldos(id_casa),

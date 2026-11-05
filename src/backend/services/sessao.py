@@ -58,11 +58,13 @@ class ServicoSessao:
         expira_em = datetime.now(timezone.utc) + timedelta(hours=24)
         criada = (
             self.supabase.table("sessao")
-            .insert({
-                "token": hash_token_sessao(token),
-                "expira_em": expira_em.isoformat(),
-                "fk_usuario_id": str(usuario["id"]),
-            })
+            .insert(
+                {
+                    "token": hash_token_sessao(token),
+                    "expira_em": expira_em.isoformat(),
+                    "fk_usuario_id": str(usuario["id"]),
+                }
+            )
             .execute()
         )
         if not criada.data:

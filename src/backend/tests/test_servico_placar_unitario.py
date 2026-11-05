@@ -53,14 +53,16 @@ class Consulta:
 
     def execute(self):
         registros = [
-            registro for registro in self.banco.registros[self.tabela]
+            registro
+            for registro in self.banco.registros[self.tabela]
             if all(str(registro.get(campo)) == str(valor) for campo, valor in self.filtros)
             and (self.ids is None or registro.get(self.ids[0]) in self.ids[1])
         ]
         for campo, valor, operador in self.periodo:
             limite = datetime.fromisoformat(valor)
             registros = [
-                registro for registro in registros
+                registro
+                for registro in registros
                 if (
                     self.valor_ordenavel(campo, registro[campo]) >= limite
                     if operador == "gte"
@@ -75,7 +77,7 @@ class Consulta:
             )
         if self.intervalo:
             inicio, fim = self.intervalo
-            registros = registros[inicio: fim + 1]
+            registros = registros[inicio : fim + 1]
         if self.campos != "*":
             registros = [
                 {campo: registro[campo] for campo in self.campos.split(",")}
@@ -121,8 +123,14 @@ def montar_servico(fuso="America/Sao_Paulo", score=0, eventos=None):
     casa_id, usuario_id = uuid4(), uuid4()
     banco = Banco(
         [{"id": str(casa_id), "timezone": fuso, "fk_usuario_id": str(usuario_id)}],
-        [{"fk_casa_id": str(casa_id), "fk_usuario_id": str(usuario_id), "score": score,
-          "ativo": True}],
+        [
+            {
+                "fk_casa_id": str(casa_id),
+                "fk_usuario_id": str(usuario_id),
+                "score": score,
+                "ativo": True,
+            }
+        ],
         [{"id": str(usuario_id), "nome": "Ana"}],
         eventos or [],
     )
@@ -142,7 +150,8 @@ def test_extrato_inclui_nome_da_tarefa_em_creditos_e_estornos():
     extrato = servico.obter_extrato(casa_id, FiltroExtratoScore())
 
     assert [evento["nome_tarefa"] for evento in extrato["eventos"]] == [
-        "Tirar o lixo", "Lavar a louça"
+        "Tirar o lixo",
+        "Lavar a louça",
     ]
 
 
@@ -160,14 +169,16 @@ def test_placar_respeita_semana_domingo_e_virada_de_ano_no_fuso_da_casa():
     assert placar == {
         "casa_id": str(casa_id),
         "fuso_horario": "America/Sao_Paulo",
-        "moradores": [{
-            "usuario_id": str(usuario_id),
-            "nome": "Ana",
-            "semanal": 7,
-            "mensal": 15,
-            "anual": 15,
-            "acumulado": 17,
-        }],
+        "moradores": [
+            {
+                "usuario_id": str(usuario_id),
+                "nome": "Ana",
+                "semanal": 7,
+                "mensal": 15,
+                "anual": 15,
+                "acumulado": 17,
+            }
+        ],
     }
 
 
@@ -202,13 +213,16 @@ def test_placar_inclui_morador_sem_eventos_e_eventos_apos_primeira_pagina():
     servico, banco, casa_id, usuario_id = montar_servico()
     outro_id = uuid4()
     banco.registros["usuario"].append({"id": str(outro_id), "nome": "Bia"})
-    banco.registros["pertencer"].append({
-        "fk_casa_id": str(casa_id), "fk_usuario_id": str(outro_id), "score": 0,
-        "ativo": True,
-    })
+    banco.registros["pertencer"].append(
+        {
+            "fk_casa_id": str(casa_id),
+            "fk_usuario_id": str(outro_id),
+            "score": 0,
+            "ativo": True,
+        }
+    )
     banco.registros["score_event"] = [
-        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 1)
-        for _ in range(1001)
+        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 1) for _ in range(1001)
     ]
 
     placar = servico.obter_placar(casa_id, datetime(2026, 9, 2, tzinfo=timezone.utc))
@@ -219,41 +233,39 @@ def test_placar_inclui_morador_sem_eventos_e_eventos_apos_primeira_pagina():
 
 def test_auditoria_aponta_divergencia_sem_alterar_saldo():
     servico, banco, casa_id, usuario_id = montar_servico(score=50)
-    banco.registros["score_event"] = [
-        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25)
-    ]
+    banco.registros["score_event"] = [evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25)]
 
-    assert servico.auditar_saldos(casa_id) == [{
-        "usuario_id": str(usuario_id),
-        "saldo_materializado": 50,
-        "acumulado_eventos": 25,
-        "diferenca": 25,
-    }]
+    assert servico.auditar_saldos(casa_id) == [
+        {
+            "usuario_id": str(usuario_id),
+            "saldo_materializado": 50,
+            "acumulado_eventos": 25,
+            "diferenca": 25,
+        }
+    ]
     assert banco.registros["pertencer"][0]["score"] == 50
 
 
 def test_auditoria_aponta_evento_sem_vinculo():
     servico, banco, casa_id, _ = montar_servico()
     usuario_antigo = uuid4()
-    banco.registros["score_event"] = [
-        evento(casa_id, usuario_antigo, "2026-09-01T12:00:00Z", 10)
-    ]
+    banco.registros["score_event"] = [evento(casa_id, usuario_antigo, "2026-09-01T12:00:00Z", 10)]
 
-    assert servico.auditar_saldos(casa_id) == [{
-        "usuario_id": str(usuario_antigo),
-        "saldo_materializado": None,
-        "acumulado_eventos": 10,
-        "diferenca": None,
-    }]
+    assert servico.auditar_saldos(casa_id) == [
+        {
+            "usuario_id": str(usuario_antigo),
+            "saldo_materializado": None,
+            "acumulado_eventos": 10,
+            "diferenca": None,
+        }
+    ]
 
 
 def test_morador_inativo_sai_do_placar_mas_preserva_saldo_e_auditoria():
     servico, banco, casa_id, usuario_id = montar_servico(score=25)
     banco.registros["casa"][0]["fk_usuario_id"] = str(uuid4())
     banco.registros["pertencer"][0]["ativo"] = False
-    banco.registros["score_event"] = [
-        evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25)
-    ]
+    banco.registros["score_event"] = [evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25)]
 
     assert servico.obter_placar(casa_id)["moradores"] == []
     assert servico.obter_ranking(casa_id, FiltroPeriodoScore())["moradores"] == []
@@ -263,17 +275,23 @@ def test_morador_inativo_sai_do_placar_mas_preserva_saldo_e_auditoria():
 
 def test_saldo_consulta_o_vinculo_exato_sem_recalcular_ou_alterar_pontos():
     servico, banco, casa_id, usuario_id = montar_servico(score=75)
-    banco.registros["pertencer"].append({
-        "fk_casa_id": str(uuid4()), "fk_usuario_id": str(usuario_id), "score": 999,
-        "ativo": True,
-    })
+    banco.registros["pertencer"].append(
+        {
+            "fk_casa_id": str(uuid4()),
+            "fk_usuario_id": str(usuario_id),
+            "score": 999,
+            "ativo": True,
+        }
+    )
     banco.registros["score_event"] = [
         evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
     ]
     antes = deepcopy(banco.registros)
 
     assert servico.obter_saldo(casa_id, usuario_id) == {
-        "fk_casa_id": str(casa_id), "fk_usuario_id": str(usuario_id), "saldo_atual": 75,
+        "fk_casa_id": str(casa_id),
+        "fk_usuario_id": str(usuario_id),
+        "saldo_atual": 75,
     }
     assert banco.registros == antes
 
@@ -284,10 +302,14 @@ def test_ranking_ordena_pontos_empates_e_moradores_sem_eventos_em_varias_paginas
     bia, outra_ana, sem_eventos = UUID(int=2), UUID(int=1), UUID(int=3)
     for id_usuario, nome in [(bia, "Bia"), (outra_ana, "Ana"), (sem_eventos, "Caio")]:
         banco.registros["usuario"].append({"id": str(id_usuario), "nome": nome})
-        banco.registros["pertencer"].append({
-            "fk_casa_id": str(casa_id), "fk_usuario_id": str(id_usuario), "score": 0,
-            "ativo": True,
-        })
+        banco.registros["pertencer"].append(
+            {
+                "fk_casa_id": str(casa_id),
+                "fk_usuario_id": str(id_usuario),
+                "score": 0,
+                "ativo": True,
+            }
+        )
     banco.registros["score_event"] = [
         evento(casa_id, usuario_id, "2026-09-01T12:00:00Z", 25),
         evento(casa_id, bia, "2026-09-02T12:00:00Z", 50),
@@ -301,19 +323,25 @@ def test_ranking_ordena_pontos_empates_e_moradores_sem_eventos_em_varias_paginas
     ranking = servico.obter_ranking(casa_id, FiltroPeriodoScore())
 
     assert [
-        (item["usuario_id"], item["pontos"], item["posicao"])
-        for item in ranking["moradores"]
-    ] == [(str(bia), 50, 1), (str(outra_ana), 25, 2),
-          (str(usuario_id), 25, 2), (str(sem_eventos), 0, 4)]
+        (item["usuario_id"], item["pontos"], item["posicao"]) for item in ranking["moradores"]
+    ] == [
+        (str(bia), 50, 1),
+        (str(outra_ana), 25, 2),
+        (str(usuario_id), 25, 2),
+        (str(sem_eventos), 0, 4),
+    ]
     assert banco.registros == antes
 
 
-@pytest.mark.parametrize("filtros,pontos", [
-    ({"data_inicio": "2026-09-01", "data_fim": "2026-10-01"}, 8),
-    ({"data_inicio": "2026-09-01"}, 15),
-    ({"data_fim": "2026-10-01"}, 10),
-    ({}, 17),
-])
+@pytest.mark.parametrize(
+    "filtros,pontos",
+    [
+        ({"data_inicio": "2026-09-01", "data_fim": "2026-10-01"}, 8),
+        ({"data_inicio": "2026-09-01"}, 15),
+        ({"data_fim": "2026-10-01"}, 10),
+        ({}, 17),
+    ],
+)
 def test_ranking_e_extrato_respeitam_limites_do_mes_no_fuso_da_casa(filtros, pontos):
     servico, banco, casa_id, usuario_id = montar_servico()
     banco.registros["score_event"] = [
@@ -370,8 +398,10 @@ def test_extrato_filtra_usuario_e_casa_e_pagina_em_ordem_estavel():
         casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id, inicio=4, limite=2)
     )
 
-    assert primeira["eventos"] == [{**eventos[2], "nome_tarefa": None},
-                                   {**eventos[1], "nome_tarefa": None}]
+    assert primeira["eventos"] == [
+        {**eventos[2], "nome_tarefa": None},
+        {**eventos[1], "nome_tarefa": None},
+    ]
     assert segunda["eventos"] == [{**eventos[0], "nome_tarefa": None}]
     assert esgotada["eventos"] == []
     assert primeira["total"] == segunda["total"] == esgotada["total"] == 3

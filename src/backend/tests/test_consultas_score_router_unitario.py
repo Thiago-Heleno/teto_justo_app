@@ -35,7 +35,9 @@ def test_consulta_saldo_por_usuario_e_casa(consulta_score):
 
     assert resposta.status_code == 200, resposta.text
     assert resposta.json() == {
-        "fk_casa_id": str(casa_id), "fk_usuario_id": str(usuario_id), "saldo_atual": 75,
+        "fk_casa_id": str(casa_id),
+        "fk_usuario_id": str(usuario_id),
+        "saldo_atual": 75,
     }
 
 
@@ -49,49 +51,82 @@ def test_extrato_e_ranking_aplicam_periodo_informado_na_url(consulta_score):
     periodo = {"data_inicio": "2026-09-01", "data_fim": "2026-10-01"}
 
     ranking = cliente.get(f"/casas/{casa_id}/ranking", params=periodo)
-    extrato = cliente.get(f"/casas/{casa_id}/extrato", params={
-        **periodo, "fk_usuario_id": str(usuario_id), "inicio": 0, "limite": 1,
-    })
+    extrato = cliente.get(
+        f"/casas/{casa_id}/extrato",
+        params={
+            **periodo,
+            "fk_usuario_id": str(usuario_id),
+            "inicio": 0,
+            "limite": 1,
+        },
+    )
 
     assert ranking.status_code == extrato.status_code == 200
     assert ranking.json() == {
-        "casa_id": str(casa_id), "fuso_horario": "America/Sao_Paulo", **periodo,
-        "moradores": [{
-            "usuario_id": str(usuario_id), "nome": "Ana", "pontos": 50, "posicao": 1,
-        }],
+        "casa_id": str(casa_id),
+        "fuso_horario": "America/Sao_Paulo",
+        **periodo,
+        "moradores": [
+            {
+                "usuario_id": str(usuario_id),
+                "nome": "Ana",
+                "pontos": 50,
+                "posicao": 1,
+            }
+        ],
     }
     assert extrato.json() == {
-        "casa_id": str(casa_id), "fuso_horario": "America/Sao_Paulo", **periodo,
-        "fk_usuario_id": str(usuario_id), "inicio": 0, "limite": 1,
-        "total": 1, "eventos": [{**credito, "nome_tarefa": None}],
+        "casa_id": str(casa_id),
+        "fuso_horario": "America/Sao_Paulo",
+        **periodo,
+        "fk_usuario_id": str(usuario_id),
+        "inicio": 0,
+        "limite": 1,
+        "total": 1,
+        "eventos": [{**credito, "nome_tarefa": None}],
     }
 
 
 @pytest.mark.parametrize("rota", ["placar", "saldo", "extrato", "ranking"])
-@pytest.mark.parametrize("acesso,status", [
-    ("sem_sessao", 401), ("fora_da_casa", 403), ("casa_inexistente", 404),
-    ("morador", 200), ("morador_inativo", 403),
-    ("proprietario_sem_vinculo", 200), ("proprietario_com_vinculo_inativo", 200),
-])
+@pytest.mark.parametrize(
+    "acesso,status",
+    [
+        ("sem_sessao", 401),
+        ("fora_da_casa", 403),
+        ("casa_inexistente", 404),
+        ("morador", 200),
+        ("morador_inativo", 403),
+        ("proprietario_sem_vinculo", 200),
+        ("proprietario_com_vinculo_inativo", 200),
+    ],
+)
 def test_consultas_exigem_sessao_e_acesso_a_casa(consulta_score, monkeypatch, rota, acesso, status):
     cliente, banco, casa_id, usuario_id = consulta_score
     if acesso == "sem_sessao":
         monkeypatch.delitem(app.dependency_overrides, obter_usuario_atual)
     elif acesso in {
-        "fora_da_casa", "morador", "morador_inativo", "proprietario_sem_vinculo",
+        "fora_da_casa",
+        "morador",
+        "morador_inativo",
+        "proprietario_sem_vinculo",
         "proprietario_com_vinculo_inativo",
     }:
         solicitante_id = uuid4()
         monkeypatch.setitem(
-            app.dependency_overrides, obter_usuario_atual,
+            app.dependency_overrides,
+            obter_usuario_atual,
             lambda: SimpleNamespace(id=solicitante_id),
         )
         if acesso in {"morador", "morador_inativo", "proprietario_com_vinculo_inativo"}:
             banco.registros["usuario"].append({"id": str(solicitante_id), "nome": "Bia"})
-            banco.registros["pertencer"].append({
-                "fk_casa_id": str(casa_id), "fk_usuario_id": str(solicitante_id),
-                "score": 0, "ativo": acesso == "morador",
-            })
+            banco.registros["pertencer"].append(
+                {
+                    "fk_casa_id": str(casa_id),
+                    "fk_usuario_id": str(solicitante_id),
+                    "score": 0,
+                    "ativo": acesso == "morador",
+                }
+            )
         if acesso in {"proprietario_sem_vinculo", "proprietario_com_vinculo_inativo"}:
             banco.registros["casa"][0]["fk_usuario_id"] = str(solicitante_id)
     elif acesso == "casa_inexistente":
@@ -107,25 +142,30 @@ def test_consultas_exigem_sessao_e_acesso_a_casa(consulta_score, monkeypatch, ro
 def test_consulta_nao_aceita_usuario_vinculado_apenas_a_outra_casa(consulta_score, rota):
     cliente, banco, casa_id, _ = consulta_score
     outro_usuario = uuid4()
-    banco.registros["pertencer"].append({
-        "fk_casa_id": str(uuid4()), "fk_usuario_id": str(outro_usuario), "score": 999,
-    })
-
-    resposta = cliente.get(
-        f"/casas/{casa_id}/{rota}", params={"fk_usuario_id": str(outro_usuario)}
+    banco.registros["pertencer"].append(
+        {
+            "fk_casa_id": str(uuid4()),
+            "fk_usuario_id": str(outro_usuario),
+            "score": 999,
+        }
     )
+
+    resposta = cliente.get(f"/casas/{casa_id}/{rota}", params={"fk_usuario_id": str(outro_usuario)})
 
     assert resposta.status_code == 404
     assert resposta.json() == {"detail": "Vínculo não encontrado."}
 
 
 @pytest.mark.parametrize("rota", ["extrato", "ranking"])
-@pytest.mark.parametrize("params", [
-    {"data_inicio": "data-invalida"},
-    {"data_fim": "2026-02-30"},
-    {"data_inicio": "2026-10-01", "data_fim": "2026-09-01"},
-    {"data_inicio": "2026-09-01", "data_fim": "2026-09-01"},
-])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"data_inicio": "data-invalida"},
+        {"data_fim": "2026-02-30"},
+        {"data_inicio": "2026-10-01", "data_fim": "2026-09-01"},
+        {"data_inicio": "2026-09-01", "data_fim": "2026-09-01"},
+    ],
+)
 def test_periodo_invalido_retorna_422(consulta_score, rota, params):
     cliente, _, casa_id, _ = consulta_score
 
@@ -134,9 +174,15 @@ def test_periodo_invalido_retorna_422(consulta_score, rota, params):
     assert resposta.status_code == 422, resposta.text
 
 
-@pytest.mark.parametrize("params", [
-    {"inicio": -1}, {"limite": 0}, {"limite": 101}, {"fk_usuario_id": "invalido"},
-])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"inicio": -1},
+        {"limite": 0},
+        {"limite": 101},
+        {"fk_usuario_id": "invalido"},
+    ],
+)
 def test_filtros_invalidos_do_extrato_retornam_422(consulta_score, params):
     cliente, _, casa_id, _ = consulta_score
 

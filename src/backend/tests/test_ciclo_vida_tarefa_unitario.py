@@ -29,29 +29,43 @@ def cenario(monkeypatch):
 
     monkeypatch.setattr("services.tarefa.datetime", Relogio)
     tarefa = {
-        "id": str(uuid4()), "nome": "Limpar cozinha", "estado_atual": "pendente",
-        "dificuldade": 2, "pontuacao": 25, "atraso_maximo": 2,
+        "id": str(uuid4()),
+        "nome": "Limpar cozinha",
+        "estado_atual": "pendente",
+        "dificuldade": 2,
+        "pontuacao": 25,
+        "atraso_maximo": 2,
         "data_fim": (agora + timedelta(days=2)).isoformat(),
         "data_inicio": (agora - timedelta(days=1)).isoformat(),
-        "fk_casa_id": str(uuid4()), "fk_usuario_id": str(uuid4()), "reaberturas": 0,
+        "fk_casa_id": str(uuid4()),
+        "fk_usuario_id": str(uuid4()),
+        "reaberturas": 0,
     }
-    banco = SupabaseEmMemoria({
-        "casa": [{"id": tarefa["fk_casa_id"], "politica_reclamacao": "nenhuma"}],
-        "tarefa": [tarefa],
-        "atribuida": [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": tarefa["fk_usuario_id"]}],
-        "pertencer": [{
-            "fk_casa_id": tarefa["fk_casa_id"], "fk_usuario_id": tarefa["fk_usuario_id"],
-            "ativo": True, "score": 100,
-        }],
-        "score_event": [],
-    })
+    banco = SupabaseEmMemoria(
+        {
+            "casa": [{"id": tarefa["fk_casa_id"], "politica_reclamacao": "nenhuma"}],
+            "tarefa": [tarefa],
+            "atribuida": [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": tarefa["fk_usuario_id"]}],
+            "pertencer": [
+                {
+                    "fk_casa_id": tarefa["fk_casa_id"],
+                    "fk_usuario_id": tarefa["fk_usuario_id"],
+                    "ativo": True,
+                    "score": 100,
+                }
+            ],
+            "score_event": [],
+        }
+    )
     executar = ConsultaEmMemoria.execute
 
     def executar_com_unicidade(consulta):
         if consulta.tabela == "score_event" and consulta.acao == "insert":
             if any(
-                all(evento[campo] == consulta.dados[campo]
-                    for campo in ("fk_usuario_id", "fk_tarefa_id", "tipo", "ciclo"))
+                all(
+                    evento[campo] == consulta.dados[campo]
+                    for campo in ("fk_usuario_id", "fk_tarefa_id", "tipo", "ciclo")
+                )
                 for evento in banco.registros["score_event"]
             ):
                 raise APIError({"code": "23505", "message": "Evento já registrado."})
@@ -61,22 +75,31 @@ def cenario(monkeypatch):
     return banco, ServicoTarefa(banco, BackgroundTasks()), tarefa, agora
 
 
-@pytest.mark.parametrize("atraso,esperado", [
-    (timedelta(microseconds=-1), "pendente"),
-    (timedelta(0), "pendente"),
-    (timedelta(microseconds=1), "atrasada"),
-    (timedelta(days=2), "atrasada"),
-    (timedelta(days=2, microseconds=1), "nao_feito"),
-])
+@pytest.mark.parametrize(
+    "atraso,esperado",
+    [
+        (timedelta(microseconds=-1), "pendente"),
+        (timedelta(0), "pendente"),
+        (timedelta(microseconds=1), "atrasada"),
+        (timedelta(days=2), "atrasada"),
+        (timedelta(days=2, microseconds=1), "nao_feito"),
+    ],
+)
 def test_estado_respeita_instante_do_prazo_e_limite_da_tolerancia(atraso, esperado):
     prazo = datetime(2030, 1, 10, tzinfo=timezone.utc)
     assert estado_no_prazo({"data_fim": prazo, "atraso_maximo": 2}, prazo + atraso) == esperado
 
 
-@pytest.mark.parametrize("valor", [
-    "2030-01-10T12:00:00", "2030-01-10T12:00:00Z", "2030-01-10T09:00:00-03:00",
-    datetime(2030, 1, 10, 12), datetime(2030, 1, 10, 12, tzinfo=timezone.utc),
-])
+@pytest.mark.parametrize(
+    "valor",
+    [
+        "2030-01-10T12:00:00",
+        "2030-01-10T12:00:00Z",
+        "2030-01-10T09:00:00-03:00",
+        datetime(2030, 1, 10, 12),
+        datetime(2030, 1, 10, 12, tzinfo=timezone.utc),
+    ],
+)
 def test_datas_legadas_e_com_fuso_representam_o_mesmo_instante(valor):
     assert instante_utc(valor) == datetime(2030, 1, 10, 12, tzinfo=timezone.utc)
 
@@ -95,7 +118,8 @@ def test_dia_fixo_abre_e_vence_no_dia_escolhido_no_fuso_da_casa(nome_fuso):
 def test_edicao_de_dia_fixo_nao_depende_da_duracao(cenario, prazo_dias, alteracoes):
     _, _, tarefa, agora = cenario
     tarefa.update(
-        modo_prazo="dia_fixo", prazo_dias=prazo_dias,
+        modo_prazo="dia_fixo",
+        prazo_dias=prazo_dias,
         data_fim="2030-01-13T02:59:59.999999+00:00",
     )
 
@@ -127,7 +151,10 @@ def test_conclusao_de_dia_fixo_so_e_liberada_a_partir_da_meia_noite(cenario, des
 @pytest.mark.parametrize("origem", ["leitura", "job"])
 @pytest.mark.parametrize("dias_atraso,esperado", [(1, "atrasada"), (3, "nao_feito")])
 def test_leitura_e_job_aplicam_a_mesma_transicao_sem_mudar_pontos(
-    cenario, origem, dias_atraso, esperado,
+    cenario,
+    origem,
+    dias_atraso,
+    esperado,
 ):
     banco, servico, tarefa, agora = cenario
     tarefa["data_fim"] = (agora - timedelta(days=dias_atraso)).isoformat()
@@ -151,9 +178,14 @@ def test_conclusao_repetida_nao_duplica_credito(cenario):
     assert len(banco.registros["score_event"]) == 1
 
 
-@pytest.mark.parametrize("dias_atraso,esperado", [
-    (-1, "pendente"), (1, "atrasada"), (3, "nao_feito"),
-])
+@pytest.mark.parametrize(
+    "dias_atraso,esperado",
+    [
+        (-1, "pendente"),
+        (1, "atrasada"),
+        (3, "nao_feito"),
+    ],
+)
 def test_reaberturas_do_mesmo_ciclo_estornam_uma_unica_vez(cenario, dias_atraso, esperado):
     banco, servico, tarefa, agora = cenario
     servico.concluir_tarefa(UUID(tarefa["id"]), UUID(tarefa["fk_usuario_id"]))
@@ -176,7 +208,9 @@ def test_nova_conclusao_apos_reabertura_credita_o_novo_ciclo(cenario):
     resultado = servico.concluir_tarefa(id_tarefa, id_usuario)
     assert resultado["resultado_pontuacao"]["saldo_atual"] == 125
     assert [(e["tipo"], e["ciclo"]) for e in banco.registros["score_event"]] == [
-        ("credito", 0), ("reversal", 0), ("credito", 1),
+        ("credito", 0),
+        ("reversal", 0),
+        ("credito", 1),
     ]
 
 

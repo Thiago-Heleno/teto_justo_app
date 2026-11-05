@@ -159,12 +159,8 @@ def test_tipo_e_modo_prazo_persistem_no_supabase(
     fim = datetime.fromisoformat(registro["data_fim"]).replace(tzinfo=timezone.utc)
     if modo_prazo == "dia_fixo":
         assert registro["timezone"] == fuso.key
-        assert inicio == datetime.combine(data_fixa, time.min, tzinfo=fuso).astimezone(
-            timezone.utc
-        )
-        assert fim == datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(
-            timezone.utc
-        )
+        assert inicio == datetime.combine(data_fixa, time.min, tzinfo=fuso).astimezone(timezone.utc)
+        assert fim == datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(timezone.utc)
     else:
         assert fim - inicio == timedelta(days=2)
         assert antes <= inicio <= depois
@@ -507,10 +503,10 @@ def test_credito_real_respeita_tolerancia_e_nao_duplica(
         repetida = cliente.post(f"/tarefas/{tarefa_id}/conclusoes")
         assert repetida.status_code == 409, repetida.text
     eventos = (
-    supabase.table("score_event")
-    .select("tipo,pontuacao")
-    .eq("fk_tarefa_id", tarefa_id)
-    .execute()
+        supabase.table("score_event")
+        .select("tipo,pontuacao")
+        .eq("fk_tarefa_id", tarefa_id)
+        .execute()
     )
     assert {(evento["tipo"], evento["pontuacao"]) for evento in eventos.data} == (
         {("credito", pontos)} if status == 200 else set()

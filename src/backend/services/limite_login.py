@@ -31,9 +31,7 @@ class LimitadorLogin:
             return 0, 0
         return contador, expira
 
-    def _estado(
-        self, chaves: tuple[str, str], agora: float
-    ) -> tuple[int, int, int, int]:
+    def _estado(self, chaves: tuple[str, str], agora: float) -> tuple[int, int, int, int]:
         email, expira_email = self._ler(chaves[0], agora)
         ip, expira_ip = self._ler(chaves[1], agora)
         ttl_email = max(1, int(expira_email - agora)) if email else 0
@@ -65,9 +63,7 @@ class LimitadorLogin:
             self._reservas += 1
             if self._reservas % 256 == 0:
                 self._contadores = {
-                    chave: estado
-                    for chave, estado in self._contadores.items()
-                    if estado[1] > agora
+                    chave: estado for chave, estado in self._contadores.items() if estado[1] > agora
                 }
             chaves = self._chaves(email, ip)
             estado = self._estado(chaves, agora)

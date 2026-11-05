@@ -38,11 +38,13 @@ def banco(consulta):
 @pytest.fixture
 def servico(banco):
     servico = ServicoTarefa(banco, BackgroundTasks())
-    servico._metadados_reclamacoes = MagicMock(return_value={
-        "politica_reclamacao": "nenhuma",
-        "reclamacoes_count": 0,
-        "reclamacoes_limite": 0,
-    })
+    servico._metadados_reclamacoes = MagicMock(
+        return_value={
+            "politica_reclamacao": "nenhuma",
+            "reclamacoes_count": 0,
+            "reclamacoes_limite": 0,
+        }
+    )
     return servico
 
 
@@ -668,6 +670,7 @@ def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, reg
     assert resultado is True
     consulta.delete.assert_called_once()
 
+
 def test_morador_nao_pode_criar_tarefa(servico, consulta, ids_relacionados):
     consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}])
     dados = TarefaCriar(
@@ -834,9 +837,12 @@ def test_atualizar_responsavel_aceita_dono_com_e_sem_coluna_de_aviso_atraso(
 
     def atualizar(dados):
         if not tem_aviso_atraso and "aviso_atraso_enviado_em" in dados:
-            raise APIError({
-                "code": "42703", "message": "column aviso_atraso_enviado_em does not exist",
-            })
+            raise APIError(
+                {
+                    "code": "42703",
+                    "message": "column aviso_atraso_enviado_em does not exist",
+                }
+            )
         return consulta
 
     consulta.update.side_effect = atualizar
@@ -984,9 +990,12 @@ def test_editar_prazo_preserva_inicio_original(servico, consulta, registro_taref
     inicio = datetime.now(timezone.utc) - timedelta(days=1)
     tarefa = {**registro_tarefa, "data_inicio": inicio.isoformat(), "prazo_dias": 3}
     servico._buscar_tarefa_bruta = MagicMock(return_value=tarefa)
-    servico.buscar_tarefa = MagicMock(return_value={
-        **tarefa, "usuarios_atribuidos": [tarefa["fk_usuario_id"]],
-    })
+    servico.buscar_tarefa = MagicMock(
+        return_value={
+            **tarefa,
+            "usuarios_atribuidos": [tarefa["fk_usuario_id"]],
+        }
+    )
     consulta.execute.side_effect = [
         SimpleNamespace(data=[{"fk_usuario_id": tarefa["fk_usuario_id"]}]),
         SimpleNamespace(data=[tarefa]),
@@ -1149,19 +1158,25 @@ def test_responsavel_nao_finaliza_duas_vezes(servico, banco, consulta, registro_
 
 
 def test_proprietario_sem_vinculo_ativo_nao_recebe_pontos(
-    servico, banco, consulta, registro_tarefa,
+    servico,
+    banco,
+    consulta,
+    registro_tarefa,
 ):
     consulta.execute.side_effect = [
         SimpleNamespace(data=[{"fk_usuario_id": registro_tarefa["fk_usuario_id"]}]),
         SimpleNamespace(data=[]),
     ]
     ServicoAutorizacaoCasa(banco).garantir_administrador_da_casa(
-        registro_tarefa["fk_casa_id"], registro_tarefa["fk_usuario_id"],
+        registro_tarefa["fk_casa_id"],
+        registro_tarefa["fk_usuario_id"],
     )
 
     with pytest.raises(HTTPException) as erro:
         servico.ciclo_vida.concluir(
-            registro_tarefa, [registro_tarefa["fk_usuario_id"]], datetime.now(timezone.utc),
+            registro_tarefa,
+            [registro_tarefa["fk_usuario_id"]],
+            datetime.now(timezone.utc),
         )
 
     assert erro.value.status_code == 409
@@ -1173,9 +1188,7 @@ def test_proprietario_sem_vinculo_ativo_nao_recebe_pontos(
     consulta.update.assert_not_called()
 
 
-def test_nao_reabre_tarefa_de_responsavel_que_saiu(
-    servico, consulta, registro_tarefa
-):
+def test_nao_reabre_tarefa_de_responsavel_que_saiu(servico, consulta, registro_tarefa):
     tarefa = {**registro_tarefa, "estado_atual": "finalizado"}
     responsavel = tarefa["fk_usuario_id"]
     servico._buscar_tarefa_bruta = MagicMock(return_value=tarefa)
@@ -1201,9 +1214,7 @@ def test_consulta_expirada_nao_sobrescreve_conclusao_concorrente(
     consulta.eq.assert_any_call("estado_atual", tarefa["estado_atual"])
 
 
-def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
-    servico, consulta, registro_tarefa
-):
+def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(servico, consulta, registro_tarefa):
     tarefa = {
         **registro_tarefa,
         "estado_atual": "finalizado",
@@ -1218,6 +1229,7 @@ def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(
     assert resposta["data_inicio"] == "2026-09-01T08:00:00+00:00"
     assert resposta["data_fim"] == "2026-09-02T08:00:00+00:00"
     assert resposta["concluida_em"] == "2026-09-02T07:00:00+00:00"
+
 
 def test_excluir_tarefa_rotativa_da_409(servico, consulta, id_tarefa, registro_tarefa):
     tarefa_rotativa = {**registro_tarefa, "rotatividade_id": str(uuid4())}
@@ -1255,7 +1267,9 @@ def test_edicao_notifica_apenas_mudancas_efetivas_sem_duplicar_destinatarios(
     antigo, novo = str(uuid4()), str(uuid4())
     inicio = datetime.now(timezone.utc)
     anterior = {
-        **registro_tarefa, "data_inicio": inicio.isoformat(), "prazo_dias": 3,
+        **registro_tarefa,
+        "data_inicio": inicio.isoformat(),
+        "prazo_dias": 3,
         "data_fim": (inicio + timedelta(days=3)).isoformat(),
         "aviso_inicio_tentado_em": inicio.isoformat(),
     }
@@ -1279,13 +1293,17 @@ def test_edicao_notifica_apenas_mudancas_efetivas_sem_duplicar_destinatarios(
     servico.buscar_tarefa = MagicMock(return_value=atual)
     consulta.execute.return_value = SimpleNamespace(data=[atual])
 
-    assert servico.atualizar_tarefa(
-        UUID(anterior["id"]), TarefaAtualizar(**alteracoes), UUID(anterior["fk_usuario_id"])
-    ) == atual
+    assert (
+        servico.atualizar_tarefa(
+            UUID(anterior["id"]), TarefaAtualizar(**alteracoes), UUID(anterior["fk_usuario_id"])
+        )
+        == atual
+    )
 
     tarefas_fundo = servico.notificacoes.tarefas_fundo.tasks
     avisos = [
-        (t.args[0], t.args[2]) for t in tarefas_fundo
+        (t.args[0], t.args[2])
+        for t in tarefas_fundo
         if t.func == servico.notificacoes._notificar_tarefa
     ]
     reinicios = [t for t in tarefas_fundo if t.func == servico.notificacoes._reiniciar_aviso_inicio]
@@ -1311,7 +1329,8 @@ def test_edicao_com_falha_de_gravacao_nao_agenda_aviso(
 
     with pytest.raises(APIError):
         servico.atualizar_tarefa(
-            UUID(registro_tarefa["id"]), TarefaAtualizar(nome="Atualizada"),
+            UUID(registro_tarefa["id"]),
+            TarefaAtualizar(nome="Atualizada"),
             UUID(registro_tarefa["fk_usuario_id"]),
         )
     assert servico.notificacoes.tarefas_fundo.tasks == []
@@ -1339,12 +1358,15 @@ def test_encerramento_na_leitura_so_notifica_quando_esta_execucao_altera_estado(
 
 
 @pytest.mark.parametrize("fuso", ["America/Sao_Paulo", "Asia/Tokyo", "America/New_York"])
-@pytest.mark.parametrize("prazo,indices", [
-    ("antigas", [0, 1, 6, 7]),
-    ("hoje", [1, 2, 3, 6]),
-    ("sete_dias", [1, 2, 3, 4, 6]),
-    ("todos", [0, 1, 2, 3, 4, 5, 6, 7]),
-])
+@pytest.mark.parametrize(
+    "prazo,indices",
+    [
+        ("antigas", [0, 1, 6, 7]),
+        ("hoje", [1, 2, 3, 6]),
+        ("sete_dias", [1, 2, 3, 4, 6]),
+        ("todos", [0, 1, 2, 3, 4, 5, 6, 7]),
+    ],
+)
 def test_listar_prazos_por_dias_completos_no_fuso_da_casa(
     servico, consulta, ids_relacionados, monkeypatch, fuso, prazo, indices
 ):

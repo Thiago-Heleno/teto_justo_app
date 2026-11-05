@@ -81,7 +81,8 @@ class Consulta:
         from uuid import uuid4
 
         encontrados = [
-            u for u in self.registros.values()
+            u
+            for u in self.registros.values()
             if all(
                 (u.get(c) in v) if igual == "in" else (u.get(c) == v) == igual
                 for c, v, igual in self.filtros
@@ -110,9 +111,9 @@ class TesteHash(unittest.TestCase):
     def test_hash_e_diferente_da_senha_original(self):
         senha = "123"
 
-        hash_gerado = bcrypt.hashpw(
-            senha.encode("utf-8"), bcrypt.gensalt(rounds=12)
-        ).decode("utf-8")
+        hash_gerado = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode(
+            "utf-8"
+        )
 
         self.assertNotEqual(senha, hash_gerado)
 
@@ -291,16 +292,26 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
         banco.com_historico = True
         self.id_usuario, self.id_casa = str(uuid4()), str(uuid4())
         banco.usuarios[self.id_usuario] = {
-            "id": self.id_usuario, "nome": "Ana", "email": "ana@example.com",
-            "telefone": 1199, "foto": "abc", "senha_hash": "hash",
+            "id": self.id_usuario,
+            "nome": "Ana",
+            "email": "ana@example.com",
+            "telefone": 1199,
+            "foto": "abc",
+            "senha_hash": "hash",
         }
         banco.casas[self.id_casa] = {
-            "id": self.id_casa, "fk_usuario_id": str(uuid4()), "rotacao_versao": 0,
+            "id": self.id_casa,
+            "fk_usuario_id": str(uuid4()),
+            "rotacao_versao": 0,
         }
-        banco.outras["pertencer"] = {"v": {
-            "id": "v", "fk_usuario_id": self.id_usuario,
-            "fk_casa_id": self.id_casa, "ativo": True,
-        }}
+        banco.outras["pertencer"] = {
+            "v": {
+                "id": "v",
+                "fk_usuario_id": self.id_usuario,
+                "fk_casa_id": self.id_casa,
+                "ativo": True,
+            }
+        }
         banco.outras["sessao"] = {"s": {"id": "s", "fk_usuario_id": self.id_usuario}}
         banco.outras["dispositivo_push"] = {
             "d": {"id": "d", "fk_usuario_id": self.id_usuario},
@@ -328,9 +339,13 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
     # Tarefa aberta impede a exclusão e nada é alterado.
     def test_delecao_com_tarefa_aberta_gera_erro_409(self):
         banco = self._banco_com_historico()
-        banco.outras["atribuida"] = {"a": {
-            "id": "a", "fk_usuario_id": self.id_usuario, "fk_tarefa_id": "t1",
-        }}
+        banco.outras["atribuida"] = {
+            "a": {
+                "id": "a",
+                "fk_usuario_id": self.id_usuario,
+                "fk_tarefa_id": "t1",
+            }
+        }
         banco.outras["tarefa"] = {"t1": {"id": "t1", "estado_atual": "pendente"}}
 
         with self.assertRaises(HTTPException) as contexto:

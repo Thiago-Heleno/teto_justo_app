@@ -79,6 +79,7 @@ def registrar_usuario(
     limitador.confirmar_sucesso("codigo:" + email, "codigo:" + ip)
     return ServicoUsuario(supabase).criar_usuario(usuario)
 
+
 @router.get("/", response_model=list[UsuarioResposta])
 def listar_usuarios(
     usuario_atual: UsuarioAtual,
@@ -119,9 +120,7 @@ def buscar_usuario(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):  # Voltou UUID
-    ServicoAutorizacaoCasa(supabase).garantir_usuario_visivel(
-        id_usuario, usuario_atual.id
-    )
+    ServicoAutorizacaoCasa(supabase).garantir_usuario_visivel(id_usuario, usuario_atual.id)
     servico = ServicoUsuario(supabase)
     return servico.buscar_usuario(id_usuario)
 
@@ -204,4 +203,3 @@ def redefinir_senha(
             limitador.cancelar_tentativa("codigo:" + email, "codigo:" + ip)
         raise
     limitador.confirmar_sucesso("codigo:" + email, "codigo:" + ip)
-

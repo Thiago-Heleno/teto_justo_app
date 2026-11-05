@@ -77,9 +77,7 @@ class ConsultaEmMemoria:
         return self
 
     def _corresponde(self, registro):
-        return all(
-            str(registro.get(campo)) == str(valor) for campo, valor in self.filtros
-        ) and all(
+        return all(str(registro.get(campo)) == str(valor) for campo, valor in self.filtros) and all(
             str(registro.get(campo)) in valores for campo, valores in self.filtros_in
         )
 
@@ -107,9 +105,7 @@ class ConsultaEmMemoria:
                 registros.remove(registro)
         else:
             for campo, decrescente in reversed(self.ordens):
-                selecionados.sort(
-                    key=lambda registro: str(registro[campo]), reverse=decrescente
-                )
+                selecionados.sort(key=lambda registro: str(registro[campo]), reverse=decrescente)
             total = len(selecionados)
             if self.intervalo is not None:
                 inicio, fim = self.intervalo
@@ -159,26 +155,35 @@ def ambiente(monkeypatch):
     proprietario = UUID(int=50)
     outro_proprietario = UUID(int=51)
     casas = {numero: UUID(int=numero) for numero in range(1, 6)}
-    banco = SupabaseEmMemoria({
-        "casa": [
-            casa(5, outro_proprietario), casa(3, outro_proprietario),
-            casa(4, proprietario), casa(2, outro_proprietario),
-            casa(1, proprietario),
-        ],
-        "pertencer": [
-            vinculo(casas[1], proprietario),  # Casa própria e vinculada não duplica.
-            vinculo(casas[2], proprietario, 37),
-            vinculo(casas[3], proprietario, 11, ativo=False),
-            vinculo(casas[5], proprietario),
-        ],
-        "usuario": [{
-            "id": str(proprietario), "nome": "Ana", "email": "ana@example.com",
-            "telefone": None, "foto": None,
-        }],
-        "score_event": [],
-        "atribuida": [],
-        "tarefa": [],
-    })
+    banco = SupabaseEmMemoria(
+        {
+            "casa": [
+                casa(5, outro_proprietario),
+                casa(3, outro_proprietario),
+                casa(4, proprietario),
+                casa(2, outro_proprietario),
+                casa(1, proprietario),
+            ],
+            "pertencer": [
+                vinculo(casas[1], proprietario),  # Casa própria e vinculada não duplica.
+                vinculo(casas[2], proprietario, 37),
+                vinculo(casas[3], proprietario, 11, ativo=False),
+                vinculo(casas[5], proprietario),
+            ],
+            "usuario": [
+                {
+                    "id": str(proprietario),
+                    "nome": "Ana",
+                    "email": "ana@example.com",
+                    "telefone": None,
+                    "foto": None,
+                }
+            ],
+            "score_event": [],
+            "atribuida": [],
+            "tarefa": [],
+        }
+    )
     monkeypatch.setenv("CASA_CONVITE_SECRET", SEGREDO_TESTE)
     monkeypatch.setitem(app.dependency_overrides, get_supabase, lambda: banco)
     monkeypatch.setitem(
@@ -210,18 +215,27 @@ def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, mo
     senha_hash = bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
     usuarios = [
         {
-            "id": str(UUID(int=numero)), "nome": nome, "email": f"{nome}@example.com",
-            "senha_hash": senha_hash, "telefone": None, "foto": None,
-            "usuario_tipo": 0, "data_criacao": None,
+            "id": str(UUID(int=numero)),
+            "nome": nome,
+            "email": f"{nome}@example.com",
+            "senha_hash": senha_hash,
+            "telefone": None,
+            "foto": None,
+            "usuario_tipo": 0,
+            "data_criacao": None,
         }
         for numero, nome in [(70, "ana-fluxo"), (71, "bia-fluxo")]
     ]
     banco.registros["usuario"].extend(usuarios)
 
     def entrar(usuario):
-        resposta = cliente.post("/sessoes/login", json={
-            "email": usuario["email"], "senha": senha,
-        })
+        resposta = cliente.post(
+            "/sessoes/login",
+            json={
+                "email": usuario["email"],
+                "senha": senha,
+            },
+        )
         assert resposta.status_code == 200
         return {"Authorization": f"Bearer {resposta.json()['token']}"}
 
@@ -230,9 +244,14 @@ def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, mo
     assert cliente.get("/casas/", headers=admin).json() == []
     assert cliente.get("/casas/", headers=morador).json() == []
 
-    criacao = cliente.post("/casas/", headers=admin, json={
-        "nome": "Casa compartilhada", "endereco": "Rua de teste, 10",
-    })
+    criacao = cliente.post(
+        "/casas/",
+        headers=admin,
+        json={
+            "nome": "Casa compartilhada",
+            "endereco": "Rua de teste, 10",
+        },
+    )
     assert criacao.status_code == 201, criacao.text
     criada = criacao.json()
     casa_id = criada["id"]
@@ -255,16 +274,22 @@ def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, mo
 
     reentrada = cliente.post("/casas/entrar", headers=morador, json={"convite": convite})
     assert reentrada.status_code == 200
-    assert len([
-        item for item in banco.registros["pertencer"] if item["fk_casa_id"] == casa_id
-    ]) == 2
+    assert (
+        len([item for item in banco.registros["pertencer"] if item["fk_casa_id"] == casa_id]) == 2
+    )
 
-    segunda = cliente.post("/casas/", headers=admin, json={
-        "nome": "Outra casa", "endereco": "Rua de teste, 20",
-    })
+    segunda = cliente.post(
+        "/casas/",
+        headers=admin,
+        json={
+            "nome": "Outra casa",
+            "endereco": "Rua de teste, 20",
+        },
+    )
     assert segunda.status_code == 201
     assert {item["id"] for item in cliente.get("/casas/", headers=admin).json()} == {
-        casa_id, segunda.json()["id"],
+        casa_id,
+        segunda.json()["id"],
     }
     assert cliente.get("/casas/", headers=morador).json() == [criada]
     assert cliente.get(f"/casas/{segunda.json()['id']}", headers=morador).status_code == 403
@@ -278,7 +303,10 @@ def test_fluxo_login_criacao_convite_e_logout_com_autenticacao_real(ambiente, mo
 
 @pytest.mark.parametrize("tamanho_pagina,tamanho_lote", [(500, 100), (2, 1)])
 def test_listagem_filtra_antes_de_paginar_ordena_e_remove_duplicatas(
-    ambiente, monkeypatch, tamanho_pagina, tamanho_lote,
+    ambiente,
+    monkeypatch,
+    tamanho_pagina,
+    tamanho_lote,
 ):
     monkeypatch.setattr(ServicoAutorizacaoCasa, "TAMANHO_PAGINA", tamanho_pagina)
     monkeypatch.setattr(ServicoAutorizacaoCasa, "TAMANHO_LOTE", tamanho_lote)
@@ -288,10 +316,11 @@ def test_listagem_filtra_antes_de_paginar_ordena_e_remove_duplicatas(
 
     assert resposta.status_code == 200, resposta.text
     assert [item["id"] for item in resposta.json()] == [str(casas[2]), str(casas[4])]
-    assert all(set(item) == {
-        "id", "nome", "endereco", "foto", "fk_usuario_id", "timezone",
-        "politica_reclamacao"
-    } for item in resposta.json())
+    assert all(
+        set(item)
+        == {"id", "nome", "endereco", "foto", "fk_usuario_id", "timezone", "politica_reclamacao"}
+        for item in resposta.json()
+    )
 
 
 def test_listagem_omite_vinculo_inativo(ambiente):
@@ -305,9 +334,13 @@ def test_listagem_omite_vinculo_inativo(ambiente):
     ]
 
 
-@pytest.mark.parametrize("params", [
-    {"inicio": -1}, {"limite": 0},
-])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"inicio": -1},
+        {"limite": 0},
+    ],
+)
 def test_paginacao_invalida_retorna_422(ambiente, params):
     cliente, _, _, _, _ = ambiente
 
@@ -329,12 +362,12 @@ def test_listagem_sem_casas_retorna_200_e_lista_vazia(ambiente, monkeypatch):
 def test_leitura_da_casa_exige_propriedade_ou_vinculo(ambiente, monkeypatch):
     cliente, banco, casas, proprietario, _ = ambiente
     banco.registros["pertencer"] = [
-        registro for registro in banco.registros["pertencer"]
+        registro
+        for registro in banco.registros["pertencer"]
         if registro["fk_casa_id"] != str(casas[1])
     ]
     assert not any(
-        registro["fk_casa_id"] == str(casas[1])
-        and registro["fk_usuario_id"] == str(proprietario)
+        registro["fk_casa_id"] == str(casas[1]) and registro["fk_usuario_id"] == str(proprietario)
         for registro in banco.registros["pertencer"]
     )
 
@@ -353,10 +386,16 @@ def test_moradores_mantem_score_e_requer_acesso(ambiente):
     resposta = cliente.get(f"/casas/{casas[2]}/moradores")
 
     assert resposta.status_code == 200, resposta.text
-    assert resposta.json() == [{
-        "id": str(proprietario), "nome": "Ana", "email": "ana@example.com",
-        "telefone": None, "foto": None, "score": 37,
-    }]
+    assert resposta.json() == [
+        {
+            "id": str(proprietario),
+            "nome": "Ana",
+            "email": "ana@example.com",
+            "telefone": None,
+            "foto": None,
+            "score": 37,
+        }
+    ]
     assert cliente.get(f"/casas/{casas[3]}/moradores").status_code == 403
 
 
@@ -386,7 +425,8 @@ def test_convite_vincula_usuario_da_sessao_e_reentrada_preserva_score(ambiente, 
     assert primeira.status_code == 200, primeira.text
     assert primeira.json()["id"] == str(casas[1])
     vinculados = [
-        registro for registro in banco.registros["pertencer"]
+        registro
+        for registro in banco.registros["pertencer"]
         if registro["fk_casa_id"] == str(casas[1])
         and registro["fk_usuario_id"] == str(novo_morador)
     ]
@@ -399,11 +439,17 @@ def test_convite_vincula_usuario_da_sessao_e_reentrada_preserva_score(ambiente, 
 
     assert segunda.status_code == 200, segunda.text
     assert segunda.json() == primeira.json()
-    assert len([
-        registro for registro in banco.registros["pertencer"]
-        if registro["fk_casa_id"] == str(casas[1])
-        and registro["fk_usuario_id"] == str(novo_morador)
-    ]) == 1
+    assert (
+        len(
+            [
+                registro
+                for registro in banco.registros["pertencer"]
+                if registro["fk_casa_id"] == str(casas[1])
+                and registro["fk_usuario_id"] == str(novo_morador)
+            ]
+        )
+        == 1
+    )
     assert vinculados[0]["score"] == 37
 
 
@@ -418,9 +464,9 @@ def test_reentrada_reativa_vinculo_e_preserva_score(ambiente, monkeypatch):
 
     assert resposta.status_code == 200, resposta.text
     registros = [
-        item for item in banco.registros["pertencer"]
-        if item["fk_casa_id"] == str(casas[1])
-        and item["fk_usuario_id"] == str(antigo_morador)
+        item
+        for item in banco.registros["pertencer"]
+        if item["fk_casa_id"] == str(casas[1]) and item["fk_usuario_id"] == str(antigo_morador)
     ]
     assert len(registros) == 1
     assert registros[0]["ativo"] is True
@@ -454,31 +500,24 @@ def test_convite_expirado_retorna_400(ambiente, monkeypatch):
     assert resposta.status_code == 400, resposta.text
 
 
-def test_convite_da_casa_removida_ou_com_novo_dono_nao_concede_acesso(
-    ambiente, monkeypatch
-):
+def test_convite_da_casa_removida_ou_com_novo_dono_nao_concede_acesso(ambiente, monkeypatch):
     cliente, banco, casas, _, outro_proprietario = ambiente
     convite = cliente.post(f"/casas/{casas[1]}/convites").json()["convite"]
     trocar_usuario(monkeypatch, UUID(int=70))
-    registro = next(
-        casa for casa in banco.registros["casa"] if casa["id"] == str(casas[1])
-    )
+    registro = next(casa for casa in banco.registros["casa"] if casa["id"] == str(casas[1]))
     registro["fk_usuario_id"] = str(outro_proprietario)
 
     assert cliente.post("/casas/entrar", json={"convite": convite}).status_code == 400
     banco.registros["casa"].remove(registro)
     assert cliente.post("/casas/entrar", json={"convite": convite}).status_code == 404
     assert not any(
-        item["fk_casa_id"] == str(casas[1])
-        and item["fk_usuario_id"] == str(UUID(int=70))
+        item["fk_casa_id"] == str(casas[1]) and item["fk_usuario_id"] == str(UUID(int=70))
         for item in banco.registros["pertencer"]
     )
 
 
 @pytest.mark.parametrize("segredo", [None, "fraco"])
-def test_segredo_ausente_ou_fraco_indisponibiliza_rotas_de_convite(
-    ambiente, monkeypatch, segredo
-):
+def test_segredo_ausente_ou_fraco_indisponibiliza_rotas_de_convite(ambiente, monkeypatch, segredo):
     cliente, _, casas, _, _ = ambiente
     convite = cliente.post(f"/casas/{casas[1]}/convites").json()["convite"]
     if segredo is None:
@@ -501,9 +540,9 @@ def test_saida_inativa_so_vinculo_da_sessao_e_retorna_204(ambiente):
     assert resposta.content == b""
     assert len(banco.registros["pertencer"]) == len(vinculos_antes)
     alterados = [
-        item for item in banco.registros["pertencer"]
-        if item["fk_casa_id"] == str(casas[2])
-        and item["fk_usuario_id"] == str(proprietario)
+        item
+        for item in banco.registros["pertencer"]
+        if item["fk_casa_id"] == str(casas[2]) and item["fk_usuario_id"] == str(proprietario)
     ]
     assert len(alterados) == 1
     assert alterados[0]["ativo"] is False
@@ -518,12 +557,12 @@ def test_saida_bloqueada_preserva_vinculo(ambiente, bloqueio):
     alvo = casas[1] if bloqueio == "proprietario" else casas[2]
     if bloqueio == "tarefa_aberta":
         tarefa_id = str(UUID(int=100))
-        banco.registros["atribuida"].append({
-            "fk_tarefa_id": tarefa_id, "fk_usuario_id": str(proprietario)
-        })
-        banco.registros["tarefa"].append({
-            "id": tarefa_id, "fk_casa_id": str(alvo), "estado_atual": "pendente"
-        })
+        banco.registros["atribuida"].append(
+            {"fk_tarefa_id": tarefa_id, "fk_usuario_id": str(proprietario)}
+        )
+        banco.registros["tarefa"].append(
+            {"id": tarefa_id, "fk_casa_id": str(alvo), "estado_atual": "pendente"}
+        )
     antes = deepcopy(banco.registros["pertencer"])
 
     resposta = cliente.delete(f"/casas/{alvo}/sair")
@@ -542,9 +581,9 @@ def test_saida_com_historico_preserva_pontos_e_eventos(ambiente):
     assert resposta.status_code == 204, resposta.text
     assert banco.registros["score_event"] == [evento]
     vinculado = next(
-        item for item in banco.registros["pertencer"]
-        if item["fk_casa_id"] == str(casas[2])
-        and item["fk_usuario_id"] == str(proprietario)
+        item
+        for item in banco.registros["pertencer"]
+        if item["fk_casa_id"] == str(casas[2]) and item["fk_usuario_id"] == str(proprietario)
     )
     assert vinculado["ativo"] is False
     assert vinculado["score"] == 37
@@ -557,19 +596,24 @@ def test_saida_sem_vinculo_ou_casa_retorna_404(ambiente):
     assert cliente.delete(f"/casas/{UUID(int=99)}/sair").status_code == 404
 
 
-@pytest.mark.parametrize("metodo,caminho,corpo", [
-    ("get", "/casas/", None),
-    ("get", f"/casas/{UUID(int=1)}", None),
-    ("post", f"/casas/{UUID(int=1)}/convites", None),
-    ("post", "/casas/entrar", {"convite": "qualquer"}),
-    ("delete", f"/casas/{UUID(int=1)}/sair", None),
-])
+@pytest.mark.parametrize(
+    "metodo,caminho,corpo",
+    [
+        ("get", "/casas/", None),
+        ("get", f"/casas/{UUID(int=1)}", None),
+        ("post", f"/casas/{UUID(int=1)}/convites", None),
+        ("post", "/casas/entrar", {"convite": "qualquer"}),
+        ("delete", f"/casas/{UUID(int=1)}/sair", None),
+    ],
+)
 def test_rotas_exigem_sessao(ambiente, monkeypatch, metodo, caminho, corpo):
     cliente, _, _, _, _ = ambiente
     monkeypatch.delitem(app.dependency_overrides, obter_usuario_atual)
 
-    resposta = getattr(cliente, metodo)(caminho, json=corpo) if corpo else (
-        getattr(cliente, metodo)(caminho)
+    resposta = (
+        getattr(cliente, metodo)(caminho, json=corpo)
+        if corpo
+        else (getattr(cliente, metodo)(caminho))
     )
 
     assert resposta.status_code == 401, resposta.text
@@ -582,27 +626,35 @@ def test_uuid_invalido_retorna_422(ambiente):
     assert cliente.post("/casas/uuid-invalido/convites").status_code == 422
     assert cliente.delete("/casas/uuid-invalido/sair").status_code == 422
 
+
 def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
     cliente, banco, _, proprietario, outro_proprietario = ambiente
     dados = {"nome": "Casa Nova", "endereco": "Rua Nova"}
 
-    assert cliente.post("/casas/", json={
-        **dados, "fk_usuario_id": str(outro_proprietario)
-    }).status_code == 422
+    assert (
+        cliente.post(
+            "/casas/", json={**dados, "fk_usuario_id": str(outro_proprietario)}
+        ).status_code
+        == 422
+    )
     criacao = cliente.post("/casas/", json=dados)
 
     assert criacao.status_code == 201, criacao.text
     criada = criacao.json()
     assert set(criada) == {
-        "id", "nome", "endereco", "foto", "fk_usuario_id", "timezone",
-        "politica_reclamacao"
+        "id",
+        "nome",
+        "endereco",
+        "foto",
+        "fk_usuario_id",
+        "timezone",
+        "politica_reclamacao",
     }
     assert criada["fk_usuario_id"] == str(proprietario)
     assert criada["nome"] == dados["nome"]
     assert criada["endereco"] == dados["endereco"]
     assert any(
-        item["fk_casa_id"] == criada["id"]
-        and item["fk_usuario_id"] == str(proprietario)
+        item["fk_casa_id"] == criada["id"] and item["fk_usuario_id"] == str(proprietario)
         for item in banco.registros["pertencer"]
     )
 
@@ -634,9 +686,7 @@ MATRIZ_CARGOS = [
 
 
 @pytest.mark.parametrize("cargo,metodo,sufixo,corpo,esperado", MATRIZ_CARGOS)
-def test_operacoes_da_casa_por_cargo(
-    ambiente, cargo, metodo, sufixo, corpo, esperado
-):
+def test_operacoes_da_casa_por_cargo(ambiente, cargo, metodo, sufixo, corpo, esperado):
     cliente, banco, casas, _, _ = ambiente
     id_casa = casas[ID_POR_CARGO[cargo]]
     antes = deepcopy(banco.registros["casa"])
@@ -659,4 +709,3 @@ def test_listagem_inclui_casas_de_administrador_e_morador_mas_nao_do_forasteiro(
 
     assert {str(casas[1]), str(casas[2])} <= ids
     assert str(casas[3]) not in ids
-

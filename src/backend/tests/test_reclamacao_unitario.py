@@ -29,23 +29,31 @@ def cenario(monkeypatch):
     monkeypatch.setattr("services.reclamacao.datetime", Relogio)
     dono, responsavel, morador, casa_id, tarefa_id = [str(uuid4()) for _ in range(5)]
     tarefa = {
-        "id": tarefa_id, "nome": "Limpar cozinha", "estado_atual": "pendente",
-        "dificuldade": 2, "pontuacao": 25, "atraso_maximo": 2,
+        "id": tarefa_id,
+        "nome": "Limpar cozinha",
+        "estado_atual": "pendente",
+        "dificuldade": 2,
+        "pontuacao": 25,
+        "atraso_maximo": 2,
         "data_fim": (agora + timedelta(days=2)).isoformat(),
         "data_inicio": (agora - timedelta(days=1)).isoformat(),
-        "fk_casa_id": casa_id, "fk_usuario_id": dono, "reaberturas": 0,
+        "fk_casa_id": casa_id,
+        "fk_usuario_id": dono,
+        "reaberturas": 0,
     }
-    banco = SupabaseEmMemoria({
-        "casa": [{"id": casa_id, "fk_usuario_id": dono, "politica_reclamacao": "votacao"}],
-        "tarefa": [tarefa],
-        "atribuida": [{"fk_tarefa_id": tarefa_id, "fk_usuario_id": responsavel}],
-        "pertencer": [
-            {"fk_casa_id": casa_id, "fk_usuario_id": usuario, "ativo": True, "score": 100}
-            for usuario in [dono, responsavel, morador, str(uuid4()), str(uuid4())]
-        ],
-        "score_event": [],
-        "reclamacao_tarefa": [],
-    })
+    banco = SupabaseEmMemoria(
+        {
+            "casa": [{"id": casa_id, "fk_usuario_id": dono, "politica_reclamacao": "votacao"}],
+            "tarefa": [tarefa],
+            "atribuida": [{"fk_tarefa_id": tarefa_id, "fk_usuario_id": responsavel}],
+            "pertencer": [
+                {"fk_casa_id": casa_id, "fk_usuario_id": usuario, "ativo": True, "score": 100}
+                for usuario in [dono, responsavel, morador, str(uuid4()), str(uuid4())]
+            ],
+            "score_event": [],
+            "reclamacao_tarefa": [],
+        }
+    )
     executar = ConsultaEmMemoria.execute
 
     def executar_com_unicidade(consulta):
@@ -53,9 +61,13 @@ def cenario(monkeypatch):
             "reclamacao_tarefa": ("fk_usuario_id", "fk_tarefa_id", "ciclo"),
             "score_event": ("fk_usuario_id", "fk_tarefa_id", "tipo", "ciclo"),
         }.get(consulta.tabela)
-        if chaves and consulta.acao == "insert" and any(
-            all(registro[campo] == consulta.dados[campo] for campo in chaves)
-            for registro in banco.registros[consulta.tabela]
+        if (
+            chaves
+            and consulta.acao == "insert"
+            and any(
+                all(registro[campo] == consulta.dados[campo] for campo in chaves)
+                for registro in banco.registros[consulta.tabela]
+            )
         ):
             raise APIError({"code": "23505", "message": "Registro duplicado."})
         return executar(consulta)
@@ -190,13 +202,16 @@ def test_proprietario_com_vinculo_ativo_pode_reclamar(cenario):
     assert banco.registros["reclamacao_tarefa"][0]["fk_usuario_id"] == str(dono)
 
 
-@pytest.mark.parametrize("concluida_em", [
-    "2030-01-09T12:00:00Z",
-    "2030-01-09T09:00:00-03:00",
-    "2030-01-09T12:00:00",
-    "2030-01-09T12:00:00.000001Z",
-    "2030-01-10T12:00:00Z",
-])
+@pytest.mark.parametrize(
+    "concluida_em",
+    [
+        "2030-01-09T12:00:00Z",
+        "2030-01-09T09:00:00-03:00",
+        "2030-01-09T12:00:00",
+        "2030-01-09T12:00:00.000001Z",
+        "2030-01-10T12:00:00Z",
+    ],
+)
 def test_janela_inclui_conclusao_e_instante_exato_de_24h(cenario, concluida_em):
     banco, servico, tarefa, morador, _ = cenario
     tarefa["concluida_em"] = concluida_em
@@ -206,11 +221,19 @@ def test_janela_inclui_conclusao_e_instante_exato_de_24h(cenario, concluida_em):
     assert len(banco.registros["reclamacao_tarefa"]) == 1
 
 
-@pytest.mark.parametrize("dias_ate_prazo,estado", [
-    (2, "pendente"), (-1, "atrasada"), (-3, "nao_feito"),
-])
+@pytest.mark.parametrize(
+    "dias_ate_prazo,estado",
+    [
+        (2, "pendente"),
+        (-1, "atrasada"),
+        (-3, "nao_feito"),
+    ],
+)
 def test_uma_reclamacao_reabre_ao_atingir_minimo_e_estorna_pontos_conforme_prazo(
-    cenario, monkeypatch, dias_ate_prazo, estado,
+    cenario,
+    monkeypatch,
+    dias_ate_prazo,
+    estado,
 ):
     banco, servico, tarefa, morador, agora = cenario
     banco.registros["casa"][0]["politica_reclamacao"] = "uma_reclamacao"
@@ -235,14 +258,17 @@ def test_uma_reclamacao_reabre_ao_atingir_minimo_e_estorna_pontos_conforme_prazo
     assert tarefa["reaberturas"] == 1
     assert len(banco.registros["reclamacao_tarefa"]) == 2
     assert [(e["tipo"], e["pontuacao"]) for e in banco.registros["score_event"]] == [
-        ("credito", 25), ("reversal", -25),
+        ("credito", 25),
+        ("reversal", -25),
     ]
     assert banco.registros["pertencer"][1]["score"] == 100
 
 
 @pytest.mark.parametrize("elegiveis,limite", [(1, 1), (2, 1), (3, 2), (4, 2), (5, 3)])
 def test_votacao_reabre_ao_atingir_metade_arredondada_dos_demais_moradores(
-    cenario, elegiveis, limite,
+    cenario,
+    elegiveis,
+    limite,
 ):
     banco, servico, tarefa, morador, _ = cenario
     responsavel = banco.registros["pertencer"][1]
@@ -251,10 +277,12 @@ def test_votacao_reabre_ao_atingir_metade_arredondada_dos_demais_moradores(
         {"fk_casa_id": tarefa["fk_casa_id"], "fk_usuario_id": usuario, "ativo": True}
         for usuario in votantes
     ]
-    banco.registros["pertencer"].extend([
-        {"fk_casa_id": tarefa["fk_casa_id"], "fk_usuario_id": str(uuid4()), "ativo": False},
-        {"fk_casa_id": str(uuid4()), "fk_usuario_id": str(uuid4()), "ativo": True},
-    ])
+    banco.registros["pertencer"].extend(
+        [
+            {"fk_casa_id": tarefa["fk_casa_id"], "fk_usuario_id": str(uuid4()), "ativo": False},
+            {"fk_casa_id": str(uuid4()), "fk_usuario_id": str(uuid4()), "ativo": True},
+        ]
+    )
 
     for indice, usuario in enumerate(votantes[:limite], start=1):
         resultado = servico.reclamar_tarefa(UUID(tarefa["id"]), UUID(usuario))
@@ -297,7 +325,10 @@ def test_morador_pode_reclamar_novamente_apos_nova_conclusao(cenario):
     assert tarefa["reaberturas"] == 2
     assert [r["ciclo"] for r in banco.registros["reclamacao_tarefa"]] == [0, 0, 1, 1]
     assert [(e["tipo"], e["ciclo"]) for e in banco.registros["score_event"]] == [
-        ("credito", 0), ("reversal", 0), ("credito", 1), ("reversal", 1),
+        ("credito", 0),
+        ("reversal", 0),
+        ("credito", 1),
+        ("reversal", 1),
     ]
 
 
@@ -353,6 +384,7 @@ def test_rota_exige_autenticacao(cenario):
     assert resposta.status_code == 401
     assert banco.registros["reclamacao_tarefa"] == []
 
+
 @pytest.mark.parametrize("politica", ["uma_reclamacao", "votacao"])
 def test_resposta_traz_contagem_e_limite_do_ciclo_atual(cenario, politica):
     banco, servico, tarefa, morador, _ = cenario
@@ -378,8 +410,14 @@ def test_politica_nenhuma_nao_publica_limiar_nem_emite_aviso(cenario):
     banco, servico, tarefa, morador, _ = cenario
     banco.registros["casa"][0]["politica_reclamacao"] = "nenhuma"
     dados = servico.tarefas.buscar_tarefa(UUID(tarefa["id"]))
-    assert (dados["politica_reclamacao"], dados["reclamacoes_count"], dados["reclamacoes_limite"]) == (
-        "nenhuma", 0, 0,
+    assert (
+        dados["politica_reclamacao"],
+        dados["reclamacoes_count"],
+        dados["reclamacoes_limite"],
+    ) == (
+        "nenhuma",
+        0,
+        0,
     )
     with pytest.raises(HTTPException):
         servico.reclamar_tarefa(UUID(tarefa["id"]), morador)

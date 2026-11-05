@@ -78,7 +78,8 @@ class ConsultaPush:
         if self.operacao == "upsert":
             existente = next(
                 (
-                    d for d in self.banco.dispositivos
+                    d
+                    for d in self.banco.dispositivos
                     if d[self.conflito] == self.dados[self.conflito]
                 ),
                 None,
@@ -93,7 +94,8 @@ class ConsultaPush:
             return SimpleNamespace(data=[deepcopy(existente)])
 
         registros = [
-            d for d in self.banco.dispositivos
+            d
+            for d in self.banco.dispositivos
             if all(d[campo] == valor for campo, valor in self.filtros)
             and (self.usuarios is None or d["fk_usuario_id"] in self.usuarios)
         ]
@@ -125,10 +127,9 @@ def dispositivo(banco):
     def criar(usuario=None, plataforma="android"):
         return ServicoNotificacao(banco).registrar_dispositivo(
             usuario or uuid4(),
-            DispositivoPushRegistrar(
-                token=f"ExpoPushToken[{uuid4().hex}]", plataforma=plataforma
-            ),
+            DispositivoPushRegistrar(token=f"ExpoPushToken[{uuid4().hex}]", plataforma=plataforma),
         )
+
     return criar
 
 
@@ -240,8 +241,10 @@ def test_rotas_exigem_autenticacao(ambiente, banco, metodo):
 @pytest.mark.parametrize(
     "alteracao",
     [
-        {"token": ""}, {"token": "nao-e-token-expo"},
-        {"token": "ExpoPushToken[]"}, {"token": "ExpoPushToken[com espaco]"},
+        {"token": ""},
+        {"token": "nao-e-token-expo"},
+        {"token": "ExpoPushToken[]"},
+        {"token": "ExpoPushToken[com espaco]"},
         {"fk_usuario_id": str(uuid4())},
     ],
 )
@@ -314,9 +317,7 @@ def test_envio_web_usa_fcm_com_link_para_a_tarefa(banco, monkeypatch):
 
     mensagem = envio.call_args.args[0]
     assert mensagem.token == "fcm-token-web"
-    assert mensagem.webpush.fcm_options.link == (
-        f"https://app.exemplo.com/tarefas?abrir={tarefa}"
-    )
+    assert mensagem.webpush.fcm_options.link == (f"https://app.exemplo.com/tarefas?abrir={tarefa}")
     assert len(resultado["aceitos"]) == 1
 
 
@@ -348,9 +349,9 @@ def test_envio_pagina_dispositivos_filtra_usuarios_e_divide_101_tokens(banco, di
     alheio = dispositivo()
 
     def aceitar(_url, **kwargs):
-        return resposta_expo({"data": [
-            {"status": "ok", "id": str(uuid4())} for _ in kwargs["json"]
-        ]})
+        return resposta_expo(
+            {"data": [{"status": "ok", "id": str(uuid4())} for _ in kwargs["json"]]}
+        )
 
     expo.side_effect = aceitar
     resultado = ServicoNotificacao(banco).enviar_push(
@@ -377,19 +378,26 @@ def test_sucesso_parcial_remove_apenas_device_not_registered(banco, dispositivo,
     ordenados = sorted(banco.dispositivos, key=lambda d: d["id"])
     ticket_id = str(uuid4())
     expo.side_effect = None
-    expo.return_value = resposta_expo({"data": [
-        {"status": "ok", "id": ticket_id},
-        {"status": "error", "details": {"error": "DeviceNotRegistered"}},
-        {"status": "error", "details": {"error": "MessageTooBig"}},
-    ]})
+    expo.return_value = resposta_expo(
+        {
+            "data": [
+                {"status": "ok", "id": ticket_id},
+                {"status": "error", "details": {"error": "DeviceNotRegistered"}},
+                {"status": "error", "details": {"error": "MessageTooBig"}},
+            ]
+        }
+    )
 
     resultado = ServicoNotificacao(banco).enviar_push([usuario], "Aviso", "Mensagem")
 
     assert resultado == {
-        "aceitos": [{
-            "dispositivo_id": ordenados[0]["id"], "usuario_id": str(usuario),
-            "ticket_id": ticket_id,
-        }],
+        "aceitos": [
+            {
+                "dispositivo_id": ordenados[0]["id"],
+                "usuario_id": str(usuario),
+                "ticket_id": ticket_id,
+            }
+        ],
         "invalidos": [ordenados[1]["id"]],
         "falhas": [{"dispositivo_id": ordenados[2]["id"], "erro": "EnvioRecusado"}],
     }
@@ -400,18 +408,33 @@ def test_sucesso_parcial_remove_apenas_device_not_registered(banco, dispositivo,
 @pytest.mark.parametrize(
     "falha",
     [
-        httpx.ReadTimeout("timeout simulado"), httpx.ConnectError("falha simulada"),
-        resposta_expo({}, 429), resposta_expo({}, 500),
+        httpx.ReadTimeout("timeout simulado"),
+        httpx.ConnectError("falha simulada"),
+        resposta_expo({}, 429),
+        resposta_expo({}, 500),
         resposta_expo({"errors": [{"code": "UNAUTHORIZED"}]}, 401),
-        resposta_expo({"data": []}), resposta_expo({"data": "invalida"}),
+        resposta_expo({"data": []}),
+        resposta_expo({"data": "invalida"}),
         resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}], "errors": [{}]}),
         resposta_expo([{"status": "ok"}]),
         resposta_expo({"data": [{"status": "ok"}]}),
         resposta_expo({"data": [None]}),
         httpx.Response(200, text="nao e JSON", request=httpx.Request("POST", "https://exp.host")),
     ],
-    ids=["timeout", "rede", "429", "500", "401", "tickets-ausentes", "data-invalida",
-         "erro-no-envelope", "corpo-invalido", "ticket-sem-id", "ticket-invalido", "json-invalido"],
+    ids=[
+        "timeout",
+        "rede",
+        "429",
+        "500",
+        "401",
+        "tickets-ausentes",
+        "data-invalida",
+        "erro-no-envelope",
+        "corpo-invalido",
+        "ticket-sem-id",
+        "ticket-invalido",
+        "json-invalido",
+    ],
 )
 def test_falha_de_envio_preserva_dispositivo_e_nao_repete_requisicao(
     banco, dispositivo, expo, falha
@@ -424,7 +447,8 @@ def test_falha_de_envio_preserva_dispositivo_e_nao_repete_requisicao(
     resultado = ServicoNotificacao(banco).enviar_push([usuario], "Aviso", "Mensagem")
 
     assert resultado == {
-        "aceitos": [], "invalidos": [],
+        "aceitos": [],
+        "invalidos": [],
         "falhas": [{"dispositivo_id": registrado["id"], "erro": "EnvioNaoConfirmado"}],
     }
     assert banco.dispositivos == [registrado]
@@ -451,35 +475,42 @@ def test_falha_no_segundo_lote_preserva_sucessos_do_primeiro(banco, dispositivo,
     assert expo.call_count == 2
 
 
-def test_limpeza_do_primeiro_lote_nao_pula_dispositivos_da_proxima_pagina(
-    banco, dispositivo, expo
-):
+def test_limpeza_do_primeiro_lote_nao_pula_dispositivos_da_proxima_pagina(banco, dispositivo, expo):
     usuario = uuid4()
     for _ in range(101):
         dispositivo(usuario)
     ultimo = max(banco.dispositivos, key=lambda d: d["id"])
     ticket_id = str(uuid4())
     expo.side_effect = [
-        resposta_expo({"data": [
-            {"status": "error", "details": {"error": "DeviceNotRegistered"}}
-            for _ in range(100)
-        ]}),
+        resposta_expo(
+            {
+                "data": [
+                    {"status": "error", "details": {"error": "DeviceNotRegistered"}}
+                    for _ in range(100)
+                ]
+            }
+        ),
         resposta_expo({"data": [{"status": "ok", "id": ticket_id}]}),
     ]
 
     resultado = ServicoNotificacao(banco).enviar_push([usuario], "Aviso", "Mensagem")
 
     assert len(resultado["invalidos"]) == 100
-    assert resultado["aceitos"] == [{
-        "dispositivo_id": ultimo["id"], "usuario_id": str(usuario), "ticket_id": ticket_id,
-    }]
+    assert resultado["aceitos"] == [
+        {
+            "dispositivo_id": ultimo["id"],
+            "usuario_id": str(usuario),
+            "ticket_id": ticket_id,
+        }
+    ]
     assert resultado["falhas"] == []
     assert banco.dispositivos == [ultimo]
 
 
 def ticket_push(dispositivo):
     return TicketPush(
-        dispositivo_id=dispositivo["id"], usuario_id=dispositivo["fk_usuario_id"],
+        dispositivo_id=dispositivo["id"],
+        usuario_id=dispositivo["fk_usuario_id"],
         ticket_id=uuid4(),
     )
 
@@ -491,10 +522,14 @@ def test_consulta_correlaciona_por_id_os_recibos_dos_tickets_aceitos(banco, disp
     ids = [str(uuid4()), str(uuid4())]
     expo.side_effect = [
         resposta_expo({"data": [{"status": "ok", "id": id_} for id_ in ids]}),
-        resposta_expo({"data": {
-            ids[1]: {"status": "error", "details": {"error": "InvalidCredentials"}},
-            ids[0]: {"status": "ok"},
-        }}),
+        resposta_expo(
+            {
+                "data": {
+                    ids[1]: {"status": "error", "details": {"error": "InvalidCredentials"}},
+                    ids[0]: {"status": "ok"},
+                }
+            }
+        ),
     ]
     servico = ServicoNotificacao(banco)
     aceitos = servico.enviar_push([usuario], "Aviso", "Mensagem")["aceitos"]
@@ -502,7 +537,9 @@ def test_consulta_correlaciona_por_id_os_recibos_dos_tickets_aceitos(banco, disp
     resultado = servico.consultar_recibos([TicketPush(**ticket) for ticket in aceitos])
 
     assert resultado == {
-        "confirmados": [aceitos[0]], "invalidos": [], "pendentes": [],
+        "confirmados": [aceitos[0]],
+        "invalidos": [],
+        "pendentes": [],
         "falhas": [{**aceitos[1], "erro": "InvalidCredentials"}],
     }
     assert len(banco.dispositivos) == 2
@@ -515,15 +552,24 @@ def test_recibo_device_not_registered_remove_apenas_dispositivo_original(banco, 
     outro = dispositivo(UUID(original["fk_usuario_id"]))
     ticket = ticket_push(original)
     expo.side_effect = None
-    expo.return_value = resposta_expo({"data": {
-        str(ticket.ticket_id): {"status": "error", "details": {"error": "DeviceNotRegistered"}},
-    }})
+    expo.return_value = resposta_expo(
+        {
+            "data": {
+                str(ticket.ticket_id): {
+                    "status": "error",
+                    "details": {"error": "DeviceNotRegistered"},
+                },
+            }
+        }
+    )
 
     resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
 
     assert resultado == {
-        "confirmados": [], "invalidos": [ticket.model_dump(mode="json")],
-        "pendentes": [], "falhas": [],
+        "confirmados": [],
+        "invalidos": [ticket.model_dump(mode="json")],
+        "pendentes": [],
+        "falhas": [],
     }
     assert banco.dispositivos == [outro]
 
@@ -537,11 +583,16 @@ def test_recibo_antigo_preserva_dispositivo_reassociado_durante_consulta(banco, 
         ServicoNotificacao(banco).registrar_dispositivo(
             atual, DispositivoPushRegistrar(token=original["token"], plataforma="android")
         )
-        return resposta_expo({"data": {
-            str(ticket.ticket_id): {
-                "status": "error", "details": {"error": "DeviceNotRegistered"},
-            },
-        }})
+        return resposta_expo(
+            {
+                "data": {
+                    str(ticket.ticket_id): {
+                        "status": "error",
+                        "details": {"error": "DeviceNotRegistered"},
+                    },
+                }
+            }
+        )
 
     expo.side_effect = consultar
     ServicoNotificacao(banco).consultar_recibos([ticket])
@@ -560,9 +611,16 @@ def test_recibo_antigo_preserva_novo_cadastro_do_mesmo_token(banco, dispositivo,
         DispositivoPushRegistrar(token=original["token"], plataforma="android"),
     )
     expo.side_effect = None
-    expo.return_value = resposta_expo({"data": {
-        str(ticket.ticket_id): {"status": "error", "details": {"error": "DeviceNotRegistered"}},
-    }})
+    expo.return_value = resposta_expo(
+        {
+            "data": {
+                str(ticket.ticket_id): {
+                    "status": "error",
+                    "details": {"error": "DeviceNotRegistered"},
+                },
+            }
+        }
+    )
 
     servico.consultar_recibos([ticket])
 
@@ -573,9 +631,16 @@ def test_recibo_ausente_pode_ser_consultado_novamente_sem_reenvio(banco, disposi
     original = dispositivo()
     ticket = ticket_push(original)
     expo.side_effect = [
-        resposta_expo({"data": {str(uuid4()): {
-            "status": "error", "details": {"error": "DeviceNotRegistered"},
-        }}}),
+        resposta_expo(
+            {
+                "data": {
+                    str(uuid4()): {
+                        "status": "error",
+                        "details": {"error": "DeviceNotRegistered"},
+                    }
+                }
+            }
+        ),
         resposta_expo({"data": {str(ticket.ticket_id): {"status": "ok"}}}),
     ]
     servico = ServicoNotificacao(banco)
@@ -584,36 +649,56 @@ def test_recibo_ausente_pode_ser_consultado_novamente_sem_reenvio(banco, disposi
     segunda = servico.consultar_recibos([ticket])
 
     assert primeira == {
-        "confirmados": [], "invalidos": [], "pendentes": [ticket.model_dump(mode="json")],
+        "confirmados": [],
+        "invalidos": [],
+        "pendentes": [ticket.model_dump(mode="json")],
         "falhas": [],
     }
     assert segunda["confirmados"] == [ticket.model_dump(mode="json")]
     assert segunda["pendentes"] == []
     assert banco.dispositivos == [original]
     assert expo.call_count == 2
-    assert all(c.args == ("https://exp.host/--/api/v2/push/getReceipts",)
-               for c in expo.call_args_list)
+    assert all(
+        c.args == ("https://exp.host/--/api/v2/push/getReceipts",) for c in expo.call_args_list
+    )
 
 
-@pytest.mark.parametrize("erro", [
-    "MessageTooBig", "MessageRateExceeded", "MismatchSenderId", "InvalidCredentials",
-    "ErroDesconhecido", [],
-])
+@pytest.mark.parametrize(
+    "erro",
+    [
+        "MessageTooBig",
+        "MessageRateExceeded",
+        "MismatchSenderId",
+        "InvalidCredentials",
+        "ErroDesconhecido",
+        [],
+    ],
+)
 def test_erro_de_recibo_preserva_dispositivo_sem_expor_mensagem_externa(
     banco, dispositivo, expo, erro
 ):
     original = dispositivo()
     ticket = ticket_push(original)
     expo.side_effect = None
-    expo.return_value = resposta_expo({"data": {str(ticket.ticket_id): {
-        "status": "error", "details": {"error": erro}, "message": original["token"],
-    }}})
+    expo.return_value = resposta_expo(
+        {
+            "data": {
+                str(ticket.ticket_id): {
+                    "status": "error",
+                    "details": {"error": erro},
+                    "message": original["token"],
+                }
+            }
+        }
+    )
 
     resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
 
     codigo = "ReciboRecusado" if erro in ("ErroDesconhecido", []) else erro
     assert resultado == {
-        "confirmados": [], "invalidos": [], "pendentes": [],
+        "confirmados": [],
+        "invalidos": [],
+        "pendentes": [],
         "falhas": [{**ticket.model_dump(mode="json"), "erro": codigo}],
     }
     assert original["token"] not in str(resultado)
@@ -633,12 +718,19 @@ def test_recibo_malformado_nao_remove_dispositivo(banco, dispositivo, expo, reci
     assert banco.dispositivos == [original]
 
 
-@pytest.mark.parametrize("falha", [
-    httpx.ReadTimeout("timeout simulado"), resposta_expo({}, 429), resposta_expo({}, 503),
-    resposta_expo([]), resposta_expo({"data": []}), resposta_expo({}),
-    resposta_expo({"data": {}, "errors": [{"code": "UNAUTHORIZED"}]}),
-    httpx.Response(200, text="nao e JSON", request=httpx.Request("POST", "https://exp.host")),
-])
+@pytest.mark.parametrize(
+    "falha",
+    [
+        httpx.ReadTimeout("timeout simulado"),
+        resposta_expo({}, 429),
+        resposta_expo({}, 503),
+        resposta_expo([]),
+        resposta_expo({"data": []}),
+        resposta_expo({}),
+        resposta_expo({"data": {}, "errors": [{"code": "UNAUTHORIZED"}]}),
+        httpx.Response(200, text="nao e JSON", request=httpx.Request("POST", "https://exp.host")),
+    ],
+)
 def test_falha_na_consulta_preserva_dispositivo_sem_retry(banco, dispositivo, expo, falha):
     original = dispositivo()
     ticket = ticket_push(original)
@@ -647,9 +739,12 @@ def test_falha_na_consulta_preserva_dispositivo_sem_retry(banco, dispositivo, ex
 
     resultado = ServicoNotificacao(banco).consultar_recibos([ticket])
 
-    assert resultado["falhas"] == [{
-        **ticket.model_dump(mode="json"), "erro": "ConsultaNaoConfirmada",
-    }]
+    assert resultado["falhas"] == [
+        {
+            **ticket.model_dump(mode="json"),
+            "erro": "ConsultaNaoConfirmada",
+        }
+    ]
     assert banco.dispositivos == [original]
     expo.assert_called_once()
 
@@ -657,17 +752,27 @@ def test_falha_na_consulta_preserva_dispositivo_sem_retry(banco, dispositivo, ex
 def test_falha_na_limpeza_nao_descarta_outros_recibos(banco, dispositivo, expo, monkeypatch):
     ticket, outro = ticket_push(dispositivo()), ticket_push(dispositivo())
     expo.side_effect = None
-    expo.return_value = resposta_expo({"data": {
-        str(ticket.ticket_id): {"status": "error", "details": {"error": "DeviceNotRegistered"}},
-        str(outro.ticket_id): {"status": "ok"},
-    }})
+    expo.return_value = resposta_expo(
+        {
+            "data": {
+                str(ticket.ticket_id): {
+                    "status": "error",
+                    "details": {"error": "DeviceNotRegistered"},
+                },
+                str(outro.ticket_id): {"status": "ok"},
+            }
+        }
+    )
     monkeypatch.setattr(banco, "table", Mock(side_effect=RuntimeError("falha simulada")))
 
     resultado = ServicoNotificacao(banco).consultar_recibos([ticket, outro])
 
-    assert resultado["falhas"] == [{
-        **ticket.model_dump(mode="json"), "erro": "LimpezaNaoConfirmada",
-    }]
+    assert resultado["falhas"] == [
+        {
+            **ticket.model_dump(mode="json"),
+            "erro": "LimpezaNaoConfirmada",
+        }
+    ]
     assert resultado["confirmados"] == [outro.model_dump(mode="json")]
 
 
@@ -684,12 +789,16 @@ def test_consulta_em_lotes_de_mil_preserva_resultados_quando_outro_lote_falha(
     resultado = ServicoNotificacao(banco).consultar_recibos(tickets)
 
     assert [c.kwargs["json"]["ids"] for c in expo.call_args_list] == [
-        [str(t.ticket_id) for t in tickets[:1000]], [str(tickets[-1].ticket_id)],
+        [str(t.ticket_id) for t in tickets[:1000]],
+        [str(tickets[-1].ticket_id)],
     ]
     assert resultado["confirmados"] == [t.model_dump(mode="json") for t in tickets[:1000]]
-    assert resultado["falhas"] == [{
-        **tickets[-1].model_dump(mode="json"), "erro": "ConsultaNaoConfirmada",
-    }]
+    assert resultado["falhas"] == [
+        {
+            **tickets[-1].model_dump(mode="json"),
+            "erro": "ConsultaNaoConfirmada",
+        }
+    ]
 
 
 @pytest.mark.parametrize("authorization", [None, "Bearer incorreto", "Basic incorreto"])
@@ -730,14 +839,18 @@ def test_rota_recibos_autenticada_consulta_tickets_sem_cache(
     expo.return_value = resposta_expo({"data": {ticket["ticket_id"]: {"status": "ok"}}})
 
     resposta = cliente.post(
-        "/jobs/notificacoes-recibos", json={"tickets": [ticket]},
+        "/jobs/notificacoes-recibos",
+        json={"tickets": [ticket]},
         headers={"Authorization": f"Bearer {segredo}"},
     )
 
     assert resposta.status_code == 200
     assert resposta.headers["Cache-Control"] == "no-store"
     assert resposta.json() == {
-        "confirmados": [ticket], "invalidos": [], "pendentes": [], "falhas": [],
+        "confirmados": [ticket],
+        "invalidos": [],
+        "pendentes": [],
+        "falhas": [],
     }
 
 
@@ -759,7 +872,8 @@ def test_rota_recibos_valida_corpo_antes_de_consultar_expo(
     }[caso]
 
     resposta = cliente.post(
-        "/jobs/notificacoes-recibos", json={"tickets": tickets},
+        "/jobs/notificacoes-recibos",
+        json={"tickets": tickets},
         headers={"Authorization": f"Bearer {segredo}"},
     )
 
@@ -828,7 +942,7 @@ class ConsultaAvisos:
                 item.update(self.alteracao)
         elif self.intervalo:
             inicio, fim = self.intervalo
-            registros = registros[inicio:fim + 1]
+            registros = registros[inicio : fim + 1]
         return SimpleNamespace(data=deepcopy(registros))
 
 
@@ -836,16 +950,22 @@ def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
     agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
     responsavel = uuid4()
     tarefa = {
-        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
         "data_fim": (agora + timedelta(hours=12)).isoformat(),
-        "estado_atual": "pendente", "aviso_enviado_em": None,
-        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
+        "estado_atual": "pendente",
+        "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None,
+        "atraso_maximo": 2,
     }
-    banco = BancoAvisos([
-        tarefa,
-        {**tarefa, "id": str(uuid4()), "estado_atual": "finalizado"},
-        {**tarefa, "id": str(uuid4()), "data_fim": (agora + timedelta(hours=26)).isoformat()},
-    ], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)}])
+    banco = BancoAvisos(
+        [
+            tarefa,
+            {**tarefa, "id": str(uuid4()), "estado_atual": "finalizado"},
+            {**tarefa, "id": str(uuid4()), "data_fim": (agora + timedelta(hours=26)).isoformat()},
+        ],
+        [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)}],
+    )
     envios = []
 
     def enviar(_self, usuarios, titulo, mensagem, dados):
@@ -860,7 +980,9 @@ def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
     servico = ServicoNotificacao(banco)
 
     assert servico.avisar_vencimentos(agora) == {
-        "tarefas_elegiveis": 1, "avisos_enviados": 1, "falhas": 0,
+        "tarefas_elegiveis": 1,
+        "avisos_enviados": 1,
+        "falhas": 0,
     }
     assert envios[0][0] == [responsavel]
     assert envios[0][1] == "Sua tarefa vence hoje"
@@ -878,14 +1000,15 @@ def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
 def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
     agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
     tarefa = {
-        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
         "data_fim": (agora + timedelta(hours=1)).isoformat(),
-        "estado_atual": "atrasada", "aviso_enviado_em": None,
-        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
+        "estado_atual": "atrasada",
+        "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None,
+        "atraso_maximo": 2,
     }
-    banco = BancoAvisos([tarefa], [
-        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
-    ])
+    banco = BancoAvisos([tarefa], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}])
     chamadas = []
 
     def falhar(*_args):
@@ -903,38 +1026,48 @@ def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
     assert chamadas == [True]
 
 
-
-
 def test_job_avisa_tarefa_atrasada_apenas_dentro_da_tolerancia(monkeypatch):
     agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
     responsavel = uuid4()
     elegivel = {
-        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
         "data_fim": (agora - timedelta(hours=2)).isoformat(),
-        "estado_atual": "atrasada", "aviso_enviado_em": None,
-        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
+        "estado_atual": "atrasada",
+        "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None,
+        "atraso_maximo": 2,
     }
     expirou = {
-        **elegivel, "id": str(uuid4()),
+        **elegivel,
+        "id": str(uuid4()),
         "data_fim": (agora - timedelta(days=3)).isoformat(),
         "atraso_maximo": 2,
     }
-    banco = BancoAvisos([elegivel, expirou], [
-        {"fk_tarefa_id": elegivel["id"], "fk_usuario_id": str(responsavel)},
-        {"fk_tarefa_id": expirou["id"], "fk_usuario_id": str(responsavel)},
-    ])
+    banco = BancoAvisos(
+        [elegivel, expirou],
+        [
+            {"fk_tarefa_id": elegivel["id"], "fk_usuario_id": str(responsavel)},
+            {"fk_tarefa_id": expirou["id"], "fk_usuario_id": str(responsavel)},
+        ],
+    )
     envios = []
 
     def enviar(_self, usuarios, titulo, mensagem, dados):
         envios.append((usuarios, titulo, mensagem, dados))
-        return {"aceitos": [{"dispositivo_id": "d", "ticket_id": "t"}],
-                "falhas": [], "invalidos": []}
+        return {
+            "aceitos": [{"dispositivo_id": "d", "ticket_id": "t"}],
+            "falhas": [],
+            "invalidos": [],
+        }
 
     monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
     servico = ServicoNotificacao(banco)
 
     assert servico.avisar_vencimentos(agora) == {
-        "tarefas_elegiveis": 1, "avisos_enviados": 1, "falhas": 0,
+        "tarefas_elegiveis": 1,
+        "avisos_enviados": 1,
+        "falhas": 0,
     }
     assert envios[0][1] == "Sua tarefa está atrasada"
     assert envios[0][2] == "A tarefa está atrasada, mas ainda pode ser concluída."
@@ -952,20 +1085,23 @@ def test_job_avisa_tarefa_atrasada_apenas_dentro_da_tolerancia(monkeypatch):
 def test_aviso_de_vencimento_nao_e_enviado_antes_do_inicio_da_tarefa(monkeypatch):
     agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
     tarefa = {
-        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
         "data_inicio": (agora + timedelta(hours=1)).isoformat(),
         "data_fim": (agora + timedelta(hours=12)).isoformat(),
-        "estado_atual": "pendente", "aviso_enviado_em": None,
-        "aviso_atraso_enviado_em": None, "atraso_maximo": 2,
+        "estado_atual": "pendente",
+        "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None,
+        "atraso_maximo": 2,
     }
-    banco = BancoAvisos([tarefa], [
-        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
-    ])
+    banco = BancoAvisos([tarefa], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}])
     enviar = Mock()
     monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
 
     assert ServicoNotificacao(banco).avisar_vencimentos(agora) == {
-        "tarefas_elegiveis": 0, "avisos_enviados": 0, "falhas": 0,
+        "tarefas_elegiveis": 0,
+        "avisos_enviados": 0,
+        "falhas": 0,
     }
     assert tarefa["aviso_enviado_em"] is None
     enviar.assert_not_called()
@@ -978,7 +1114,9 @@ def test_push_inclui_categoria_de_acoes_para_notificacoes_de_prazo(banco, dispos
     expo.return_value = resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}]})
 
     ServicoNotificacao(banco).enviar_push(
-        [usuario], "Sua tarefa vence hoje", "Mensagem",
+        [usuario],
+        "Sua tarefa vence hoje",
+        "Mensagem",
         {"tipo": "tarefa_vence_hoje", "tarefa_id": str(uuid4()), "casa_id": str(uuid4())},
     )
 
@@ -989,20 +1127,26 @@ def test_push_inclui_categoria_de_acoes_para_notificacoes_de_prazo(banco, dispos
 
 def tarefa_com_inicio(agora, **alteracoes):
     return {
-        "id": str(uuid4()), "fk_casa_id": str(uuid4()),
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
         "data_inicio": (agora + timedelta(hours=12)).isoformat(),
-        "estado_atual": "pendente", "rotatividade_id": None,
-        "aviso_inicio_tentado_em": None, "aviso_enviado_em": "aviso-de-vencimento-existente",
+        "estado_atual": "pendente",
+        "rotatividade_id": None,
+        "aviso_inicio_tentado_em": None,
+        "aviso_enviado_em": "aviso-de-vencimento-existente",
         **alteracoes,
     }
 
 
 @pytest.fixture
 def envio_normal(monkeypatch):
-    enviar = Mock(return_value={
-        "aceitos": [{"dispositivo_id": str(uuid4()), "ticket_id": str(uuid4())}],
-        "invalidos": [], "falhas": [],
-    })
+    enviar = Mock(
+        return_value={
+            "aceitos": [{"dispositivo_id": str(uuid4()), "ticket_id": str(uuid4())}],
+            "invalidos": [],
+            "falhas": [],
+        }
+    )
     monkeypatch.setattr(ServicoNotificacao, "enviar_push", enviar)
     return enviar
 
@@ -1016,21 +1160,26 @@ def test_inicio_respeita_limites_estado_e_marcacao_sem_afetar_vencimento(envio_n
         {"data_inicio": (agora + timedelta(hours=24)).isoformat()},
         {"data_inicio": (agora + timedelta(hours=24, microseconds=1)).isoformat()},
         {"data_inicio": (agora - timedelta(hours=1)).isoformat()},
-        {"data_inicio": None}, {"estado_atual": "finalizado"},
-        {"estado_atual": "nao_feito"}, {"estado_atual": "atrasada"},
+        {"data_inicio": None},
+        {"estado_atual": "finalizado"},
+        {"estado_atual": "nao_feito"},
+        {"estado_atual": "atrasada"},
         {"aviso_inicio_tentado_em": agora.isoformat()},
     ]
     tarefas = [tarefa_com_inicio(agora, **mudanca) for mudanca in alteracoes]
-    banco = BancoAvisos(tarefas, [
-        {"fk_tarefa_id": t["id"], "fk_usuario_id": usuario} for t in tarefas
-    ])
+    banco = BancoAvisos(
+        tarefas, [{"fk_tarefa_id": t["id"], "fk_usuario_id": usuario} for t in tarefas]
+    )
     servico = ServicoNotificacao(banco)
 
     assert servico.avisar_inicios(agora) == {
-        "tarefas_elegiveis": 2, "avisos_enviados": 2, "falhas": 0,
+        "tarefas_elegiveis": 2,
+        "avisos_enviados": 2,
+        "falhas": 0,
     }
     assert {c.args[3]["tarefa_id"] for c in envio_normal.call_args_list} == {
-        tarefas[1]["id"], tarefas[2]["id"],
+        tarefas[1]["id"],
+        tarefas[2]["id"],
     }
     assert all(c.args[0] == [UUID(usuario)] for c in envio_normal.call_args_list)
     assert all(c.args[3]["tipo"] == "inicio_tarefa" for c in envio_normal.call_args_list)
@@ -1052,9 +1201,7 @@ def test_inicio_sem_responsavel_nao_reserva_nem_envia(envio_normal):
 def test_reserva_de_inicio_nao_sobrescreve_mudanca_concorrente(envio_normal, alteracao):
     agora = datetime.now(timezone.utc)
     tarefa = tarefa_com_inicio(agora)
-    banco = BancoAvisos([tarefa], [
-        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}
-    ])
+    banco = BancoAvisos([tarefa], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}])
     mudancas = {
         "marcacao": {"aviso_inicio_tentado_em": agora.isoformat()},
         "estado": {"estado_atual": "finalizado"},
@@ -1069,9 +1216,9 @@ def test_reserva_de_inicio_nao_sobrescreve_mudanca_concorrente(envio_normal, alt
 def test_inicio_processa_todas_as_paginas_antes_de_marcar(envio_normal):
     agora = datetime.now(timezone.utc)
     tarefas = [tarefa_com_inicio(agora) for _ in range(101)]
-    banco = BancoAvisos(tarefas, [
-        {"fk_tarefa_id": t["id"], "fk_usuario_id": str(uuid4())} for t in tarefas
-    ])
+    banco = BancoAvisos(
+        tarefas, [{"fk_tarefa_id": t["id"], "fk_usuario_id": str(uuid4())} for t in tarefas]
+    )
 
     assert ServicoNotificacao(banco).avisar_inicios(agora)["avisos_enviados"] == 101
     assert all(t["aviso_inicio_tentado_em"] == agora.isoformat() for t in tarefas)
@@ -1089,17 +1236,24 @@ def test_rodizio_agrupa_por_usuario_e_casa_sem_avisar_ocorrencias_distantes(envi
         tarefa_com_inicio(agora, fk_casa_id=casa, rotatividade_id=rotatividade),
         tarefa_com_inicio(agora, fk_casa_id=casa),
         tarefa_com_inicio(
-            agora, fk_casa_id=casa, rotatividade_id=rotatividade,
+            agora,
+            fk_casa_id=casa,
+            rotatividade_id=rotatividade,
             data_inicio=(agora + timedelta(days=60)).isoformat(),
         ),
     ]
-    banco = BancoAvisos(tarefas, [
-        {"fk_tarefa_id": t["id"], "fk_usuario_id": outro_usuario if i == 3 else usuario}
-        for i, t in enumerate(tarefas)
-    ])
+    banco = BancoAvisos(
+        tarefas,
+        [
+            {"fk_tarefa_id": t["id"], "fk_usuario_id": outro_usuario if i == 3 else usuario}
+            for i, t in enumerate(tarefas)
+        ],
+    )
 
     assert ServicoNotificacao(banco).avisar_inicios(agora) == {
-        "tarefas_elegiveis": 5, "avisos_enviados": 4, "falhas": 0,
+        "tarefas_elegiveis": 5,
+        "avisos_enviados": 4,
+        "falhas": 0,
     }
     resumos = [c for c in envio_normal.call_args_list if c.args[3]["tipo"] == "rodizio_distribuido"]
     assert len(resumos) == 3
@@ -1114,15 +1268,17 @@ def test_rodizio_agrupa_por_usuario_e_casa_sem_avisar_ocorrencias_distantes(envi
 def test_inicio_isola_falha_inesperada_e_nao_repete_tentativa(envio_normal, caplog):
     agora = datetime.now(timezone.utc)
     tarefas = [tarefa_com_inicio(agora) for _ in range(2)]
-    banco = BancoAvisos(tarefas, [
-        {"fk_tarefa_id": t["id"], "fk_usuario_id": str(uuid4())} for t in tarefas
-    ])
+    banco = BancoAvisos(
+        tarefas, [{"fk_tarefa_id": t["id"], "fk_usuario_id": str(uuid4())} for t in tarefas]
+    )
     detalhe_privado = uuid4().hex
     envio_normal.side_effect = RuntimeError(detalhe_privado)
     servico = ServicoNotificacao(banco)
 
     assert servico.avisar_inicios(agora) == {
-        "tarefas_elegiveis": 2, "avisos_enviados": 0, "falhas": 2,
+        "tarefas_elegiveis": 2,
+        "avisos_enviados": 0,
+        "falhas": 2,
     }
     assert servico.avisar_inicios(agora)["tarefas_elegiveis"] == 0
     assert envio_normal.call_count == 2
@@ -1149,34 +1305,48 @@ def test_aviso_de_evento_aguarda_segundo_plano_e_preserva_destinatarios(envio_no
     assert envio_normal.call_args.args[3]["casa_id"] != tarefa["fk_casa_id"]
 
 
-@pytest.mark.parametrize("tipo,titulo,mensagem", [
-    (
-        "tarefa_reclamada", "Sua tarefa recebeu uma reclamação",
-        "Uma tarefa sua recebeu uma reclamação.",
-    ),
-    (
-        "tarefa_reaberta", "Sua tarefa foi reaberta",
-        "Uma tarefa sua foi reaberta e precisa de atenção.",
-    ),
-])
+@pytest.mark.parametrize(
+    "tipo,titulo,mensagem",
+    [
+        (
+            "tarefa_reclamada",
+            "Sua tarefa recebeu uma reclamação",
+            "Uma tarefa sua recebeu uma reclamação.",
+        ),
+        (
+            "tarefa_reaberta",
+            "Sua tarefa foi reaberta",
+            "Uma tarefa sua foi reaberta e precisa de atenção.",
+        ),
+    ],
+)
 @pytest.mark.parametrize("segundo_plano", [False, True])
 def test_reclamacao_e_reabertura_enviam_push_apenas_ao_responsavel_atribuido(
-    dispositivo, expo, tipo, titulo, mensagem, segundo_plano,
+    dispositivo,
+    expo,
+    tipo,
+    titulo,
+    mensagem,
+    segundo_plano,
 ):
     responsavel, criador, proprietario = uuid4(), uuid4(), uuid4()
     tarefa = {
-        "id": str(uuid4()), "fk_casa_id": str(uuid4()), "fk_usuario_id": str(criador),
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
+        "fk_usuario_id": str(criador),
     }
     destino = dispositivo(responsavel)
     outros = [dispositivo(criador), dispositivo(proprietario)]
-    banco = SupabaseEmMemoria({
-        "casa": [{"id": tarefa["fk_casa_id"], "fk_usuario_id": str(proprietario)}],
-        "atribuida": [
-            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)},
-            {"fk_tarefa_id": str(uuid4()), "fk_usuario_id": str(criador)},
-        ],
-        "dispositivo_push": [destino, *outros],
-    })
+    banco = SupabaseEmMemoria(
+        {
+            "casa": [{"id": tarefa["fk_casa_id"], "fk_usuario_id": str(proprietario)}],
+            "atribuida": [
+                {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)},
+                {"fk_tarefa_id": str(uuid4()), "fk_usuario_id": str(criador)},
+            ],
+            "dispositivo_push": [destino, *outros],
+        }
+    )
     expo.side_effect = None
     expo.return_value = resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}]})
     tarefas_fundo = BackgroundTasks() if segundo_plano else None
@@ -1190,12 +1360,18 @@ def test_reclamacao_e_reabertura_enviam_push_apenas_ao_responsavel_atribuido(
         agendada.func(*agendada.args, **agendada.kwargs)
 
     expo.assert_called_once()
-    assert expo.call_args.kwargs["json"] == [{
-        "to": destino["token"], "title": titulo, "body": mensagem,
-        "data": {
-            "tipo": tipo, "tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"],
-        },
-    }]
+    assert expo.call_args.kwargs["json"] == [
+        {
+            "to": destino["token"],
+            "title": titulo,
+            "body": mensagem,
+            "data": {
+                "tipo": tipo,
+                "tarefa_id": tarefa["id"],
+                "casa_id": tarefa["fk_casa_id"],
+            },
+        }
+    ]
 
 
 def test_falha_na_preparacao_do_aviso_nao_se_propaga(envio_normal, caplog):

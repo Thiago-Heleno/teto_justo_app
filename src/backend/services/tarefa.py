@@ -30,15 +30,9 @@ class ServicoTarefa:
         self._moradores_politica_por_casa: dict[str, tuple[str, set[str]]] = {}
 
     def _buscar_tarefa_bruta(self, id_tarefa: UUID):
-        resposta = (
-            self.supabase.table("tarefa")
-            .select("*")
-            .eq("id", str(id_tarefa))
-            .execute()
-        )
+        resposta = self.supabase.table("tarefa").select("*").eq("id", str(id_tarefa)).execute()
         if not resposta.data:
-            raise HTTPException(
-                status_code=404, detail="Tarefa não encontrada.")
+            raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
         return resposta.data[0]
 
     def _buscar_usuarios_atribuidos(self, id_tarefa: UUID | str):
@@ -51,12 +45,7 @@ class ServicoTarefa:
         return [registro["fk_usuario_id"] for registro in resposta.data]
 
     def _fuso_casa(self, id_casa: UUID | str) -> ZoneInfo:
-        resposta = (
-            self.supabase.table("casa")
-            .select("timezone")
-            .eq("id", str(id_casa))
-            .execute()
-        )
+        resposta = self.supabase.table("casa").select("timezone").eq("id", str(id_casa)).execute()
         if not resposta.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
         return ZoneInfo(resposta.data[0].get("timezone") or "America/Sao_Paulo")
@@ -71,9 +60,7 @@ class ServicoTarefa:
         id_tarefa: UUID | str,
         ids_usuarios: list[UUID | str],
     ):
-        ids_unicos = list(
-            dict.fromkeys(str(id_usuario) for id_usuario in ids_usuarios)
-        )
+        ids_unicos = list(dict.fromkeys(str(id_usuario) for id_usuario in ids_usuarios))
         if not ids_unicos:
             return
 
@@ -84,11 +71,7 @@ class ServicoTarefa:
             }
             for id_usuario in ids_unicos
         ]
-        resposta = (
-            self.supabase.table("atribuida")
-            .insert(atribuicoes)
-            .execute()
-        )
+        resposta = self.supabase.table("atribuida").insert(atribuicoes).execute()
         if not resposta.data:
             raise HTTPException(
                 status_code=500,
@@ -96,7 +79,9 @@ class ServicoTarefa:
             )
 
     def _sincronizar_estado_por_atraso(
-        self, tarefa: dict, agora: datetime | None = None,
+        self,
+        tarefa: dict,
+        agora: datetime | None = None,
     ) -> dict:
         atualizada = self.ciclo_vida.sincronizar_estado(tarefa, agora or datetime.now(timezone.utc))
         if atualizada is None:
@@ -108,20 +93,24 @@ class ServicoTarefa:
         elegiveis = moradores - set(str(usuario) for usuario in responsaveis)
         return max(1, (len(elegiveis) + 1) // 2)
 
-    def _metadados_reclamacoes(
-        self, tarefa: dict, responsaveis: list[str]
-    ) -> dict:
+    def _metadados_reclamacoes(self, tarefa: dict, responsaveis: list[str]) -> dict:
         id_casa = str(tarefa["fk_casa_id"])
         if id_casa not in self._moradores_politica_por_casa:
             casas = (
-                self.supabase.table("casa").select("politica_reclamacao")
-                .eq("id", id_casa).execute()
+                self.supabase.table("casa")
+                .select("politica_reclamacao")
+                .eq("id", id_casa)
+                .execute()
             ).data or []
             if not casas:
                 raise HTTPException(status_code=404, detail="Casa não encontrada.")
             moradores = ServicoAutorizacaoCasa(self.supabase).registros_por_ids(
-                "pertencer", "fk_casa_id", [id_casa], "fk_usuario_id",
-                ("fk_usuario_id",), ativo=True,
+                "pertencer",
+                "fk_casa_id",
+                [id_casa],
+                "fk_usuario_id",
+                ("fk_usuario_id",),
+                ativo=True,
             )
             self._moradores_politica_por_casa[id_casa] = (
                 casas[0].get("politica_reclamacao") or "nenhuma",
@@ -168,7 +157,8 @@ class ServicoTarefa:
                 .astimezone(self._fuso_tarefa(tarefa))
                 .date()
                 .isoformat()
-                if modo_prazo == "dia_fixo" else None
+                if modo_prazo == "dia_fixo"
+                else None
             ),
             "concluida_em": instante_utc(concluida).isoformat() if concluida else None,
             "resultado_pontuacao": tarefa.get("resultado_pontuacao"),
@@ -242,30 +232,19 @@ class ServicoTarefa:
 
     def buscar_tarefa_autorizada(self, id_tarefa: UUID, id_usuario: UUID):
         tarefa = self._buscar_tarefa_bruta(id_tarefa)
-        ServicoAutorizacaoCasa(self.supabase).garantir_acesso(
-            tarefa["fk_casa_id"], id_usuario
-        )
+        ServicoAutorizacaoCasa(self.supabase).garantir_acesso(tarefa["fk_casa_id"], id_usuario)
         return self._montar_resposta(tarefa)
 
-    def listar_tarefas_acessiveis(
-        self, id_usuario: UUID, inicio: int = 0, limite: int = 100
-    ):
+    def listar_tarefas_acessiveis(self, id_usuario: UUID, inicio: int = 0, limite: int = 100):
         autorizacao = ServicoAutorizacaoCasa(self.supabase)
         ids_casas = autorizacao.ids_casas_acessiveis(id_usuario)
-        registros = autorizacao.registros_por_ids(
-            "tarefa", "fk_casa_id", ids_casas, "*", ("id",)
-        )
-        pagina = sorted(registros, key=lambda tarefa: str(tarefa["id"]))[
-            inicio:inicio + limite
-        ]
+        registros = autorizacao.registros_por_ids("tarefa", "fk_casa_id", ids_casas, "*", ("id",))
+        pagina = sorted(registros, key=lambda tarefa: str(tarefa["id"]))[inicio : inicio + limite]
         return [self._montar_resposta(tarefa) for tarefa in pagina]
 
     def listar_tarefas(self, inicio: int = 0, limite: int = 100):
         resposta = (
-            self.supabase.table("tarefa")
-            .select("*")
-            .range(inicio, inicio + limite - 1)
-            .execute()
+            self.supabase.table("tarefa").select("*").range(inicio, inicio + limite - 1).execute()
         )
         return [self._montar_resposta(tarefa) for tarefa in resposta.data]
 
@@ -283,17 +262,11 @@ class ServicoTarefa:
             )
 
         resposta = (
-            self.supabase.table("tarefa")
-            .select("*")
-            .eq("fk_casa_id", str(id_casa))
-            .execute()
+            self.supabase.table("tarefa").select("*").eq("fk_casa_id", str(id_casa)).execute()
         )
         tarefas = []
         agora = datetime.now(timezone.utc)
-        fuso = (
-            self._fuso_casa(id_casa)
-            if prazo in ("antigas", "hoje", "sete_dias") else None
-        )
+        fuso = self._fuso_casa(id_casa) if prazo in ("antigas", "hoje", "sete_dias") else None
         for tarefa in resposta.data:
             tarefa_resposta = self._montar_resposta(tarefa, agora)
             if (
@@ -306,10 +279,7 @@ class ServicoTarefa:
                 )
             ):
                 continue
-            if (
-                responsavel
-                and str(responsavel) not in tarefa_resposta["usuarios_atribuidos"]
-            ):
+            if responsavel and str(responsavel) not in tarefa_resposta["usuarios_atribuidos"]:
                 continue
             if not corresponde_prazo(tarefa_resposta, prazo, agora, fuso):
                 continue
@@ -366,9 +336,8 @@ class ServicoTarefa:
         if "peso" in dados:
             dados["dificuldade"] = dados.pop("peso")
             dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
-        editar_dia_fixo = (
-            tarefa_atual.get("modo_prazo") == "dia_fixo"
-            and bool({"prazo_dias", "data_fixa"} & dados.keys())
+        editar_dia_fixo = tarefa_atual.get("modo_prazo") == "dia_fixo" and bool(
+            {"prazo_dias", "data_fixa"} & dados.keys()
         )
         fuso = self._fuso_tarefa(tarefa_atual) if editar_dia_fixo else None
         dados = atualizar_prazo(tarefa_atual, dados, fuso, datetime.now(timezone.utc))
@@ -391,12 +360,12 @@ class ServicoTarefa:
         mudou_responsavel = (
             usuarios_anteriores is not None and usuarios_anteriores != novos_usuarios
         )
-        mudou_prazo = instante_utc(
-            dados.get("data_fim", tarefa_atual["data_fim"])
-        ) != instante_utc(tarefa_atual["data_fim"])
+        mudou_prazo = instante_utc(dados.get("data_fim", tarefa_atual["data_fim"])) != instante_utc(
+            tarefa_atual["data_fim"]
+        )
         mudou_inicio = "data_inicio" in dados and (
-            not tarefa_atual.get("data_inicio") or instante_utc(dados["data_inicio"])
-            != instante_utc(tarefa_atual["data_inicio"])
+            not tarefa_atual.get("data_inicio")
+            or instante_utc(dados["data_inicio"]) != instante_utc(tarefa_atual["data_inicio"])
         )
         if (
             dados.get("data_fim", tarefa_atual["data_fim"]) != tarefa_atual["data_fim"]
@@ -439,13 +408,11 @@ class ServicoTarefa:
 
     def excluir_tarefa(self, id_tarefa: UUID, id_usuario_atual: UUID):
         tarefa_atual = self._buscar_tarefa_bruta(id_tarefa)
-        ServicoAutorizacaoCasa(
-            self.supabase
-        ).garantir_administrador_da_casa(
+        ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
             tarefa_atual["fk_casa_id"],
             id_usuario_atual,
         )
-        if(
+        if (
             tarefa_atual["estado_atual"] == "finalizado"
             or tarefa_atual.get("rotatividade_id") is not None
         ):

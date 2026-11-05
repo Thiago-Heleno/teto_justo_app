@@ -27,10 +27,7 @@ def datas_ocorrencias(configuracao: dict, ate: date) -> list[date]:
     dia = ancora
     while dia <= ate:
         semanas_desde_ancora = (dia - inicio_semana).days // 7
-        if (
-            dia.isoweekday() in dias_semana
-            and semanas_desde_ancora % intervalo == 0
-        ):
+        if dia.isoweekday() in dias_semana and semanas_desde_ancora % intervalo == 0:
             datas.append(dia)
         dia += timedelta(days=1)
     return datas
@@ -59,10 +56,7 @@ class ServicoAgendamentoRotatividade:
             dados.participantes,
         )
         resposta_casa = (
-            self.supabase.table("casa")
-            .select("timezone")
-            .eq("id", str(dados.fk_casa_id))
-            .execute()
+            self.supabase.table("casa").select("timezone").eq("id", str(dados.fk_casa_id)).execute()
         )
         if not resposta_casa.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
@@ -101,9 +95,7 @@ class ServicoAgendamentoRotatividade:
         ]
         try:
             resposta_participantes = (
-                self.supabase.table("rotatividade_participante")
-                .insert(participantes)
-                .execute()
+                self.supabase.table("rotatividade_participante").insert(participantes).execute()
             )
         except APIError:
             self._remover_configuracao_incompleta(str(configuracao["id"]))
@@ -127,19 +119,11 @@ class ServicoAgendamentoRotatividade:
             .eq("fk_rotatividade_id", id_rotatividade)
             .execute()
         )
-        (
-            self.supabase.table("rotatividade")
-            .delete()
-            .eq("id", id_rotatividade)
-            .execute()
-        )
+        (self.supabase.table("rotatividade").delete().eq("id", id_rotatividade).execute())
 
     def _buscar_configuracao(self, id_rotatividade: UUID) -> dict:
         resposta = (
-            self.supabase.table("rotatividade")
-            .select("*")
-            .eq("id", str(id_rotatividade))
-            .execute()
+            self.supabase.table("rotatividade").select("*").eq("id", str(id_rotatividade)).execute()
         )
         if not resposta.data:
             raise HTTPException(status_code=404, detail="Rodízio não encontrado.")
@@ -224,17 +208,12 @@ class ServicoAgendamentoRotatividade:
         registros = []
         inicio = 0
         while True:
-            consulta = (
-                self.supabase.table(tabela)
-                .select(selecao)
-            )
+            consulta = self.supabase.table(tabela).select(selecao)
             if filtros:
                 for metodo, campo, valor in filtros:
                     consulta = getattr(consulta, metodo)(campo, valor)
             pagina = (
-                consulta.order("id")
-                .range(inicio, inicio + _TAMANHO_PAGINA - 1)
-                .execute()
+                consulta.order("id").range(inicio, inicio + _TAMANHO_PAGINA - 1).execute()
             ).data
             registros.extend(pagina)
             if len(pagina) < _TAMANHO_PAGINA:
@@ -376,13 +355,11 @@ class ServicoAgendamentoRotatividade:
             data_inicio, data_fim = janela_dia_fixo(dia, fuso)
         else:
             data_inicio = ocorrencia_local.astimezone(timezone.utc)
-            data_fim = (
-                datetime.combine(
-                    dia + timedelta(days=configuracao["prazo_dias"] - 1),
-                    time.max,
-                    tzinfo=fuso,
-                ).astimezone(timezone.utc)
-            )
+            data_fim = datetime.combine(
+                dia + timedelta(days=configuracao["prazo_dias"] - 1),
+                time.max,
+                tzinfo=fuso,
+            ).astimezone(timezone.utc)
 
         ocorrencia_em = ocorrencia_local.astimezone(timezone.utc).isoformat()
         tarefa = self._buscar_tarefa_ocorrencia(id_rotatividade, ocorrencia_em)
@@ -485,8 +462,7 @@ class ServicoAgendamentoRotatividade:
             (("eq", "ativa", True),),
         )
         processadas = sum(
-            self._processar_configuracao(configuracao, instante)
-            for configuracao in configuracoes
+            self._processar_configuracao(configuracao, instante) for configuracao in configuracoes
         )
         return {
             "rotatividades_analisadas": len(configuracoes),

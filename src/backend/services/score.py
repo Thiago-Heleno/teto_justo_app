@@ -50,9 +50,7 @@ class ServicoScore:
         try:
             usuarios = tuple(usuarios_atribuidos)
         except TypeError as erro:
-            raise ValueError(
-                "A tarefa deve possuir exatamente um responsável."
-            ) from erro
+            raise ValueError("A tarefa deve possuir exatamente um responsável.") from erro
 
         if len(usuarios) != 1 or not isinstance(usuarios[0], UUID):
             raise ValueError("A tarefa deve possuir exatamente um responsável.")

@@ -54,19 +54,22 @@ class ConsultaEmMemoria:
     def execute(self):
         self.banco.consultas.append(self.tabela)
         encontrados = [
-            registro for registro in self.banco.dados[self.tabela]
+            registro
+            for registro in self.banco.dados[self.tabela]
             if all(str(registro.get(campo)) == valor for campo, valor in self.filtros)
             and all(str(registro.get(campo)) in valores for campo, valores in self.lotes)
         ]
         for campo in reversed(self.ordens):
             encontrados.sort(key=lambda registro: str(registro.get(campo)))
         if self.fim is not None:
-            encontrados = encontrados[self.inicio:self.fim + 1]
+            encontrados = encontrados[self.inicio : self.fim + 1]
         campos = self.campos.split(",") if self.campos != "*" else None
-        return SimpleNamespace(data=[
-            {campo: registro[campo] for campo in campos} if campos else dict(registro)
-            for registro in encontrados
-        ])
+        return SimpleNamespace(
+            data=[
+                {campo: registro[campo] for campo in campos} if campos else dict(registro)
+                for registro in encontrados
+            ]
+        )
 
 
 class BancoEmMemoria:
@@ -79,14 +82,33 @@ class BancoEmMemoria:
 
 
 def _cenario():
-    ids = {nome: str(uuid4()) for nome in (
-        "atual", "dono_compartilhada", "outro", "ex_morador",
-        "casa_propria", "casa_compartilhada", "casa_alheia", "casa_saida",
-        "tarefa_propria", "tarefa_compartilhada", "tarefa_alheia", "tarefa_saida",
-    )}
+    ids = {
+        nome: str(uuid4())
+        for nome in (
+            "atual",
+            "dono_compartilhada",
+            "outro",
+            "ex_morador",
+            "casa_propria",
+            "casa_compartilhada",
+            "casa_alheia",
+            "casa_saida",
+            "tarefa_propria",
+            "tarefa_compartilhada",
+            "tarefa_alheia",
+            "tarefa_saida",
+        )
+    }
     usuarios = [
-        {"id": ids[nome], "nome": nome, "email": f"{nome}@example.com",
-         "telefone": None, "foto": None, "usuario_tipo": 0, "data_criacao": None}
+        {
+            "id": ids[nome],
+            "nome": nome,
+            "email": f"{nome}@example.com",
+            "telefone": None,
+            "foto": None,
+            "usuario_tipo": 0,
+            "data_criacao": None,
+        }
         for nome in ("atual", "dono_compartilhada", "outro", "ex_morador")
     ]
     casas = [
@@ -99,21 +121,45 @@ def _cenario():
         )
     ]
     vinculos = [
-        {"fk_casa_id": ids["casa_compartilhada"],
-         "fk_usuario_id": ids["atual"], "ativo": True, "score": 0},
-        {"fk_casa_id": ids["casa_compartilhada"],
-         "fk_usuario_id": ids["dono_compartilhada"], "ativo": True, "score": 0},
-        {"fk_casa_id": ids["casa_alheia"],
-         "fk_usuario_id": ids["outro"], "ativo": True, "score": 0},
-        {"fk_casa_id": ids["casa_saida"],
-         "fk_usuario_id": ids["atual"], "ativo": False, "score": 0},
+        {
+            "fk_casa_id": ids["casa_compartilhada"],
+            "fk_usuario_id": ids["atual"],
+            "ativo": True,
+            "score": 0,
+        },
+        {
+            "fk_casa_id": ids["casa_compartilhada"],
+            "fk_usuario_id": ids["dono_compartilhada"],
+            "ativo": True,
+            "score": 0,
+        },
+        {
+            "fk_casa_id": ids["casa_alheia"],
+            "fk_usuario_id": ids["outro"],
+            "ativo": True,
+            "score": 0,
+        },
+        {
+            "fk_casa_id": ids["casa_saida"],
+            "fk_usuario_id": ids["atual"],
+            "ativo": False,
+            "score": 0,
+        },
     ]
     prazo = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
     tarefas = [
-        {"id": ids[tarefa], "nome": tarefa, "fk_casa_id": ids[casa],
-         "fk_usuario_id": ids[dono], "estado_atual": "pendente",
-         "dificuldade": 1, "atraso_maximo": 1, "data_fim": prazo,
-         "modo_prazo": "intervalo", "tipo": "unitaria"}
+        {
+            "id": ids[tarefa],
+            "nome": tarefa,
+            "fk_casa_id": ids[casa],
+            "fk_usuario_id": ids[dono],
+            "estado_atual": "pendente",
+            "dificuldade": 1,
+            "atraso_maximo": 1,
+            "data_fim": prazo,
+            "modo_prazo": "intervalo",
+            "tipo": "unitaria",
+        }
         for tarefa, casa, dono in (
             ("tarefa_propria", "casa_propria", "atual"),
             ("tarefa_compartilhada", "casa_compartilhada", "dono_compartilhada"),
@@ -121,10 +167,15 @@ def _cenario():
             ("tarefa_saida", "casa_saida", "ex_morador"),
         )
     ]
-    banco = BancoEmMemoria({
-        "usuario": usuarios, "casa": casas, "pertencer": vinculos,
-        "tarefa": tarefas, "atribuida": [],
-    })
+    banco = BancoEmMemoria(
+        {
+            "usuario": usuarios,
+            "casa": casas,
+            "pertencer": vinculos,
+            "tarefa": tarefas,
+            "atribuida": [],
+        }
+    )
     return ids, banco, UsuarioResposta.model_validate(usuarios[0])
 
 
@@ -177,7 +228,8 @@ def test_perfis_apenas_da_mesma_casa_e_alteracoes_apenas_da_propria_conta():
             lista = cliente.get("/usuarios/")
             assert lista.status_code == 200, lista.text
             assert {usuario["id"] for usuario in lista.json()} == {
-                ids["atual"], ids["dono_compartilhada"]
+                ids["atual"],
+                ids["dono_compartilhada"],
             }
             assert len(cliente.get("/usuarios/?inicio=1&limite=1").json()) == 1
             assert cliente.get(f"/usuarios/{ids['dono_compartilhada']}").status_code == 200

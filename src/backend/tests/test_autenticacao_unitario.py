@@ -156,9 +156,7 @@ def test_token_invalido_retorna_401():
 
 
 def test_token_expirado_retorna_401_sem_buscar_usuario():
-    expiracao = (datetime.now(timezone.utc) - timedelta(minutes=1)).replace(
-        tzinfo=None
-    )
+    expiracao = (datetime.now(timezone.utc) - timedelta(minutes=1)).replace(tzinfo=None)
     banco = BancoFalso(
         sessoes=[
             {
@@ -226,9 +224,7 @@ def test_sessao_sem_usuario_retorna_401():
         sessoes=[
             {
                 "token": hash_token_sessao("token-orfao"),
-                "expira_em": (
-                    datetime.now(timezone.utc) + timedelta(hours=1)
-                ).isoformat(),
+                "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
                 "fk_usuario_id": usuario_id,
             }
         ]
@@ -250,9 +246,9 @@ def test_token_valido_disponibiliza_usuario_sem_senha_hash():
         sessoes=[
             {
                 "token": hash_token_sessao("token-valido"),
-                "expira_em": (
-                    datetime.now(timezone.utc) + timedelta(hours=1)
-                ).isoformat().replace("+00:00", "Z"),
+                "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1))
+                .isoformat()
+                .replace("+00:00", "Z"),
                 "fk_usuario_id": usuario_id,
             }
         ],
@@ -322,13 +318,20 @@ def test_health_e_cadastro_continuam_publicos():
     assert health.status_code == 200
     assert cadastro_invalido.status_code == 422
 
+
 @pytest.fixture
 def banco_login():
     senha = secrets.token_urlsafe(24)
-    banco = BancoFalso(usuarios=[{
-        "id": str(uuid4()), "nome": "Morador", "email": "morador@example.com",
-        "senha_hash": bcrypt.hashpw(senha.encode(), bcrypt.gensalt(rounds=4)).decode(),
-    }])
+    banco = BancoFalso(
+        usuarios=[
+            {
+                "id": str(uuid4()),
+                "nome": "Morador",
+                "email": "morador@example.com",
+                "senha_hash": bcrypt.hashpw(senha.encode(), bcrypt.gensalt(rounds=4)).decode(),
+            }
+        ]
+    )
     return banco, {"email": "morador@example.com", "senha": senha}
 
 
@@ -364,33 +367,42 @@ def test_login_acessa_rota_protegida_e_logout_preserva_outra_sessao(banco_login)
         assert logout.status_code == 204
         assert logout.content == b""
         assert cliente.get("/usuarios/eu", headers=headers).status_code == 401
-        assert cliente.get(
-            "/usuarios/eu", headers={"Authorization": f"Bearer {outro_token}"}
-        ).status_code == 200
+        assert (
+            cliente.get(
+                "/usuarios/eu", headers={"Authorization": f"Bearer {outro_token}"}
+            ).status_code
+            == 200
+        )
         assert len(banco.dados["sessao"]) == 1
 
 
 def test_hash_armazenado_e_token_legado_nao_autenticam(banco_login):
     banco, credenciais = banco_login
     legado = secrets.token_urlsafe(32)
-    banco.dados["sessao"].append({
-        "token": legado, "fk_usuario_id": banco.dados["usuario"][0]["id"],
-        "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-    })
+    banco.dados["sessao"].append(
+        {
+            "token": legado,
+            "fk_usuario_id": banco.dados["usuario"][0]["id"],
+            "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        }
+    )
     with cliente_principal(banco) as cliente:
         assert cliente.post("/sessoes/login", json=credenciais).status_code == 200
         for token in [legado, banco.dados["sessao"][-1]["token"]]:
-            resposta = cliente.get(
-                "/usuarios/eu", headers={"Authorization": f"Bearer {token}"}
-            )
+            resposta = cliente.get("/usuarios/eu", headers={"Authorization": f"Bearer {token}"})
             assert resposta.status_code == 401
 
 
-@pytest.mark.parametrize("metodo,caminho", [
-    ("GET", "/sessoes/"), ("POST", "/sessoes/"),
-    ("GET", "/sessoes/{id}"), ("PATCH", "/sessoes/{id}"),
-    ("DELETE", "/sessoes/{id}"),
-])
+@pytest.mark.parametrize(
+    "metodo,caminho",
+    [
+        ("GET", "/sessoes/"),
+        ("POST", "/sessoes/"),
+        ("GET", "/sessoes/{id}"),
+        ("PATCH", "/sessoes/{id}"),
+        ("DELETE", "/sessoes/{id}"),
+    ],
+)
 @pytest.mark.parametrize("autenticado", [False, True])
 def test_crud_de_sessoes_foi_removido(banco_login, metodo, caminho, autenticado):
     banco, credenciais = banco_login
@@ -399,9 +411,7 @@ def test_crud_de_sessoes_foi_removido(banco_login, metodo, caminho, autenticado)
         if autenticado:
             login = cliente.post("/sessoes/login", json=credenciais)
             headers["Authorization"] = f"Bearer {login.json()['token']}"
-        resposta = cliente.request(
-            metodo, caminho.replace("{id}", str(uuid4())), headers=headers
-        )
+        resposta = cliente.request(metodo, caminho.replace("{id}", str(uuid4())), headers=headers)
     assert resposta.status_code == 404
 
 

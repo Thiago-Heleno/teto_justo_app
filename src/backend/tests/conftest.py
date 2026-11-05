@@ -27,9 +27,7 @@ def criar_autenticacao_temporaria():
             )
             .execute()
         )
-        assert resposta_usuario.data, (
-            "Não foi possível preparar o usuário autenticador."
-        )
+        assert resposta_usuario.data, "Não foi possível preparar o usuário autenticador."
         usuario_id = resposta_usuario.data[0]["id"]
 
         try:
@@ -38,21 +36,15 @@ def criar_autenticacao_temporaria():
                 .insert(
                     {
                         "token": hash_token_sessao(token),
-                        "expira_em": (
-                            datetime.now(timezone.utc) + timedelta(hours=1)
-                        ).isoformat(),
+                        "expira_em": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
                         "fk_usuario_id": usuario_id,
                     }
                 )
                 .execute()
             )
-            assert resposta_sessao.data, (
-                "Não foi possível preparar a sessão autenticada."
-            )
+            assert resposta_sessao.data, "Não foi possível preparar a sessão autenticada."
         except Exception:
-            supabase.table("usuario").delete().eq(
-                "id", usuario_id
-            ).execute()
+            supabase.table("usuario").delete().eq("id", usuario_id).execute()
             raise
 
         autenticacao = {
@@ -76,9 +68,7 @@ def criar_autenticacao_temporaria():
             supabase.table("atribuida").delete().eq(
                 "fk_usuario_id", autenticacao["usuario_id"]
             ).execute()
-            supabase.table("usuario").delete().eq(
-                "id", autenticacao["usuario_id"]
-            ).execute()
+            supabase.table("usuario").delete().eq("id", autenticacao["usuario_id"]).execute()
 
 
 @pytest.fixture

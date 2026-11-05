@@ -1,4 +1,5 @@
 """Autorização real dos serviços com respostas de banco simuladas."""
+
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -50,10 +51,12 @@ def test_nao_morador_nao_consegue_listar_regras():
 @pytest.mark.parametrize("acao", ["editar", "remover"])
 def test_morador_nao_consegue_alterar_regras(acao):
     casa, dono, usuario, regra_id = uuid4(), uuid4(), uuid4(), uuid4()
-    banco = consulta_com_respostas([
-        [{"id": str(regra_id), "fk_casa_id": str(casa)}],
-        [{"fk_usuario_id": str(dono)}],
-    ])
+    banco = consulta_com_respostas(
+        [
+            [{"id": str(regra_id), "fk_casa_id": str(casa)}],
+            [{"fk_usuario_id": str(dono)}],
+        ]
+    )
     servico = ServicoAgendamentoRotatividade(banco)
     with pytest.raises(HTTPException) as erro:
         if acao == "editar":
@@ -79,12 +82,14 @@ def respostas_exclusao(regra_id, casa, dono):
 
 def test_excluir_regra_apaga_tarefas_participantes_e_regra():
     casa, dono, regra_id = uuid4(), uuid4(), uuid4()
-    banco = consulta_com_respostas([
-        *respostas_exclusao(regra_id, casa, dono),
-        [{"id": str(uuid4())}],
-        [],
-        [{"id": str(regra_id)}],
-    ])
+    banco = consulta_com_respostas(
+        [
+            *respostas_exclusao(regra_id, casa, dono),
+            [{"id": str(uuid4())}],
+            [],
+            [{"id": str(regra_id)}],
+        ]
+    )
     assert ServicoAgendamentoRotatividade(banco).excluir_rotatividade(regra_id, dono) is True
     assert [c.args[0] for c in banco.table.call_args_list][-3:] == [
         "tarefa",
@@ -96,11 +101,12 @@ def test_excluir_regra_apaga_tarefas_participantes_e_regra():
 
 def test_excluir_regra_com_tarefa_pontuada_retorna_409():
     casa, dono, regra_id = uuid4(), uuid4(), uuid4()
-    banco = consulta_com_respostas([
-        *respostas_exclusao(regra_id, casa, dono),
-        APIError({"code": "23503", "message": "violates foreign key"}),
-    ])
+    banco = consulta_com_respostas(
+        [
+            *respostas_exclusao(regra_id, casa, dono),
+            APIError({"code": "23503", "message": "violates foreign key"}),
+        ]
+    )
     with pytest.raises(HTTPException) as erro:
         ServicoAgendamentoRotatividade(banco).excluir_rotatividade(regra_id, dono)
     assert erro.value.status_code == 409
-
