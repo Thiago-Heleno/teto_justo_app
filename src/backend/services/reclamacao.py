@@ -65,14 +65,21 @@ class ServicoReclamacao:
                 status_code=409, detail="Você já reclamou desta tarefa neste ciclo.",
             ) from erro
 
-        reabrir = politica == "uma_reclamacao"
-        if politica == "votacao":
-            limite = max(1, (len(ids_moradores - set(responsaveis)) + 1) // 2)
-            reclamacoes = (
-                self.supabase.table("reclamacao_tarefa").select("fk_usuario_id", count="exact")
-                .eq("fk_tarefa_id", str(id_tarefa)).eq("ciclo", ciclo).execute()
-            )
-            reabrir = reclamacoes.count >= limite
+        limite = self.tarefas._limite_reclamacoes(ids_moradores, responsaveis)
+        reclamacoes = (
+            self.supabase.table("reclamacao_tarefa").select("fk_usuario_id", count="exact")
+            .eq("fk_tarefa_id", str(id_tarefa)).eq("ciclo", ciclo).execute()
+        )
+        reabrir = (reclamacoes.count or 0) >= limite
         if reabrir:
             tarefa = self.tarefas.ciclo_vida.reabrir(tarefa, responsaveis, agora)
-        return self.tarefas._montar_resposta(tarefa, agora)
+        resultado = self.tarefas._montar_resposta(tarefa, agora)
+        if reabrir:
+            tipo_aviso = "tarefa_reaberta"
+        elif politica == "uma_reclamacao":
+            tipo_aviso = "tarefa_reclamada"
+        else:
+            tipo_aviso = None
+        if tipo_aviso:
+            self.tarefas.notificacoes.notificar_tarefa(tipo_aviso, resultado, responsaveis)
+        return resultado

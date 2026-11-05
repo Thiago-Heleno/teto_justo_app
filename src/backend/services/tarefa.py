@@ -27,6 +27,7 @@ class ServicoTarefa:
         self.supabase = cliente_supabase
         self.notificacoes = ServicoNotificacao(cliente_supabase, tarefas_fundo)
         self.ciclo_vida = ServicoCicloVidaTarefa(cliente_supabase, self.notificacoes)
+        self._moradores_politica_por_casa: dict[str, tuple[str, set[str]]] = {}
 
     def _buscar_tarefa_bruta(self, id_tarefa: UUID):
         resposta = (
@@ -102,6 +103,51 @@ class ServicoTarefa:
             return self._buscar_tarefa_bruta(UUID(tarefa["id"]))
         return atualizada
 
+    @staticmethod
+    def _limite_reclamacoes(moradores: set[str], responsaveis: list[str]) -> int:
+        elegiveis = moradores - set(str(usuario) for usuario in responsaveis)
+        return max(1, (len(elegiveis) + 1) // 2)
+
+    def _metadados_reclamacoes(
+        self, tarefa: dict, responsaveis: list[str]
+    ) -> dict:
+        id_casa = str(tarefa["fk_casa_id"])
+        if id_casa not in self._moradores_politica_por_casa:
+            casas = (
+                self.supabase.table("casa").select("politica_reclamacao")
+                .eq("id", id_casa).execute()
+            ).data or []
+            if not casas:
+                raise HTTPException(status_code=404, detail="Casa não encontrada.")
+            moradores = ServicoAutorizacaoCasa(self.supabase).registros_por_ids(
+                "pertencer", "fk_casa_id", [id_casa], "fk_usuario_id",
+                ("fk_usuario_id",), ativo=True,
+            )
+            self._moradores_politica_por_casa[id_casa] = (
+                casas[0].get("politica_reclamacao") or "nenhuma",
+                {str(morador["fk_usuario_id"]) for morador in moradores},
+            )
+        politica, moradores = self._moradores_politica_por_casa[id_casa]
+        if politica == "nenhuma":
+            return {
+                "politica_reclamacao": politica,
+                "reclamacoes_count": 0,
+                "reclamacoes_limite": 0,
+            }
+
+        total = (
+            self.supabase.table("reclamacao_tarefa")
+            .select("fk_usuario_id", count="exact")
+            .eq("fk_tarefa_id", str(tarefa["id"]))
+            .eq("ciclo", tarefa.get("reaberturas") or 0)
+            .execute()
+        ).count
+        return {
+            "politica_reclamacao": politica,
+            "reclamacoes_count": total or 0,
+            "reclamacoes_limite": self._limite_reclamacoes(moradores, responsaveis),
+        }
+
     def _montar_resposta(self, tarefa: dict, agora: datetime | None = None) -> dict:
         tarefa = self._sincronizar_estado_por_atraso(tarefa, agora)
         modo_prazo = tarefa.get("modo_prazo") or "intervalo"
@@ -136,6 +182,7 @@ class ServicoTarefa:
             "fk_usuario_id": tarefa["fk_usuario_id"],
         }
         resposta["usuarios_atribuidos"] = self._buscar_usuarios_atribuidos(tarefa["id"])
+        resposta.update(self._metadados_reclamacoes(tarefa, resposta["usuarios_atribuidos"]))
         return resposta
 
     def criar_tarefa(
