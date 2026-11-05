@@ -230,7 +230,7 @@ export function CriarCasa({
                     value: "uma_reclamacao",
                     title: "A cada reclamação",
                     description:
-                      "O responsável recebe um aviso a cada reclamação. A tarefa reabre quando o mínimo de reclamações é atingido.",
+                      "O responsável recebe um aviso a cada reclamação. A tarefa não é reaberta.",
                   },
                   {
                     value: "votacao",

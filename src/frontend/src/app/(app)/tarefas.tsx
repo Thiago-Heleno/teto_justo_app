@@ -513,12 +513,7 @@ export default function TarefasScreen() {
                 : undefined
             }
             onReportar={
-              podeReportarTarefa(
-                tarefaSelecionada,
-                usuarioAtual.id,
-                casa.fk_usuario_id,
-                agora,
-              )
+              podeReportarTarefa(tarefaSelecionada, usuarioAtual.id, agora)
                 ? reportarTarefaSelecionada
                 : undefined
             }

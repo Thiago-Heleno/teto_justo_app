@@ -229,14 +229,13 @@ def test_janela_inclui_conclusao_e_instante_exato_de_24h(cenario, concluida_em):
         (-3, "nao_feito"),
     ],
 )
-def test_uma_reclamacao_reabre_ao_atingir_minimo_e_estorna_pontos_conforme_prazo(
+def test_votacao_reabre_ao_atingir_minimo_e_estorna_pontos_conforme_prazo(
     cenario,
     monkeypatch,
     dias_ate_prazo,
     estado,
 ):
     banco, servico, tarefa, morador, agora = cenario
-    banco.registros["casa"][0]["politica_reclamacao"] = "uma_reclamacao"
     tarefa["data_fim"] = (agora + timedelta(days=dias_ate_prazo)).isoformat()
 
     def reabertura_com_autorizacao_proibida(*args):
@@ -311,7 +310,6 @@ def test_votos_de_outra_tarefa_ou_ciclo_nao_atingem_limite(cenario):
 
 def test_morador_pode_reclamar_novamente_apos_nova_conclusao(cenario):
     banco, servico, tarefa, morador, _ = cenario
-    banco.registros["casa"][0]["politica_reclamacao"] = "uma_reclamacao"
     id_tarefa = UUID(tarefa["id"])
     responsavel = UUID(banco.registros["atribuida"][0]["fk_usuario_id"])
     servico.reclamar_tarefa(id_tarefa, UUID(tarefa["fk_usuario_id"]))
@@ -334,7 +332,6 @@ def test_morador_pode_reclamar_novamente_apos_nova_conclusao(cenario):
 
 def test_reclamacoes_com_mesma_leitura_reabrem_e_estornam_uma_unica_vez(cenario, monkeypatch):
     banco, servico, tarefa, morador, _ = cenario
-    banco.registros["casa"][0]["politica_reclamacao"] = "uma_reclamacao"
     original = deepcopy(tarefa)
     monkeypatch.setattr(servico.tarefas, "_buscar_tarefa_bruta", lambda _: deepcopy(original))
     primeira = servico.reclamar_tarefa(UUID(tarefa["id"]), morador)
@@ -350,7 +347,6 @@ def test_reclamacoes_com_mesma_leitura_reabrem_e_estornam_uma_unica_vez(cenario,
 
 def test_rota_aceita_post_sem_corpo_e_devolve_tarefa_reaberta(cenario):
     banco, _, tarefa, morador, _ = cenario
-    banco.registros["casa"][0]["politica_reclamacao"] = "uma_reclamacao"
     # O primeiro report não reabre; o segundo alcança o mínimo.
     servico_preparo = ServicoReclamacao(banco, BackgroundTasks())
     servico_preparo.reclamar_tarefa(UUID(tarefa["id"]), UUID(tarefa["fk_usuario_id"]))
@@ -367,7 +363,7 @@ def test_rota_aceita_post_sem_corpo_e_devolve_tarefa_reaberta(cenario):
     assert resposta.json()["estado_atual"] == "pendente"
     assert resposta.json()["concluida_em"] is None
     assert banco.registros["reclamacao_tarefa"][-1]["fk_usuario_id"] == str(morador)
-    assert resposta.json()["politica_reclamacao"] == "uma_reclamacao"
+    assert resposta.json()["politica_reclamacao"] == "votacao"
     assert resposta.json()["reclamacoes_count"] == 0
     assert resposta.json()["reclamacoes_limite"] == 2
 
@@ -385,13 +381,11 @@ def test_rota_exige_autenticacao(cenario):
     assert banco.registros["reclamacao_tarefa"] == []
 
 
-@pytest.mark.parametrize("politica", ["uma_reclamacao", "votacao"])
-def test_resposta_traz_contagem_e_limite_do_ciclo_atual(cenario, politica):
-    banco, servico, tarefa, morador, _ = cenario
-    banco.registros["casa"][0]["politica_reclamacao"] = politica
+def test_resposta_traz_contagem_e_limite_do_ciclo_atual(cenario):
+    _, servico, tarefa, morador, _ = cenario
     tarefa_id = UUID(tarefa["id"])
     antes = servico.tarefas.buscar_tarefa(tarefa_id)
-    assert antes["politica_reclamacao"] == politica
+    assert antes["politica_reclamacao"] == "votacao"
     assert antes["reclamacoes_count"] == 0
     assert antes["reclamacoes_limite"] == 2
 
@@ -424,22 +418,20 @@ def test_politica_nenhuma_nao_publica_limiar_nem_emite_aviso(cenario):
     assert servico.tarefas.notificacoes.tarefas_fundo.tasks == []
 
 
-def test_uma_reclamacao_avisa_a_cada_report_e_na_reabertura(cenario):
+def test_uma_reclamacao_avisa_a_cada_report_e_nunca_reabre(cenario):
     banco, servico, tarefa, morador, _ = cenario
     banco.registros["casa"][0]["politica_reclamacao"] = "uma_reclamacao"
     tarefa_id = UUID(tarefa["id"])
     responsavel = banco.registros["atribuida"][0]["fk_usuario_id"]
 
     primeiro = servico.reclamar_tarefa(tarefa_id, morador)
-    assert primeiro["estado_atual"] == "finalizado"
-    tarefas_fundo = servico.tarefas.notificacoes.tarefas_fundo.tasks
-    assert len(tarefas_fundo) == 1
-    assert tarefas_fundo[0].args[0] == "tarefa_reclamada"
-    assert tarefas_fundo[0].args[2] == [responsavel]
-
     segundo = servico.reclamar_tarefa(tarefa_id, UUID(tarefa["fk_usuario_id"]))
-    assert segundo["estado_atual"] == "pendente"
-    assert [t.args[0] for t in tarefas_fundo] == ["tarefa_reclamada", "tarefa_reaberta"]
+
+    assert primeiro["estado_atual"] == segundo["estado_atual"] == "finalizado"
+    assert tarefa["reaberturas"] == 0
+    assert len(banco.registros["score_event"]) == 1
+    tarefas_fundo = servico.tarefas.notificacoes.tarefas_fundo.tasks
+    assert [t.args[0] for t in tarefas_fundo] == ["tarefa_reclamada", "tarefa_reclamada"]
     assert all(t.args[2] == [responsavel] for t in tarefas_fundo)
 
 
