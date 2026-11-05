@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
+import { sair } from "@/services/autenticacao-api";
 import {
   ativarNotificacoes,
   notificacoesAtivas,
@@ -91,7 +92,11 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
         );
       }
     } catch (falha) {
-      setErro(mensagemDe(falha, "Não foi possível ativar as notificações."));
+      setErro(
+        falha instanceof Error && falha.name === "AvisoPush"
+          ? falha.message
+          : mensagemDe(falha, "Não foi possível ativar as notificações."),
+      );
     } finally {
       setAtivandoPush(false);
     }
@@ -150,6 +155,23 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
     emAndamento.current = false;
     setOcupado(false);
     setConfirmacaoAberta(false);
+  }
+
+  async function sairDaConta() {
+    if (emAndamento.current) return;
+    emAndamento.current = true;
+    setOcupado(true);
+    setErro(undefined);
+    setAviso(undefined);
+    try {
+      await sair();
+      // A sessão encerrada troca esta tela pelo login; não há estado a atualizar.
+      return;
+    } catch (falha) {
+      setErro(mensagemDe(falha, "Não foi possível sair da conta."));
+    }
+    emAndamento.current = false;
+    setOcupado(false);
   }
 
   return (
@@ -301,6 +323,17 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 style={[styles.button, ocupado && styles.dimmed]}
               >
                 <Text style={styles.buttonText}>Voltar</Text>
+              </Pressable>
+            )}
+            {perfil && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: ocupado }}
+                disabled={ocupado}
+                onPress={() => void sairDaConta()}
+                style={[styles.button, ocupado && styles.dimmed]}
+              >
+                <Text style={styles.buttonText}>Sair da conta</Text>
               </Pressable>
             )}
             {perfil && (

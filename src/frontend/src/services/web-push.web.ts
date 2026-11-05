@@ -45,11 +45,27 @@ async function firebaseMessaging() {
   return getMessaging(app);
 }
 
+function erroSuporte(mensagem: string) {
+  const erro = new Error(mensagem);
+  erro.name = "AvisoPush";
+  return erro;
+}
+
 export async function ativarWebPush() {
-  const messaging = await firebaseMessaging();
-  if (!messaging || !vapidKey) return false;
+  if (!webPushDisponivel()) {
+    throw erroSuporte(
+      "Este navegador ou esta versão do app não tem notificações configuradas.",
+    );
+  }
+  // Deve ser a primeira chamada assíncrona: o Safari exige o gesto do clique.
   if ((await Notification.requestPermission()) !== "granted") return false;
 
+  const messaging = await firebaseMessaging();
+  if (!messaging || !vapidKey) {
+    throw erroSuporte(
+      "Este navegador não suporta notificações. No iPhone, adicione o app à Tela de Início e abra por lá.",
+    );
+  }
   const registro = await navigator.serviceWorker.register(
     "/firebase-messaging-sw.js",
   );
