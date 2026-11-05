@@ -153,7 +153,7 @@ export function DetalheTarefa({
     });
 
   return (
-    <GestureDetector gesture={voltarComArraste}>
+    <GestureDetector gesture={voltarComArraste} touchAction="pan-y">
       <Animated.View
         entering={FadeInRight.duration(260).reduceMotion(ReduceMotion.System)}
         exiting={FadeOut.duration(140).reduceMotion(ReduceMotion.System)}
