@@ -34,9 +34,7 @@ def listar_pertencer(
     limite: int = Query(100, ge=1),
     supabase=Depends(get_supabase),
 ):
-    return ServicoPertencer(supabase).listar_pertencer_acessiveis(
-        usuario_atual.id, inicio, limite
-    )
+    return ServicoPertencer(supabase).listar_pertencer_acessiveis(usuario_atual.id, inicio, limite)
 
 
 @router.get(
@@ -63,8 +61,6 @@ def deletar_pertencer(
     usuario_atual: UsuarioAtual,
     supabase=Depends(get_supabase),
 ):
-    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(
-        fk_casa_id, usuario_atual.id
-    )
+    ServicoAutorizacaoCasa(supabase).garantir_administrador_da_casa(fk_casa_id, usuario_atual.id)
     ServicoPertencer(supabase).deletar_pertencer(fk_usuario_id, fk_casa_id)
     return None

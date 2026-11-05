@@ -10,26 +10,42 @@ from fastapi import HTTPException
 from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
 
 
-@pytest.mark.parametrize("usuario_texto,proprietario_texto", [
-    (False, False), (False, True), (True, False), (True, True),
-])
-@pytest.mark.parametrize("proprietario,vinculo_ativo,esperado", [
-    (True, True, "administrador"),
-    (True, False, "administrador"),
-    (False, True, "morador"),
-    (False, False, "nenhum"),
-])
+@pytest.mark.parametrize(
+    "usuario_texto,proprietario_texto",
+    [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ],
+)
+@pytest.mark.parametrize(
+    "proprietario,vinculo_ativo,esperado",
+    [
+        (True, True, "administrador"),
+        (True, False, "administrador"),
+        (False, True, "morador"),
+        (False, False, "nenhum"),
+    ],
+)
 def test_papel_depende_da_propriedade_e_do_vinculo_ativo(
-    usuario_texto, proprietario_texto, proprietario, vinculo_ativo, esperado,
+    usuario_texto,
+    proprietario_texto,
+    proprietario,
+    vinculo_ativo,
+    esperado,
 ):
     id_usuario = uuid4()
     id_proprietario = id_usuario if proprietario else uuid4()
 
-    assert papel_na_casa(
-        str(id_usuario) if usuario_texto else id_usuario,
-        str(id_proprietario) if proprietario_texto else id_proprietario,
-        vinculo_ativo,
-    ) == esperado
+    assert (
+        papel_na_casa(
+            str(id_usuario) if usuario_texto else id_usuario,
+            str(id_proprietario) if proprietario_texto else id_proprietario,
+            vinculo_ativo,
+        )
+        == esperado
+    )
 
 
 @pytest.fixture
@@ -51,9 +67,7 @@ def servico(consulta):
 def test_proprietario_e_administrador_da_casa(servico, consulta):
     id_casa = uuid4()
     id_usuario = uuid4()
-    consulta.execute.return_value = SimpleNamespace(
-        data=[{"fk_usuario_id": str(id_usuario)}]
-    )
+    consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}])
 
     resultado = servico.garantir_administrador_da_casa(id_casa, id_usuario)
 
@@ -63,17 +77,13 @@ def test_proprietario_e_administrador_da_casa(servico, consulta):
 
 
 def test_morador_recebe_403(servico, consulta):
-    consulta.execute.return_value = SimpleNamespace(
-        data=[{"fk_usuario_id": str(uuid4())}]
-    )
+    consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}])
 
     with pytest.raises(HTTPException) as erro:
         servico.garantir_administrador_da_casa(uuid4(), uuid4())
 
     assert erro.value.status_code == 403
-    assert erro.value.detail == (
-        "Permissão de administrador necessária para esta casa."
-    )
+    assert erro.value.detail == ("Permissão de administrador necessária para esta casa.")
 
 
 @pytest.mark.parametrize("operacao", ["garantir_acesso", "garantir_administrador_da_casa"])
@@ -89,9 +99,7 @@ def test_casa_inexistente_recebe_404(servico, consulta, operacao):
 
 def test_proprietario_acessa_sem_consultar_vinculo(servico, consulta):
     id_usuario = uuid4()
-    consulta.execute.return_value = SimpleNamespace(
-        data=[{"fk_usuario_id": str(id_usuario)}]
-    )
+    consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}])
 
     servico.garantir_acesso(uuid4(), id_usuario)
 

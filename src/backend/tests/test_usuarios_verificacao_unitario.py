@@ -52,9 +52,7 @@ class ConsultaFalsa:
             registro = {"id": "11111111-1111-1111-1111-111111111111", **self.dados}
             self.banco.inseridos.append(registro)
             return SimpleNamespace(data=[registro])
-        return SimpleNamespace(
-            data=[u for u in self.banco.usuarios if u["email"] == self.email]
-        )
+        return SimpleNamespace(data=[u for u in self.banco.usuarios if u["email"] == self.email])
 
 
 @pytest.fixture
@@ -105,9 +103,7 @@ def test_solicitar_com_email_ja_cadastrado_retorna_400_sem_enviar(ambiente):
 
 
 def test_solicitar_valida_os_dados_antes_de_enviar(ambiente):
-    resposta = ambiente.cliente.post(
-        "/usuarios/codigo-verificacao", json=_dados(email="invalido")
-    )
+    resposta = ambiente.cliente.post("/usuarios/codigo-verificacao", json=_dados(email="invalido"))
 
     assert resposta.status_code == 422
     assert ambiente.enviados == []

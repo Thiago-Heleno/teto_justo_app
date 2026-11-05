@@ -183,19 +183,28 @@ class BancoFalso:
 def test_proprietario_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
     banco = BancoFalso()
     id_proprietario, id_casa, id_rotatividade = str(uuid4()), str(uuid4()), str(uuid4())
-    configuracao = {"id": id_rotatividade, "fk_casa_id": id_casa,
-                    "fk_usuario_id": id_proprietario}
-    banco.registros.update({
-        "casa": [{"id": id_casa, "fk_usuario_id": id_proprietario}],
-        "rotatividade_participante": [{
-            "fk_rotatividade_id": id_rotatividade,
-            "fk_usuario_id": id_proprietario,
-            "ordem": 1,
-        }],
-        "pertencer": [] if vinculo == "ausente" else [{
-            "fk_casa_id": id_casa, "fk_usuario_id": id_proprietario, "ativo": False,
-        }],
-    })
+    configuracao = {"id": id_rotatividade, "fk_casa_id": id_casa, "fk_usuario_id": id_proprietario}
+    banco.registros.update(
+        {
+            "casa": [{"id": id_casa, "fk_usuario_id": id_proprietario}],
+            "rotatividade_participante": [
+                {
+                    "fk_rotatividade_id": id_rotatividade,
+                    "fk_usuario_id": id_proprietario,
+                    "ordem": 1,
+                }
+            ],
+            "pertencer": []
+            if vinculo == "ausente"
+            else [
+                {
+                    "fk_casa_id": id_casa,
+                    "fk_usuario_id": id_proprietario,
+                    "ativo": False,
+                }
+            ],
+        }
+    )
 
     with pytest.raises(HTTPException) as erro:
         ServicoAgendamentoRotatividade(banco)._membros_elegiveis(configuracao)
@@ -271,25 +280,27 @@ def test_processamento_respeita_escopo_e_nao_duplica_ocorrencias(processamento_g
         }
         for ativa in [True, True, False]
     ]
-    banco.registros.update({
-        "rotatividade": configuracoes,
-        "rotatividade_participante": [
-            {
-                "fk_rotatividade_id": configuracao["id"],
-                "fk_usuario_id": configuracao["fk_usuario_id"],
-                "ordem": 1,
-            }
-            for configuracao in configuracoes
-        ],
-        "pertencer": [
-            {
-                "fk_casa_id": configuracao["fk_casa_id"],
-                "fk_usuario_id": configuracao["fk_usuario_id"],
-                "ativo": True,
-            }
-            for configuracao in configuracoes
-        ],
-    })
+    banco.registros.update(
+        {
+            "rotatividade": configuracoes,
+            "rotatividade_participante": [
+                {
+                    "fk_rotatividade_id": configuracao["id"],
+                    "fk_usuario_id": configuracao["fk_usuario_id"],
+                    "ordem": 1,
+                }
+                for configuracao in configuracoes
+            ],
+            "pertencer": [
+                {
+                    "fk_casa_id": configuracao["fk_casa_id"],
+                    "fk_usuario_id": configuracao["fk_usuario_id"],
+                    "ativo": True,
+                }
+                for configuracao in configuracoes
+            ],
+        }
+    )
     servico = ServicoAgendamentoRotatividade(banco)
     instante = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
 
@@ -338,14 +349,20 @@ def test_processamento_gera_ocorrencias_ate_o_horizonte():
         "intervalo_semanas": 1,
         "ativa": True,
     }
-    banco.registros.update({
-        "rotatividade_participante": [
-            {"fk_rotatividade_id": configuracao["id"], "fk_usuario_id": id_usuario, "ordem": 1}
-        ],
-        "pertencer": [
-            {"fk_casa_id": configuracao["fk_casa_id"], "fk_usuario_id": id_usuario, "ativo": True}
-        ],
-    })
+    banco.registros.update(
+        {
+            "rotatividade_participante": [
+                {"fk_rotatividade_id": configuracao["id"], "fk_usuario_id": id_usuario, "ordem": 1}
+            ],
+            "pertencer": [
+                {
+                    "fk_casa_id": configuracao["fk_casa_id"],
+                    "fk_usuario_id": id_usuario,
+                    "ativo": True,
+                }
+            ],
+        }
+    )
     servico = ServicoAgendamentoRotatividade(banco)
     instante = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
 

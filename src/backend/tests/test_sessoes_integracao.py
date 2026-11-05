@@ -19,9 +19,16 @@ def usuario_temporario(com_verificacao):
     senha = secrets.token_urlsafe(24)
     email = f"teste-sessao-{uuid4().hex}@example.com"
     with TestClient(app) as cliente:
-        resposta = cliente.post("/usuarios/", json=com_verificacao({
-            "nome": "Usuário teste de sessão", "email": email, "senha": senha,
-        }))
+        resposta = cliente.post(
+            "/usuarios/",
+            json=com_verificacao(
+                {
+                    "nome": "Usuário teste de sessão",
+                    "email": email,
+                    "senha": senha,
+                }
+            ),
+        )
     assert resposta.status_code == 201
     usuario_id = resposta.json()["id"]
     try:
@@ -33,14 +40,19 @@ def usuario_temporario(com_verificacao):
 
 def test_login_logout_no_supabase(usuario_temporario):
     with TestClient(app, raise_server_exceptions=False) as cliente:
-        login = cliente.post("/sessoes/login", json={
-            "email": usuario_temporario["email"], "senha": usuario_temporario["senha"],
-        })
+        login = cliente.post(
+            "/sessoes/login",
+            json={
+                "email": usuario_temporario["email"],
+                "senha": usuario_temporario["senha"],
+            },
+        )
         assert login.status_code == 200
         token = login.json()["token"]
         headers = {"Authorization": f"Bearer {token}"}
         persistida = (
-            get_supabase().table("sessao")
+            get_supabase()
+            .table("sessao")
             .select("token")
             .eq("fk_usuario_id", usuario_temporario["id"])
             .execute()

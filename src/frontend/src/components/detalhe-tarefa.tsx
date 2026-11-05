@@ -319,9 +319,6 @@ export function DetalheTarefa({
                   <Text style={styles.reportButtonText}>
                     {reportando ? "Reportando..." : "Reportar"}
                   </Text>
-                  <Text style={styles.reportCount}>
-                    {tarefa.reclamacoes_count}
-                  </Text>
                 </MotionPressable>
               )}
               {erroFinalizacao && (

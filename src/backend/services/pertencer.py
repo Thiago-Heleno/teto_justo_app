@@ -32,16 +32,10 @@ class ServicoPertencer:
                 .execute()
             )
             if not resposta.data:
-                raise HTTPException(
-                    status_code=409, detail="O vínculo mudou. Tente novamente."
-                )
+                raise HTTPException(status_code=409, detail="O vínculo mudou. Tente novamente.")
             return resposta.data[0]
 
-        resposta = (
-            self.supabase.table("pertencer")
-            .insert(dados.model_dump(mode="json"))
-            .execute()
-        )
+        resposta = self.supabase.table("pertencer").insert(dados.model_dump(mode="json")).execute()
 
         if not resposta.data:
             raise HTTPException(
@@ -76,19 +70,21 @@ class ServicoPertencer:
         )
         return resposta.data
 
-    def listar_pertencer_acessiveis(
-        self, id_usuario: UUID, inicio: int = 0, limite: int = 100
-    ):
+    def listar_pertencer_acessiveis(self, id_usuario: UUID, inicio: int = 0, limite: int = 100):
         autorizacao = ServicoAutorizacaoCasa(self.supabase)
         ids_casas = autorizacao.ids_casas_acessiveis(id_usuario)
         registros = autorizacao.registros_por_ids(
-            "pertencer", "fk_casa_id", ids_casas, "*",
-            ("fk_casa_id", "fk_usuario_id"), ativo=True,
+            "pertencer",
+            "fk_casa_id",
+            ids_casas,
+            "*",
+            ("fk_casa_id", "fk_usuario_id"),
+            ativo=True,
         )
         return sorted(
             registros,
             key=lambda vinculo: (str(vinculo["fk_casa_id"]), str(vinculo["fk_usuario_id"])),
-        )[inicio:inicio + limite]
+        )[inicio : inicio + limite]
 
     def deletar_pertencer(self, fk_usuario_id: UUID, fk_casa_id: UUID):
 
@@ -153,11 +149,9 @@ class ServicoPertencer:
             .execute()
         )
         if not resposta.data:
-            raise HTTPException(
-                status_code=404, detail="Vínculo não encontrado ou já deletado."
-            )
-        self.supabase.table("casa").update(
-            {"rotacao_versao": casa[0]["rotacao_versao"] + 1}
-        ).eq("id", str(fk_casa_id)).execute()
+            raise HTTPException(status_code=404, detail="Vínculo não encontrado ou já deletado.")
+        self.supabase.table("casa").update({"rotacao_versao": casa[0]["rotacao_versao"] + 1}).eq(
+            "id", str(fk_casa_id)
+        ).execute()
 
         return True

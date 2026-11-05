@@ -52,10 +52,7 @@ class ServicoPlacar:
 
     def _fuso_da_casa(self, id_casa: UUID) -> tuple[str, ZoneInfo]:
         resposta_casa = (
-            self.supabase.table("casa")
-            .select("timezone")
-            .eq("id", str(id_casa))
-            .execute()
+            self.supabase.table("casa").select("timezone").eq("id", str(id_casa)).execute()
         )
         if not resposta_casa.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
@@ -124,9 +121,7 @@ class ServicoPlacar:
             id_usuario = str(evento["fk_usuario_id"])
             pontos = int(evento["pontuacao"])
             if id_usuario not in totais:
-                eventos_sem_vinculo[id_usuario] = (
-                    eventos_sem_vinculo.get(id_usuario, 0) + pontos
-                )
+                eventos_sem_vinculo[id_usuario] = eventos_sem_vinculo.get(id_usuario, 0) + pontos
                 continue
             totais[id_usuario]["acumulado"] += pontos
             if evento["criado_em"] is None:
@@ -146,9 +141,7 @@ class ServicoPlacar:
         return nome_fuso, moradores, saldos, eventos_sem_vinculo
 
     def obter_placar(self, id_casa: UUID, agora: datetime | None = None) -> dict:
-        nome_fuso, moradores, _, _ = self._dados(
-            id_casa, agora or datetime.now(timezone.utc)
-        )
+        nome_fuso, moradores, _, _ = self._dados(id_casa, agora or datetime.now(timezone.utc))
         return {
             "casa_id": str(id_casa),
             "fuso_horario": nome_fuso,
@@ -242,7 +235,9 @@ class ServicoPlacar:
         ]
         moradores.sort(
             key=lambda morador: (
-                -morador["pontos"], morador["nome"].casefold(), morador["usuario_id"]
+                -morador["pontos"],
+                morador["nome"].casefold(),
+                morador["usuario_id"],
             )
         )
         posicao, pontos_anteriores = 0, None

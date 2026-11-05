@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from schemas.casa import PoliticaReclamacao
+
 
 EstadoTarefa = Literal["pendente", "atrasada", "finalizado", "nao_feito"]
 PesoTarefa = Annotated[int, Field(strict=True, ge=1, le=3)]
@@ -84,6 +86,9 @@ class TarefaResposta(BaseModel):
     fk_casa_id: UUID
     usuarios_atribuidos: list[UUID] = Field(default_factory=list)
     fk_usuario_id: UUID
+    politica_reclamacao: PoliticaReclamacao
+    reclamacoes_count: int = Field(ge=0)
+    reclamacoes_limite: int = Field(ge=0)
 
 
 class ResultadoPontuacao(BaseModel):

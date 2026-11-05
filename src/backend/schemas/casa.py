@@ -58,6 +58,7 @@ class CasaResposta(BaseModel):
     timezone: str
     politica_reclamacao: PoliticaReclamacao
 
+
 class EntrarCasaPedido(BaseModel):
     convite: str = Field(min_length=1)
 

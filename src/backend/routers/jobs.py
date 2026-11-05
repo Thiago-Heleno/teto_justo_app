@@ -57,9 +57,7 @@ def processar_avisos_inicio_cron(supabase=Depends(get_supabase)):
 
 
 @router.post("/notificacoes-recibos", dependencies=[Depends(validar_cron)])
-def consultar_recibos_notificacoes(
-    dados: RecibosPushConsultar, supabase=Depends(get_supabase)
-):
+def consultar_recibos_notificacoes(dados: RecibosPushConsultar, supabase=Depends(get_supabase)):
     return ServicoNotificacao(supabase).consultar_recibos(dados.tickets)
 
 

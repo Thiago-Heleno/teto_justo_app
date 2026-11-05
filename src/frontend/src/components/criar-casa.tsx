@@ -213,30 +213,30 @@ export function CriarCasa({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Notificações de reclamação</Text>
+              <Text style={styles.label}>Política de reclamações</Text>
               <Text style={styles.optionDescription}>
-                Escolha quando os moradores serão notificados sobre reclamações
-                de tarefas.
+                Defina como as reclamações serão tratadas e quando o responsável
+                pela tarefa receberá notificações.
               </Text>
               {(
                 [
                   {
                     value: "nenhuma",
-                    title: "Nenhuma notificação",
+                    title: "Sem reclamações",
                     description:
-                      "Não haverá notificação nem votação quando uma tarefa for reclamada.",
+                      "Esta casa não utiliza o sistema de reclamações de tarefas.",
                   },
                   {
                     value: "uma_reclamacao",
                     title: "A cada reclamação",
                     description:
-                      "Uma notificação será enviada sempre que alguém reclamar de uma tarefa.",
+                      "O responsável recebe um aviso a cada reclamação. A tarefa reabre quando o mínimo de reclamações é atingido.",
                   },
                   {
                     value: "votacao",
-                    title: "Somente após votação",
+                    title: "Somente na reabertura",
                     description:
-                      "A notificação será enviada somente se a votação decidir reabrir a tarefa.",
+                      "O responsável só recebe um aviso quando a tarefa é reaberta por atingir o mínimo de reclamações.",
                   },
                 ] as const
               ).map((opcao) => {

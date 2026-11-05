@@ -49,9 +49,7 @@ def login(
         sucesso_confirmado = True
 
     try:
-        sessao = ServicoSessao(supabase).login(
-            dados, antes_de_emitir_token=confirmar_sucesso
-        )
+        sessao = ServicoSessao(supabase).login(dados, antes_de_emitir_token=confirmar_sucesso)
     except HTTPException as erro:
         if erro.status_code == 401:
             limitador.registrar_falha(email, ip)
@@ -73,6 +71,4 @@ def logout(
     credenciais: Annotated[HTTPAuthorizationCredentials, Depends(esquema_bearer)],
     supabase=Depends(get_supabase),
 ):
-    ServicoSessao(supabase).logout(
-        credenciais.credentials.strip(), usuario_atual.id
-    )
+    ServicoSessao(supabase).logout(credenciais.credentials.strip(), usuario_atual.id)

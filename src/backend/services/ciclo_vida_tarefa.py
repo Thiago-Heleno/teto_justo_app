@@ -21,7 +21,8 @@ def instante_utc(valor: str | datetime) -> datetime:
 
 def estado_no_prazo(tarefa: dict, agora: datetime) -> str:
     dias_atraso = ServicoScore.calcular_dias_atraso(
-        instante_utc(tarefa["data_fim"]), instante_utc(agora),
+        instante_utc(tarefa["data_fim"]),
+        instante_utc(agora),
     )
     if dias_atraso > tarefa["atraso_maximo"]:
         return "nao_feito"
@@ -29,7 +30,8 @@ def estado_no_prazo(tarefa: dict, agora: datetime) -> str:
 
 
 def janela_dia_fixo(
-    data_fixa: date, fuso: ZoneInfo,
+    data_fixa: date,
+    fuso: ZoneInfo,
 ) -> tuple[datetime, datetime]:
     inicio = datetime.combine(data_fixa, time.min, tzinfo=fuso).astimezone(timezone.utc)
     vencimento = datetime.combine(data_fixa, time.max, tzinfo=fuso).astimezone(timezone.utc)
@@ -37,7 +39,10 @@ def janela_dia_fixo(
 
 
 def corresponde_prazo(
-    tarefa: dict, filtro: str | None, agora: datetime, fuso: ZoneInfo | None,
+    tarefa: dict,
+    filtro: str | None,
+    agora: datetime,
+    fuso: ZoneInfo | None,
 ) -> bool:
     if not filtro or filtro == "todos":
         return True
@@ -57,7 +62,10 @@ def corresponde_prazo(
 
 
 def atualizar_prazo(
-    tarefa: dict, dados: dict, fuso: ZoneInfo | None, agora: datetime,
+    tarefa: dict,
+    dados: dict,
+    fuso: ZoneInfo | None,
+    agora: datetime,
 ) -> dict:
     dados = dict(dados)
     data_fixa = dados.pop("data_fixa", None)
@@ -66,7 +74,8 @@ def atualizar_prazo(
         raise HTTPException(status_code=422, detail="Esta tarefa não usa dia fixo.")
     if modo == "dia_fixo" and ("prazo_dias" in dados or data_fixa is not None):
         dia = (
-            date.fromisoformat(data_fixa) if data_fixa
+            date.fromisoformat(data_fixa)
+            if data_fixa
             else instante_utc(tarefa["data_fim"]).astimezone(fuso).date()
         )
         inicio, vencimento = janela_dia_fixo(dia, fuso)
@@ -142,8 +151,10 @@ class ServicoCicloVidaTarefa:
             )
         agora = instante_utc(agora)
         resultado = ServicoScore().calcular_score(
-            peso=tarefa["dificuldade"], atraso_maximo=tarefa["atraso_maximo"],
-            data_fim=instante_utc(tarefa["data_fim"]), concluida_em=agora,
+            peso=tarefa["dificuldade"],
+            atraso_maximo=tarefa["atraso_maximo"],
+            data_fim=instante_utc(tarefa["data_fim"]),
+            concluida_em=agora,
             usuarios_atribuidos=[UUID(responsaveis[0])],
         )
         if resultado.dias_atraso > tarefa["atraso_maximo"]:
@@ -151,7 +162,9 @@ class ServicoCicloVidaTarefa:
         id_usuario = str(resultado.usuario_id)
         id_casa = str(tarefa["fk_casa_id"])
         self._garantir_vinculo(
-            id_usuario, id_casa, "O responsável precisa ter vínculo de morador na casa.",
+            id_usuario,
+            id_casa,
+            "O responsável precisa ter vínculo de morador na casa.",
         )
         self._registrar_movimentacao(tarefa, id_usuario, resultado.pontos_finais, "credito", agora)
         resposta = (
@@ -169,11 +182,15 @@ class ServicoCicloVidaTarefa:
         )
         if not resposta.data:
             raise HTTPException(
-                status_code=409, detail="A tarefa mudou. Atualize antes de concluir.",
+                status_code=409,
+                detail="A tarefa mudou. Atualize antes de concluir.",
             )
         saldo = (
-            self.supabase.table("pertencer").select("score")
-            .eq("fk_usuario_id", id_usuario).eq("fk_casa_id", id_casa).execute()
+            self.supabase.table("pertencer")
+            .select("score")
+            .eq("fk_usuario_id", id_usuario)
+            .eq("fk_casa_id", id_casa)
+            .execute()
         ).data
         return {
             **resposta.data[0],
@@ -187,7 +204,8 @@ class ServicoCicloVidaTarefa:
     def reabrir(self, tarefa: dict, responsaveis: list[str], agora: datetime) -> dict:
         if tarefa["estado_atual"] != "finalizado":
             raise HTTPException(
-                status_code=409, detail="Só é possível reabrir uma tarefa finalizada.",
+                status_code=409,
+                detail="Só é possível reabrir uma tarefa finalizada.",
             )
         if len(responsaveis) != 1:
             raise HTTPException(
@@ -196,27 +214,42 @@ class ServicoCicloVidaTarefa:
             )
         id_usuario, id_casa = responsaveis[0], str(tarefa["fk_casa_id"])
         self._garantir_vinculo(
-            id_usuario, id_casa, "Reative o vínculo do responsável antes de reabrir a tarefa.",
+            id_usuario,
+            id_casa,
+            "Reative o vínculo do responsável antes de reabrir a tarefa.",
         )
         ciclo = tarefa.get("reaberturas") or 0
         credito = (
-            self.supabase.table("score_event").select("pontuacao")
-            .eq("fk_usuario_id", id_usuario).eq("fk_tarefa_id", str(tarefa["id"]))
-            .eq("tipo", "credito").eq("ciclo", ciclo).execute()
+            self.supabase.table("score_event")
+            .select("pontuacao")
+            .eq("fk_usuario_id", id_usuario)
+            .eq("fk_tarefa_id", str(tarefa["id"]))
+            .eq("tipo", "credito")
+            .eq("ciclo", ciclo)
+            .execute()
         ).data
         if not credito:
             raise HTTPException(status_code=409, detail="A tarefa não tem crédito a estornar.")
         self._registrar_movimentacao(
-            tarefa, id_usuario, -credito[0]["pontuacao"], "reversal", agora,
+            tarefa,
+            id_usuario,
+            -credito[0]["pontuacao"],
+            "reversal",
+            agora,
         )
         resposta = (
             self.supabase.table("tarefa")
-            .update({
-                "estado_atual": estado_no_prazo(tarefa, agora),
-                "concluida_em": None, "reaberturas": ciclo + 1,
-            })
+            .update(
+                {
+                    "estado_atual": estado_no_prazo(tarefa, agora),
+                    "concluida_em": None,
+                    "reaberturas": ciclo + 1,
+                }
+            )
             .eq("id", str(tarefa["id"]))
-            .eq("estado_atual", "finalizado").eq("reaberturas", ciclo).execute()
+            .eq("estado_atual", "finalizado")
+            .eq("reaberturas", ciclo)
+            .execute()
         )
         if resposta.data:
             return resposta.data[0]
@@ -227,30 +260,44 @@ class ServicoCicloVidaTarefa:
             raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
         if (atual[0].get("reaberturas") or 0) <= ciclo:
             raise HTTPException(
-                status_code=409, detail="A tarefa mudou. Atualize antes de reabrir.",
+                status_code=409,
+                detail="A tarefa mudou. Atualize antes de reabrir.",
             )
         return atual[0]
 
     def _garantir_vinculo(self, id_usuario: str, id_casa: str, mensagem: str) -> None:
         vinculo = (
-            self.supabase.table("pertencer").select("fk_usuario_id")
-            .eq("fk_usuario_id", id_usuario).eq("fk_casa_id", id_casa)
-            .eq("ativo", True).execute()
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_usuario_id", id_usuario)
+            .eq("fk_casa_id", id_casa)
+            .eq("ativo", True)
+            .execute()
         ).data
         if not vinculo:
             raise HTTPException(status_code=409, detail=mensagem)
 
     def _registrar_movimentacao(
-        self, tarefa: dict, id_usuario: str, pontos: int, tipo: str, agora: datetime,
+        self,
+        tarefa: dict,
+        id_usuario: str,
+        pontos: int,
+        tipo: str,
+        agora: datetime,
     ) -> None:
         # shortcut: evento e saldo usam escritas separadas; retomada após queda exige atomicidade.
         try:
-            self.supabase.table("score_event").insert({
-                "fk_usuario_id": id_usuario, "fk_casa_id": str(tarefa["fk_casa_id"]),
-                "fk_tarefa_id": str(tarefa["id"]), "pontuacao": pontos, "tipo": tipo,
-                "criado_em": instante_utc(agora).isoformat(),
-                "ciclo": tarefa.get("reaberturas") or 0,
-            }).execute()
+            self.supabase.table("score_event").insert(
+                {
+                    "fk_usuario_id": id_usuario,
+                    "fk_casa_id": str(tarefa["fk_casa_id"]),
+                    "fk_tarefa_id": str(tarefa["id"]),
+                    "pontuacao": pontos,
+                    "tipo": tipo,
+                    "criado_em": instante_utc(agora).isoformat(),
+                    "ciclo": tarefa.get("reaberturas") or 0,
+                }
+            ).execute()
         except APIError as erro:
             if erro.code != "23505":
                 raise
@@ -260,9 +307,12 @@ class ServicoCicloVidaTarefa:
     def _ajustar_saldo(self, id_usuario: str, id_casa: str, pontos: int) -> None:
         for _ in range(_MAX_TENTATIVAS_CAS):
             atual = (
-                self.supabase.table("pertencer").select("score")
-                .eq("fk_usuario_id", id_usuario).eq("fk_casa_id", id_casa)
-                .eq("ativo", True).execute()
+                self.supabase.table("pertencer")
+                .select("score")
+                .eq("fk_usuario_id", id_usuario)
+                .eq("fk_casa_id", id_casa)
+                .eq("ativo", True)
+                .execute()
             ).data
             if not atual:
                 raise HTTPException(
@@ -271,9 +321,13 @@ class ServicoCicloVidaTarefa:
                 )
             saldo = atual[0]["score"]
             resposta = (
-                self.supabase.table("pertencer").update({"score": saldo + pontos})
-                .eq("fk_usuario_id", id_usuario).eq("fk_casa_id", id_casa)
-                .eq("ativo", True).eq("score", saldo).execute()
+                self.supabase.table("pertencer")
+                .update({"score": saldo + pontos})
+                .eq("fk_usuario_id", id_usuario)
+                .eq("fk_casa_id", id_casa)
+                .eq("ativo", True)
+                .eq("score", saldo)
+                .execute()
             )
             if resposta.data:
                 return

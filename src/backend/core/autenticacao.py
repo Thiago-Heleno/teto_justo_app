@@ -33,9 +33,7 @@ def obter_usuario_atual(
     ):
         raise _erro_nao_autenticado()
 
-    usuario = ServicoSessao(supabase).obter_usuario_por_token(
-        credenciais.credentials.strip()
-    )
+    usuario = ServicoSessao(supabase).obter_usuario_por_token(credenciais.credentials.strip())
     if usuario is None:
         raise _erro_nao_autenticado()
     return usuario

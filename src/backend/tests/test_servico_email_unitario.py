@@ -39,7 +39,7 @@ def test_envia_payload_com_remetente_padrao(monkeypatch, requisicoes):
 
     ServicoEmail().enviar("a@example.com", "Assunto", "<p>oi</p>")
 
-    (url, kwargs), = requisicoes
+    ((url, kwargs),) = requisicoes
     assert url == "https://api.resend.com/emails"
     assert kwargs["headers"] == {"Authorization": f"Bearer {_CHAVE}"}
     assert kwargs["json"] == {

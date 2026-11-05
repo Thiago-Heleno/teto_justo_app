@@ -41,7 +41,8 @@ class Consulta:
     def execute(self):
         if self.atualizacao is None:
             tarefas = [
-                tarefa for tarefa in self.banco.tarefas
+                tarefa
+                for tarefa in self.banco.tarefas
                 if self.estados is None or tarefa[self.estados[0]] in self.estados[1]
             ]
             inicio, fim = self.intervalo
@@ -49,7 +50,8 @@ class Consulta:
 
         tarefa_atual = next(
             (
-                tarefa for tarefa in self.banco.tarefas
+                tarefa
+                for tarefa in self.banco.tarefas
                 if all(str(tarefa.get(campo)) == str(valor) for campo, valor in self.filtros)
             ),
             None,
@@ -128,9 +130,7 @@ def test_transicao_condicional_nao_sobrescreve_tarefa_alterada(agora):
     registro = tarefa("pendente", agora - timedelta(days=1))
     banco = Banco(
         [registro],
-        antes_de_atualizar=lambda tarefa_atual: tarefa_atual.update(
-            {"estado_atual": "finalizado"}
-        ),
+        antes_de_atualizar=lambda tarefa_atual: tarefa_atual.update({"estado_atual": "finalizado"}),
     )
     servico = ServicoPenalidade(banco, BackgroundTasks())
 

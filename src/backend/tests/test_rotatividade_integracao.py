@@ -67,11 +67,7 @@ def ambiente_rotatividade(
     finally:
         if casa_id is not None:
             configuracoes = (
-                supabase.table("rotatividade")
-                .select("id")
-                .eq("fk_casa_id", casa_id)
-                .execute()
-                .data
+                supabase.table("rotatividade").select("id").eq("fk_casa_id", casa_id).execute().data
             )
             for configuracao in configuracoes:
                 tarefas = (
@@ -86,27 +82,16 @@ def ambiente_rotatividade(
                     supabase.table("score_event").delete().in_(
                         "fk_tarefa_id", ids_tarefas
                     ).execute()
-                    supabase.table("atribuida").delete().in_(
-                        "fk_tarefa_id", ids_tarefas
-                    ).execute()
-                    supabase.table("tarefa").delete().in_(
-                        "id", ids_tarefas
-                    ).execute()
+                    supabase.table("atribuida").delete().in_("fk_tarefa_id", ids_tarefas).execute()
+                    supabase.table("tarefa").delete().in_("id", ids_tarefas).execute()
                 (
                     supabase.table("rotatividade_participante")
                     .delete()
                     .eq("fk_rotatividade_id", configuracao["id"])
                     .execute()
                 )
-                (
-                    supabase.table("rotatividade")
-                    .delete()
-                    .eq("id", configuracao["id"])
-                    .execute()
-                )
-            supabase.table("pertencer").delete().eq(
-                "fk_casa_id", casa_id
-            ).execute()
+                (supabase.table("rotatividade").delete().eq("id", configuracao["id"]).execute())
+            supabase.table("pertencer").delete().eq("fk_casa_id", casa_id).execute()
             supabase.table("casa").delete().eq("id", casa_id).execute()
 
 
@@ -184,9 +169,7 @@ def test_criar_e_processar_rotatividade_no_supabase(
 
     tarefas = (
         supabase.table("tarefa")
-        .select(
-            "id,tipo,pontuacao,fk_casa_id,rotatividade_id,ocorrencia_em,timezone"
-        )
+        .select("id,tipo,pontuacao,fk_casa_id,rotatividade_id,ocorrencia_em,timezone")
         .eq("rotatividade_id", rotatividade["id"])
         .execute()
         .data

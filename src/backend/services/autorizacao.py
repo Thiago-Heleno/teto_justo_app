@@ -32,7 +32,7 @@ class ServicoAutorizacaoCasa:
     ) -> list[dict]:
         registros = []
         for posicao in range(0, len(ids), self.TAMANHO_LOTE):
-            lote = ids[posicao:posicao + self.TAMANHO_LOTE]
+            lote = ids[posicao : posicao + self.TAMANHO_LOTE]
             inicio = 0
             while True:
                 consulta = self.supabase.table(tabela).select(campos).in_(campo, lote)
@@ -58,9 +58,7 @@ class ServicoAutorizacaoCasa:
             inicio = 0
             while True:
                 consulta = (
-                    self.supabase.table(tabela)
-                    .select(campo_id)
-                    .eq(campo_filtro, str(id_usuario))
+                    self.supabase.table(tabela).select(campo_id).eq(campo_filtro, str(id_usuario))
                 )
                 if tabela == "pertencer":
                     consulta = consulta.eq("ativo", True)
@@ -104,20 +102,26 @@ class ServicoAutorizacaoCasa:
         ids_casas = self.ids_casas_acessiveis(id_usuario)
         ids = {str(id_usuario)}
         for vinculo in self.registros_por_ids(
-            "pertencer", "fk_casa_id", ids_casas, "fk_usuario_id",
-            ("fk_casa_id", "fk_usuario_id"), ativo=True,
+            "pertencer",
+            "fk_casa_id",
+            ids_casas,
+            "fk_usuario_id",
+            ("fk_casa_id", "fk_usuario_id"),
+            ativo=True,
         ):
             ids.add(str(vinculo["fk_usuario_id"]))
         for casa in self.registros_por_ids(
-            "casa", "id", ids_casas, "fk_usuario_id", ("id",),
+            "casa",
+            "id",
+            ids_casas,
+            "fk_usuario_id",
+            ("id",),
         ):
             if casa.get("fk_usuario_id"):
                 ids.add(str(casa["fk_usuario_id"]))
         return sorted(ids)
 
-    def garantir_usuario_visivel(
-        self, id_alvo: UUID | str, id_usuario: UUID | str
-    ) -> None:
+    def garantir_usuario_visivel(self, id_alvo: UUID | str, id_usuario: UUID | str) -> None:
         if str(id_alvo) not in self.ids_usuarios_visiveis(id_usuario):
             raise HTTPException(status_code=403, detail="Acesso restrito aos moradores da casa.")
 
@@ -127,10 +131,7 @@ class ServicoAutorizacaoCasa:
         id_usuario: UUID | str,
     ) -> UUID | str:
         resposta = (
-            self.supabase.table("casa")
-            .select("fk_usuario_id")
-            .eq("id", str(id_casa))
-            .execute()
+            self.supabase.table("casa").select("fk_usuario_id").eq("id", str(id_casa)).execute()
         )
         if not resposta.data:
             raise HTTPException(
@@ -159,10 +160,7 @@ class ServicoAutorizacaoCasa:
             )
 
         resposta_casa = (
-            self.supabase.table("casa")
-            .select("fk_usuario_id")
-            .eq("id", str(id_casa))
-            .execute()
+            self.supabase.table("casa").select("fk_usuario_id").eq("id", str(id_casa)).execute()
         )
         if not resposta_casa.data:
             raise HTTPException(
@@ -178,9 +176,7 @@ class ServicoAutorizacaoCasa:
             .eq("ativo", True)
             .execute()
         )
-        ids_validos = {
-            str(registro["fk_usuario_id"]) for registro in resposta_pertencer.data
-        }
+        ids_validos = {str(registro["fk_usuario_id"]) for registro in resposta_pertencer.data}
         ids_validos.add(id_administrador)
 
         if any(id_usuario not in ids_validos for id_usuario in ids):

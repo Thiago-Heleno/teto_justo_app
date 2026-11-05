@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from core.database import get_supabase
 from main import app
 
+
 @pytest.fixture
 def usuario_temporario(autenticacao_temporaria):
     supabase = get_supabase()
@@ -16,18 +17,13 @@ def usuario_temporario(autenticacao_temporaria):
 
     yield usuario_id
 
-    supabase.table("casa").delete().eq(
-        "fk_usuario_id", usuario_id
-    ).execute()
+    supabase.table("casa").delete().eq("fk_usuario_id", usuario_id).execute()
+
 
 def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
-    foto_inicial = base64.b64encode(
-        b"fachada inicial"
-    ).decode("ascii")
+    foto_inicial = base64.b64encode(b"fachada inicial").decode("ascii")
 
-    foto_atualizada = base64.b64encode(
-        b"fachada atualizada"
-    ).decode("ascii")
+    foto_atualizada = base64.b64encode(b"fachada atualizada").decode("ascii")
 
     marcador = uuid4().hex
 
@@ -58,7 +54,8 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa["politica_reclamacao"] == "nenhuma"
 
         vinculo_proprietario = (
-            get_supabase().table("pertencer")
+            get_supabase()
+            .table("pertencer")
             .select("score")
             .eq("fk_casa_id", casa["id"])
             .eq("fk_usuario_id", usuario_temporario)
@@ -66,14 +63,10 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         ).data
         assert vinculo_proprietario == [{"score": 0}]
 
-        remocao_proprietario = cliente.delete(
-            f"/pertencer/{usuario_temporario}/{casa['id']}"
-        )
+        remocao_proprietario = cliente.delete(f"/pertencer/{usuario_temporario}/{casa['id']}")
         assert remocao_proprietario.status_code == 409, remocao_proprietario.text
 
-        encontrada = cliente.get(
-            f"/casas/{casa['id']}"
-        )
+        encontrada = cliente.get(f"/casas/{casa['id']}")
 
         assert encontrada.status_code == 200, encontrada.text
 
@@ -108,18 +101,16 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa_atualizada["foto"] == foto_atualizada
         assert casa_atualizada["fk_usuario_id"] == usuario_temporario
         assert casa_atualizada["timezone"] == "UTC"
-        excluida = cliente.delete(
-            f"/casas/{casa['id']}"
-        )
+        excluida = cliente.delete(f"/casas/{casa['id']}")
 
         assert excluida.status_code == 200, excluida.text
         assert excluida.json() is True
 
-        inexistente = cliente.get(
-            f"/casas/{casa['id']}"
-        )
+        inexistente = cliente.get(f"/casas/{casa['id']}")
 
         assert inexistente.status_code == 404
+
+
 @pytest.fixture
 def cenario_cargos(autenticacao_temporaria, criar_autenticacao_temporaria):
     """Casa real com um administrador, um morador vinculado e um forasteiro."""
@@ -140,27 +131,36 @@ def cenario_cargos(autenticacao_temporaria, criar_autenticacao_temporaria):
         assert criada.status_code == 201, criada.text
         casa = criada.json()
 
-        supabase.table("pertencer").insert({
-            "fk_usuario_id": morador["usuario_id"],
-            "fk_casa_id": casa["id"],
-            "score": 0,
-        }).execute()
+        supabase.table("pertencer").insert(
+            {
+                "fk_usuario_id": morador["usuario_id"],
+                "fk_casa_id": casa["id"],
+                "score": 0,
+            }
+        ).execute()
 
-        yield cliente, casa, {
-            "administrador": admin["headers"],
-            "morador": morador["headers"],
-            "forasteiro": forasteiro["headers"],
-        }
+        yield (
+            cliente,
+            casa,
+            {
+                "administrador": admin["headers"],
+                "morador": morador["headers"],
+                "forasteiro": forasteiro["headers"],
+            },
+        )
 
     supabase.table("pertencer").delete().eq("fk_casa_id", casa["id"]).execute()
     supabase.table("casa").delete().eq("id", casa["id"]).execute()
 
 
-@pytest.mark.parametrize("cargo,esperado", [
-    ("administrador", 200),
-    ("morador", 200),
-    ("forasteiro", 403),
-])
+@pytest.mark.parametrize(
+    "cargo,esperado",
+    [
+        ("administrador", 200),
+        ("morador", 200),
+        ("forasteiro", 403),
+    ],
+)
 def test_leitura_da_casa_por_cargo_no_supabase(cenario_cargos, cargo, esperado):
     cliente, casa, headers = cenario_cargos
 
@@ -173,20 +173,14 @@ def test_leitura_da_casa_por_cargo_no_supabase(cenario_cargos, cargo, esperado):
 
 
 @pytest.mark.parametrize("cargo", ["morador", "forasteiro"])
-def test_edicao_e_exclusao_negadas_a_quem_nao_e_administrador_no_supabase(
-    cenario_cargos, cargo
-):
+def test_edicao_e_exclusao_negadas_a_quem_nao_e_administrador_no_supabase(cenario_cargos, cargo):
     cliente, casa, headers = cenario_cargos
 
-    edicao = cliente.patch(
-        f"/casas/{casa['id']}", headers=headers[cargo], json={"nome": "Invasão"}
-    )
+    edicao = cliente.patch(f"/casas/{casa['id']}", headers=headers[cargo], json={"nome": "Invasão"})
     exclusao = cliente.delete(f"/casas/{casa['id']}", headers=headers[cargo])
 
     assert edicao.status_code == exclusao.status_code == 403
-    persistida = (
-        get_supabase().table("casa").select("nome").eq("id", casa["id"]).execute()
-    ).data
+    persistida = (get_supabase().table("casa").select("nome").eq("id", casa["id"]).execute()).data
     assert persistida == [{"nome": casa["nome"]}]
 
 
@@ -194,9 +188,7 @@ def test_administrador_edita_e_exclui_casa_com_morador_no_supabase(cenario_cargo
     cliente, casa, headers = cenario_cargos
     admin = headers["administrador"]
 
-    edicao = cliente.patch(
-        f"/casas/{casa['id']}", headers=admin, json={"nome": "Casa renomeada"}
-    )
+    edicao = cliente.patch(f"/casas/{casa['id']}", headers=admin, json={"nome": "Casa renomeada"})
     assert edicao.status_code == 200, edicao.text
     assert edicao.json()["nome"] == "Casa renomeada"
 

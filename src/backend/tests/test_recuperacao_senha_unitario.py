@@ -62,7 +62,8 @@ class ConsultaFalsa:
 
     def execute(self):
         alvo = [
-            linha for linha in self.linhas
+            linha
+            for linha in self.linhas
             if all(linha.get(c) == v for c, v in self.filtros.items())
         ]
         if self.operacao == "update":

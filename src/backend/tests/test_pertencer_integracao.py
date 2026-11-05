@@ -19,22 +19,26 @@ def dependencias_temporarias(autenticacao_temporaria):
     # Casa temporária, vinculada ao usuário acima.
     res_casa = (
         supabase.table("casa")
-        .insert({
-            "nome": f"Casa Teste {marcador}",
-            "fk_usuario_id": proprietario_id,
-        })
+        .insert(
+            {
+                "nome": f"Casa Teste {marcador}",
+                "fk_usuario_id": proprietario_id,
+            }
+        )
         .execute()
     )
     casa_id = res_casa.data[0]["id"]
 
     res_morador = (
         supabase.table("usuario")
-        .insert({
-            "nome": "Morador teste pertencer",
-            "email": f"morador-teste-pertencer-{marcador}@example.com",
-            "senha_hash": "hash-falso",
-            "usuario_tipo": 0,
-        })
+        .insert(
+            {
+                "nome": "Morador teste pertencer",
+                "email": f"morador-teste-pertencer-{marcador}@example.com",
+                "senha_hash": "hash-falso",
+                "usuario_tipo": 0,
+            }
+        )
         .execute()
     )
     usuario_id = res_morador.data[0]["id"]
@@ -91,14 +95,11 @@ def test_crud_pertencer_no_supabase(
         listados = cliente.get("/pertencer/")
         assert listados.status_code == 200, listados.text
         assert any(
-            v["fk_usuario_id"] == usuario_id and v["fk_casa_id"] == casa_id
-            for v in listados.json()
+            v["fk_usuario_id"] == usuario_id and v["fk_casa_id"] == casa_id for v in listados.json()
         )
 
         # O saldo só pode ser alterado por crédito de tarefa.
-        atualizado = cliente.patch(
-            f"/pertencer/{usuario_id}/{casa_id}", json={"score": 50}
-        )
+        atualizado = cliente.patch(f"/pertencer/{usuario_id}/{casa_id}", json={"score": 50})
         assert atualizado.status_code == 405, atualizado.text
 
         # Exclui o vínculo e confirma o corpo vazio de um 204.
@@ -111,8 +112,12 @@ def test_crud_pertencer_no_supabase(
         assert inexistente.status_code == 404
 
         vinculo_inativo = (
-            get_supabase().table("pertencer").select("ativo, score")
-            .eq("fk_usuario_id", usuario_id).eq("fk_casa_id", casa_id).execute()
+            get_supabase()
+            .table("pertencer")
+            .select("ativo, score")
+            .eq("fk_usuario_id", usuario_id)
+            .eq("fk_casa_id", casa_id)
+            .execute()
         ).data[0]
         assert vinculo_inativo == {"ativo": False, "score": 0}
 
@@ -187,10 +192,7 @@ def test_validacoes_e_erros(autenticacao_temporaria):
         assert cliente.get(f"/pertencer/{uuid4()}/{uuid4()}").status_code == 404
         # Atualização de um vínculo inexistente.
         assert (
-            cliente.patch(
-                f"/pertencer/{uuid4()}/{uuid4()}", json={"score": 10}
-            ).status_code
-            == 405
+            cliente.patch(f"/pertencer/{uuid4()}/{uuid4()}", json={"score": 10}).status_code == 405
         )
         # Exclusão de um vínculo inexistente.
         assert cliente.delete(f"/pertencer/{uuid4()}/{uuid4()}").status_code == 404
