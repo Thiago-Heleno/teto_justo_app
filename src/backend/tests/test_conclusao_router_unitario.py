@@ -37,6 +37,9 @@ def test_post_conclusoes_envia_tarefa_e_usuario_ao_servico(monkeypatch):
         "fk_usuario_id": str(usuario_id),
         "usuarios_atribuidos": [str(usuario_id)],
         "concluida_em": datetime.now(timezone.utc).isoformat(),
+        "politica_reclamacao": "nenhuma",
+        "reclamacoes_count": 0,
+        "reclamacoes_limite": 0,
         "resultado_pontuacao": {
             "pontos_possiveis": 10,
             "pontos_ganhos": 10,

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from schemas.tarefa import TarefaAtualizar, TarefaCriar
+from schemas.tarefa import TarefaAtualizar, TarefaCriar, TarefaResposta
 
 
 @pytest.fixture
@@ -138,3 +138,29 @@ def test_atualizacao_nao_pode_reiniciar_prazo_ou_apagar_regras(cliente):
         {"usuarios_atribuidos": None},
     ]:
         assert cliente.patch("/tarefas/id", json=dados).status_code == 422
+
+
+def test_resposta_da_tarefa_exige_metadados_de_reclamacao():
+    from uuid import uuid4
+
+    tarefa = {
+        "id": str(uuid4()), "nome": "Teste", "estado_atual": "finalizado",
+        "peso": 1, "pontuacao": 10, "atraso_maximo": 2,
+        "referencia_inicio": "criacao", "prazo_dias": 1,
+        "data_inicio": None, "proxima_ocorrencia": None,
+        "data_fim": "2030-01-02T12:00:00Z",
+        "fk_casa_id": str(uuid4()), "fk_usuario_id": str(uuid4()),
+    }
+    with pytest.raises(ValidationError):
+        TarefaResposta.model_validate(tarefa)
+    completa = TarefaResposta.model_validate({
+        **tarefa, "politica_reclamacao": "votacao",
+        "reclamacoes_count": 1, "reclamacoes_limite": 2,
+    })
+    assert completa.reclamacoes_count == 1
+    assert completa.reclamacoes_limite == 2
+    with pytest.raises(ValidationError):
+        TarefaResposta.model_validate({
+            **tarefa, "politica_reclamacao": "votacao",
+            "reclamacoes_count": -1, "reclamacoes_limite": 2,
+        })

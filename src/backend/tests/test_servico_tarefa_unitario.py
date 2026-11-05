@@ -37,7 +37,13 @@ def banco(consulta):
 
 @pytest.fixture
 def servico(banco):
-    return ServicoTarefa(banco, BackgroundTasks())
+    servico = ServicoTarefa(banco, BackgroundTasks())
+    servico._metadados_reclamacoes = MagicMock(return_value={
+        "politica_reclamacao": "nenhuma",
+        "reclamacoes_count": 0,
+        "reclamacoes_limite": 0,
+    })
+    return servico
 
 
 @pytest.fixture

@@ -90,7 +90,7 @@ def _cenario():
         for nome in ("atual", "dono_compartilhada", "outro", "ex_morador")
     ]
     casas = [
-        {"id": ids[casa], "fk_usuario_id": ids[dono]}
+        {"id": ids[casa], "fk_usuario_id": ids[dono], "politica_reclamacao": "nenhuma"}
         for casa, dono in (
             ("casa_propria", "atual"),
             ("casa_compartilhada", "dono_compartilhada"),
