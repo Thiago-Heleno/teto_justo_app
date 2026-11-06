@@ -239,6 +239,33 @@ def test_listar_tarefas_por_casa_combina_filtros(servico, consulta, id_tarefa, i
     assert [tarefa["id"] for tarefa in resultado] == [str(id_tarefa)]
 
 
+@pytest.mark.parametrize("estado", ["finalizado", "todos", None])
+def test_listagem_ordena_por_prazo_decrescente_apenas_no_filtro_finalizado(
+    servico, consulta, ids_relacionados, estado
+):
+    registros = [
+        {"id": "antiga", "data_fim": "2026-11-01T10:00:00Z"},
+        {"id": "recente", "data_fim": "2026-11-02T08:00:00-03:00"},
+        {"id": "intermediaria", "data_fim": "2026-11-02T10:00:00Z"},
+    ]
+    registros = [
+        {**tarefa, "estado_atual": "finalizado", "usuarios_atribuidos": []}
+        for tarefa in registros
+    ]
+    consulta.execute.return_value = SimpleNamespace(data=registros)
+    servico._montar_resposta = MagicMock(side_effect=lambda tarefa, agora: tarefa)
+
+    resultado = servico.listar_tarefas_por_casa(
+        ids_relacionados["fk_casa_id"], estado=estado
+    )
+
+    assert [tarefa["id"] for tarefa in resultado] == (
+        ["recente", "intermediaria", "antiga"]
+        if estado == "finalizado"
+        else ["antiga", "recente", "intermediaria"]
+    )
+
+
 def test_listar_em_aberto_combina_filtros_apos_sincronizar_estado(
     servico, consulta, ids_relacionados
 ):

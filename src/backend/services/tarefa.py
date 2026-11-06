@@ -284,6 +284,8 @@ class ServicoTarefa:
             if not corresponde_prazo(tarefa_resposta, prazo, agora, fuso):
                 continue
             tarefas.append(tarefa_resposta)
+        if estado == "finalizado":
+            tarefas.sort(key=lambda tarefa: instante_utc(tarefa["data_fim"]), reverse=True)
         return tarefas
 
     def _concluir_tarefa(self, tarefa: dict, id_usuario_atual: UUID):
