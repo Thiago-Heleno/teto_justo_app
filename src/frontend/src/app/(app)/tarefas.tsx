@@ -416,7 +416,9 @@ export default function TarefasScreen() {
 
   const chaveCalendario = `${casa.id}-${casa.timezone}-${usuarioAtual.id}`;
   const tarefasFiltradas =
-    estado === "finalizado" ? tarefas ?? [] : ordenarTarefas(tarefas ?? [], prazo);
+    estado === "finalizado"
+      ? (tarefas ?? [])
+      : ordenarTarefas(tarefas ?? [], prazo);
   const tarefasVisiveis = tarefasFiltradas.slice(0, listaVisivel.limite);
 
   return (
