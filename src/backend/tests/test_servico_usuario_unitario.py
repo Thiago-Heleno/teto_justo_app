@@ -184,6 +184,25 @@ class TesteBuscarUsuarioUnitario(unittest.TestCase):
 # informados mudam), erro 400 quando nenhum dado é enviado e erro 404 quando
 # o usuário não existe.
 class TesteAtualizarUsuarioUnitario(unittest.TestCase):
+    def test_atualizacao_grava_bytes_da_foto(self):
+        banco = BancoMemoria()
+        usuario_id = uuid4()
+        banco.usuarios[str(usuario_id)] = {"id": str(usuario_id)}
+        ServicoUsuario(banco).atualizar_usuario(usuario_id, UsuarioAtualizar(foto="iVBORw0KGgo="))
+        self.assertEqual(banco.usuarios[str(usuario_id)]["foto"], "\\x89504e470d0a1a0a")
+
+    def test_foto_invalida_preserva_perfil_anterior(self):
+        banco = BancoMemoria()
+        usuario_id = uuid4()
+        anterior = {"id": str(usuario_id), "nome": "Ana", "foto": "\\xffd8ff"}
+        banco.usuarios[str(usuario_id)] = anterior.copy()
+        with self.assertRaises(HTTPException) as erro:
+            ServicoUsuario(banco).atualizar_usuario(
+                usuario_id, UsuarioAtualizar(nome="Bia", foto="%%%")
+            )
+        self.assertEqual(erro.exception.status_code, 400)
+        self.assertEqual(banco.usuarios[str(usuario_id)], anterior)
+
     # Envia apenas o campo "nome" e confirma que ele muda, mas os demais
     # campos (ex.: email) permanecem intactos.
     def test_atualizacao_parcial_altera_apenas_campos_informados(self):

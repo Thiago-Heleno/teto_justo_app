@@ -14,7 +14,7 @@ export function carregarPerfil(signal?: AbortSignal) {
 
 export function atualizarPerfil(
   id: string,
-  dados: Partial<Pick<Perfil, "nome" | "email">>,
+  dados: Partial<Pick<Perfil, "nome" | "email">> & { foto?: string },
 ) {
   return requisitar<Perfil>(`/usuarios/${id}`, undefined, {
     method: "PATCH",

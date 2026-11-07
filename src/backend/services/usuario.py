@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from postgrest.exceptions import APIError
 from schemas.usuario import UsuarioCriar, UsuarioAtualizar
 from services.autorizacao import ServicoAutorizacaoCasa
+from services.foto import foto_para_banco
 from services.pertencer import ServicoPertencer
 
 
@@ -29,7 +30,7 @@ class ServicoUsuario:
             "email": dados.email,
             "telefone": dados.telefone,
             "senha_hash": self._hash_senha(dados.senha),
-            "foto": dados.foto,
+            "foto": foto_para_banco(dados.foto) if dados.foto is not None else None,
             "usuario_tipo": dados.usuario_tipo,
         }
 
@@ -55,6 +56,9 @@ class ServicoUsuario:
 
         if not dados_limpos:
             raise HTTPException(status_code=400, detail="Nenhum dado para atualização.")
+
+        if "foto" in dados_limpos:
+            dados_limpos["foto"] = foto_para_banco(dados_limpos["foto"])
 
         if "email" in dados_limpos:
             duplicado = (

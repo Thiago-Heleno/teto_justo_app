@@ -81,6 +81,12 @@ export function useGerenciamentoCasa(carregarMoradores = true) {
     setVersao((v) => v + 1);
   }
 
+  function aplicarCasaAtualizada(casa: Casa) {
+    setDados((atuais) =>
+      atuais && atuais.casa.id === casa.id ? { ...atuais, casa } : atuais,
+    );
+  }
+
   async function executar<T>(
     acao: (signal: AbortSignal) => Promise<T>,
     sucesso: (valor: T) => void | Promise<void>,
@@ -110,5 +116,14 @@ export function useGerenciamentoCasa(carregarMoradores = true) {
       if (!controlador.signal.aborted) setOcupado(false);
     }
   }
-  return { dados, admin, erro, ocupado, atualizar, executar, setErro };
+  return {
+    dados,
+    admin,
+    erro,
+    ocupado,
+    atualizar,
+    aplicarCasaAtualizada,
+    executar,
+    setErro,
+  };
 }

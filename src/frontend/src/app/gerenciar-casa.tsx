@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/components/avatar";
 import { MoradoresCasa } from "@/components/moradores-casa";
 import { DetalhesCasa } from "@/components/detalhes-casa";
 import { Acao, ConfirmarAcao, styles } from "@/components/gerenciamento-ui";
@@ -19,6 +20,7 @@ import {
   type CasaAtualizar,
 } from "@/services/casas-api";
 import { limparCasaAposSaida, sessao } from "@/services/sessao-store";
+import { selecionarFoto } from "@/utils/selecionar-foto";
 
 export default function GerenciarCasaScreen() {
   const g = useGerenciamentoCasa(false);
@@ -27,6 +29,15 @@ export default function GerenciarCasaScreen() {
   const [detalhes, setDetalhes] = useState(false);
   const [aviso, setAviso] = useState<string>();
   const casa = g.dados?.casa;
+
+  async function escolherFoto() {
+    if (!edicao || !casa) return;
+    await g.executar(selecionarFoto, (foto) => {
+      if (foto !== null) {
+        setEdicao({ ...edicao, foto: foto === casa.foto ? undefined : foto });
+      }
+    });
+  }
 
   async function salvar() {
     if (!casa || !edicao) return;
@@ -38,14 +49,28 @@ export default function GerenciarCasaScreen() {
       g.setErro("Preencha nome, endereço e fuso horário.");
       return;
     }
+    const alteracoes = {
+      ...(edicao.nome.trim() !== casa.nome && { nome: edicao.nome }),
+      ...(edicao.endereco.trim() !== casa.endereco && {
+        endereco: edicao.endereco,
+      }),
+      ...(edicao.timezone.trim() !== casa.timezone && {
+        timezone: edicao.timezone,
+      }),
+      ...(edicao.foto !== undefined && { foto: edicao.foto }),
+    };
+    if (!Object.keys(alteracoes).length) {
+      setEdicao(null);
+      return;
+    }
     await g.executar(
-      (signal) => atualizarCasa(casa.id, edicao, signal),
+      (signal) => atualizarCasa(casa.id, alteracoes, signal),
       (atualizada) => {
         if (sessao.getState().casaAtiva?.id === atualizada.id)
           sessao.setState({ casaAtiva: atualizada });
         setEdicao(null);
         setAviso("Casa atualizada.");
-        g.atualizar();
+        g.aplicarCasaAtualizada(atualizada);
       },
     );
   }
@@ -96,6 +121,11 @@ export default function GerenciarCasaScreen() {
         {casa && (
           <>
             <View style={styles.card}>
+              <Avatar
+                nome={casa.nome}
+                foto={edicao?.foto ?? casa.foto}
+                tamanho={64}
+              />
               <Text style={styles.subtitle}>{casa.nome}</Text>
               <Text style={styles.text}>{casa.endereco}</Text>
               <Text style={styles.text}>Fuso: {casa.timezone}</Text>
@@ -109,8 +139,8 @@ export default function GerenciarCasaScreen() {
               />
               {detalhes && (
                 <DetalhesCasa
-                  key={casa.id + casa.nome + casa.timezone}
-                  casaId={casa.id}
+                  key={casa.id}
+                  casaReferencia={casa}
                   onFechar={() => setDetalhes(false)}
                 />
               )}
@@ -132,6 +162,11 @@ export default function GerenciarCasaScreen() {
             {g.admin && edicao && (
               <View style={styles.card}>
                 <Text style={styles.subtitle}>Editar casa</Text>
+                <Acao
+                  texto="Escolher foto"
+                  disabled={g.ocupado}
+                  onPress={escolherFoto}
+                />
                 <Text style={styles.label}>Nome</Text>
                 <TextInput
                   accessibilityLabel="Nome da casa"
