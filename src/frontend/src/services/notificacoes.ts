@@ -8,14 +8,16 @@ import { requisitar } from "./api.ts";
 import { listarCasas } from "./casas-api.ts";
 import { selecionarCasa, sessao } from "./sessao-store.ts";
 import type { Tarefa } from "./tarefas-api.ts";
-import { ativarWebPush, removerWebPush, webPushAtivo } from "./web-push.ts";
 
 const CHAVE_TOKEN_PUSH = "teto_justo_push_token";
+
+// Carregado só na web: o Metro não aplica `.web.ts` a imports com extensão explícita.
+const webPush = () => import("./web-push.web.ts");
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function notificacoesAtivas() {
-  if (Platform.OS === "web") return webPushAtivo();
+  if (Platform.OS === "web") return (await webPush()).webPushAtivo();
 
   const token = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
   const permissao = await Notifications.getPermissionsAsync();
@@ -24,7 +26,7 @@ export async function notificacoesAtivas() {
 }
 
 export async function ativarNotificacoes() {
-  if (Platform.OS === "web") return ativarWebPush();
+  if (Platform.OS === "web") return (await webPush()).ativarWebPush();
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
@@ -72,7 +74,7 @@ export async function ativarNotificacoes() {
 }
 
 export async function removerNotificacoesDoDispositivo() {
-  if (Platform.OS === "web") return removerWebPush();
+  if (Platform.OS === "web") return (await webPush()).removerWebPush();
 
   const token = await SecureStore.getItemAsync(CHAVE_TOKEN_PUSH);
 
