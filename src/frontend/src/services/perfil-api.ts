@@ -1,7 +1,12 @@
 import { requisitar } from "./api.ts";
 import { encerrarSessao } from "./sessao-store.ts";
 
-export type Perfil = { id: string; nome: string; email: string };
+export type Perfil = {
+  id: string;
+  nome: string;
+  email: string;
+  foto?: string | null;
+};
 
 export function carregarPerfil(signal?: AbortSignal) {
   return requisitar<Perfil>("/usuarios/eu", signal);

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/components/avatar";
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { sair } from "@/services/autenticacao-api";
@@ -192,6 +193,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
 
           {perfil && (
             <>
+              <Avatar nome={perfil.nome} foto={perfil.foto} tamanho={64} />
               <Text style={styles.label}>Nome</Text>
               <TextInput
                 accessibilityLabel="Nome"

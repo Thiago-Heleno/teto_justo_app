@@ -1,7 +1,24 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
-from typing import Optional
+from base64 import b64encode
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict, PlainSerializer
+from typing import Annotated, Optional
 from uuid import UUID
 from datetime import datetime
+
+
+def _serializar_foto_perfil(foto: str) -> str | None:
+    if not foto.startswith("\\x"):
+        return foto
+    try:
+        conteudo = bytes.fromhex(foto[2:])
+    except ValueError:
+        return None
+    # O cadastro e o PATCH antigos também aceitam Base64 como texto na coluna binária.
+    if conteudo.isascii() and (texto := conteudo.decode("ascii")).isprintable():
+        return texto
+    return b64encode(conteudo).decode("ascii")
+
+
+FotoPerfilResposta = Annotated[str, PlainSerializer(_serializar_foto_perfil, when_used="json")]
 
 
 def _validar_senha(senha: str) -> str:
@@ -64,7 +81,7 @@ class UsuarioResposta(BaseModel):
     nome: str
     email: EmailStr
     telefone: Optional[int] = None
-    foto: Optional[str] = None
+    foto: Optional[FotoPerfilResposta] = None
     usuario_tipo: Optional[int] = None
     data_criacao: Optional[datetime] = None
 

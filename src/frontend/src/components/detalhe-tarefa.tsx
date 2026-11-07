@@ -18,6 +18,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TriangleAlert } from "lucide-react-native";
 
+import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
@@ -41,16 +42,6 @@ export type ResultadoFinalizacao = {
   pontosObtidos: number;
   saldoAtual: number;
 };
-
-function iniciais(nome: string) {
-  return nome
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((parte) => parte[0])
-    .join("")
-    .toUpperCase();
-}
 
 export function DetalheTarefa({
   tarefa,
@@ -232,11 +223,11 @@ export function DetalheTarefa({
             <View style={styles.responsibles}>
               {responsaveis.map((morador) => (
                 <View key={morador.id} style={styles.responsible}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {iniciais(morador.nome)}
-                    </Text>
-                  </View>
+                  <Avatar
+                    nome={morador.nome}
+                    foto={morador.foto}
+                    tamanho={48}
+                  />
                   <Text style={styles.responsibleName}>{morador.nome}</Text>
                 </View>
               ))}
@@ -512,16 +503,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  avatar: {
-    flexShrink: 0,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Caldera.ember,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   responsibleName: {
     flex: 1,
     minWidth: 0,

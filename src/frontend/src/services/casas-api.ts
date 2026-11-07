@@ -16,7 +16,12 @@ export type CasaCriar = Pick<Casa, "nome" | "endereco" | "politica_reclamacao">;
 
 export type DetalhesCasa = { casa: Casa; nomeProprietario: string | null };
 
-export type MoradorCasa = { id: string; nome: string; score: number };
+export type MoradorCasa = {
+  id: string;
+  nome: string;
+  score: number;
+  foto?: string | null;
+};
 
 export function listarMoradoresCasa(casaId: string, signal?: AbortSignal) {
   return requisitar<MoradorCasa[]>(`/casas/${casaId}/moradores`, signal);
