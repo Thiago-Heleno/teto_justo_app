@@ -7,42 +7,37 @@ import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import {
   carregarDetalhesCasa,
+  type Casa,
   type DetalhesCasa as DadosDetalhesCasa,
 } from "@/services/casas-api";
-
-function uriFoto(foto: string): string | null {
-  const tipo = foto.startsWith("/9j/")
-    ? "image/jpeg"
-    : foto.startsWith("iVBORw0KGgo")
-      ? "image/png"
-      : foto.startsWith("R0lGOD")
-        ? "image/gif"
-        : foto.startsWith("UklGR")
-          ? "image/webp"
-          : null;
-  return tipo ? `data:${tipo};base64,${foto}` : null;
-}
+import { uriFoto } from "@/utils/foto";
 
 export function DetalhesCasa({
-  casaId,
+  casaReferencia,
   onFechar,
 }: {
-  casaId: string;
+  casaReferencia: Casa;
   onFechar: () => void;
 }) {
-  const [dados, setDados] = useState<DadosDetalhesCasa | null>(null);
+  const [dados, setDados] = useState<
+    (DadosDetalhesCasa & { referencia: Casa }) | null
+  >(null);
   const [erro, setErro] = useState<string>();
   const [tentativa, setTentativa] = useState(0);
-  const [fotoFalhou, setFotoFalhou] = useState(false);
+  const [fotoComErro, setFotoComErro] = useState<string>();
 
   useEffect(() => {
     const controlador = new AbortController();
-    carregarDetalhesCasa(casaId, controlador.signal)
+    carregarDetalhesCasa(casaReferencia.id, controlador.signal)
       .then((detalhes) => {
-        if (!controlador.signal.aborted) setDados(detalhes);
+        if (!controlador.signal.aborted) {
+          setDados({ ...detalhes, referencia: casaReferencia });
+          setErro(undefined);
+        }
       })
       .catch((falha) => {
         if (controlador.signal.aborted) return;
+        setDados(null);
         setErro(
           falha instanceof ErroApi && [403, 404].includes(falha.status)
             ? "Você não tem mais acesso a esta casa. Use Trocar de casa e Atualizar lista."
@@ -55,9 +50,11 @@ export function DetalhesCasa({
       });
 
     return () => controlador.abort();
-  }, [casaId, tentativa]);
+  }, [casaReferencia, tentativa]);
 
-  const casa = dados?.casa;
+  const casa =
+    dados &&
+    (dados.referencia === casaReferencia ? dados.casa : casaReferencia);
   const foto = casa?.foto ? uriFoto(casa.foto) : null;
 
   return (
@@ -92,7 +89,7 @@ export function DetalhesCasa({
             onPress={() => {
               setDados(null);
               setErro(undefined);
-              setFotoFalhou(false);
+              setFotoComErro(undefined);
               setTentativa((valor) => valor + 1);
             }}
             style={styles.button}
@@ -106,11 +103,12 @@ export function DetalhesCasa({
         <View style={styles.details}>
           {casa.foto === null ? (
             <Text style={styles.notice}>Foto não cadastrada</Text>
-          ) : foto && !fotoFalhou ? (
+          ) : foto && foto !== fotoComErro ? (
             <Image
               accessibilityLabel={`Foto da casa ${casa.nome}`}
               contentFit="cover"
-              onError={() => setFotoFalhou(true)}
+              key={foto}
+              onError={() => setFotoComErro(foto)}
               source={{ uri: foto }}
               style={styles.photo}
             />

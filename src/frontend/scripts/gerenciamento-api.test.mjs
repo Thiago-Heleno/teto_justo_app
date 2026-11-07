@@ -77,6 +77,14 @@ test("edita casa sem enviar dono e remove vínculo sem excluir usuário", async 
   ]);
 });
 
+test("envia a foto selecionada na edição da casa", async () => {
+  const dados = { foto: "iVBORw0KGgo=" };
+  await casas.atualizarCasa("c", dados);
+  assert.deepEqual(chamadas, [
+    ["/casas/c", undefined, { method: "PATCH", body: dados }],
+  ]);
+});
+
 for (const status of [401, 403, 409, 422])
   test(`preserva erro ${status} do backend para exibição`, async () => {
     falha = Object.assign(new Error("Validação do backend"), {

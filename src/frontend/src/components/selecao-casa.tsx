@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
+import { Avatar } from "@/components/avatar";
 import { CriarCasa } from "@/components/criar-casa";
 import { EntrarCasa } from "@/components/entrar-casa";
 import { PerfilUsuario } from "@/components/perfil";
@@ -186,6 +187,7 @@ function SelecaoCasa({
                 (pressed || ocupado) && styles.dimmed,
               ]}
             >
+              <Avatar nome={casa.nome} foto={casa.foto} tamanho={48} />
               <Text style={styles.houseName}>{casa.nome}</Text>
               <Text style={styles.description}>{casa.endereco}</Text>
               <Text style={styles.enter}>Entrar nesta casa →</Text>

@@ -22,6 +22,7 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
+import { Avatar } from "@/components/avatar";
 import { CalendarioTarefas } from "@/components/calendario-tarefas";
 import {
   DetalheTarefa,
@@ -98,16 +99,6 @@ const opcoesPrazo: { valor: FiltroPrazo; rotulo: string }[] = [
   { valor: "sete_dias", rotulo: "Próximos 7 dias" },
   { valor: "todos", rotulo: "Todas" },
 ];
-
-function iniciais(nome: string) {
-  return nome
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((parte) => parte[0])
-    .join("")
-    .toUpperCase();
-}
 
 export default function TarefasScreen() {
   const { abrir } = useLocalSearchParams<{ abrir?: string }>();
@@ -792,11 +783,12 @@ export default function TarefasScreen() {
                           </View>
                           <View style={styles.avatars}>
                             {responsaveis.map((morador) => (
-                              <View key={morador.id} style={styles.avatar}>
-                                <Text style={styles.avatarText}>
-                                  {iniciais(morador.nome)}
-                                </Text>
-                              </View>
+                              <Avatar
+                                key={morador.id}
+                                nome={morador.nome}
+                                foto={morador.foto}
+                                tamanho={36}
+                              />
                             ))}
                           </View>
                         </View>
@@ -1032,18 +1024,6 @@ const styles = StyleSheet.create({
   },
   metaValue: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   avatars: { flexDirection: "row", flexWrap: "wrap", maxWidth: "100%" },
-  avatar: {
-    width: 36,
-    height: 36,
-    marginLeft: -6,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: Caldera.limestone,
-    backgroundColor: Caldera.ember,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: Caldera.obsidian, fontSize: 11, fontWeight: "500" },
   detailsLink: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   emptyCard: {
     backgroundColor: Caldera.limestone,

@@ -16,7 +16,12 @@ export type CasaCriar = Pick<Casa, "nome" | "endereco" | "politica_reclamacao">;
 
 export type DetalhesCasa = { casa: Casa; nomeProprietario: string | null };
 
-export type MoradorCasa = { id: string; nome: string; score: number };
+export type MoradorCasa = {
+  id: string;
+  nome: string;
+  score: number;
+  foto?: string | null;
+};
 
 export function listarMoradoresCasa(casaId: string, signal?: AbortSignal) {
   return requisitar<MoradorCasa[]>(`/casas/${casaId}/moradores`, signal);
@@ -106,7 +111,9 @@ export function casaInicial(casas: Casa[], preferidaId: string | null) {
   );
 }
 
-export type CasaAtualizar = Pick<Casa, "nome" | "endereco" | "timezone">;
+export type CasaAtualizar = Pick<Casa, "nome" | "endereco" | "timezone"> & {
+  foto?: string;
+};
 
 export function carregarCasa(casaId: string, signal?: AbortSignal) {
   return requisitar<Casa>(`/casas/${casaId}`, signal);
@@ -114,15 +121,16 @@ export function carregarCasa(casaId: string, signal?: AbortSignal) {
 
 export function atualizarCasa(
   casaId: string,
-  dados: CasaAtualizar,
+  dados: Partial<CasaAtualizar>,
   signal?: AbortSignal,
 ) {
   return requisitar<Casa>(`/casas/${casaId}`, signal, {
     method: "PATCH",
     body: {
-      nome: dados.nome.trim(),
-      endereco: dados.endereco.trim(),
-      timezone: dados.timezone.trim(),
+      ...(dados.nome !== undefined && { nome: dados.nome.trim() }),
+      ...(dados.endereco !== undefined && { endereco: dados.endereco.trim() }),
+      ...(dados.timezone !== undefined && { timezone: dados.timezone.trim() }),
+      ...(dados.foto !== undefined && { foto: dados.foto }),
     },
   });
 }

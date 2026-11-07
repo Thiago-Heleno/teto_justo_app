@@ -213,7 +213,7 @@ export default function HomeScreen() {
           {casa && detalhesAbertos && (
             <DetalhesCasa
               key={`detalhes-${casa.id}`}
-              casaId={casa.id}
+              casaReferencia={casa}
               onFechar={() => setDetalhesAbertos(false)}
             />
           )}

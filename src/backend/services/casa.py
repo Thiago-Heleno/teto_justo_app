@@ -1,5 +1,4 @@
 import base64
-import binascii
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -8,24 +7,13 @@ from postgrest.exceptions import APIError
 from schemas.casa import CasaAtualizar, CasaCriar
 from schemas.pertencer import PertencerCriar
 from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
+from services.foto import foto_para_banco
 from services.pertencer import ServicoPertencer
 
 
 class ServicoCasa:
     def __init__(self, cliente_supabase):
         self.supabase = cliente_supabase
-
-    @staticmethod
-    def _foto_para_banco(foto: str) -> str:
-        try:
-            conteudo = base64.b64decode(foto, validate=True)
-        except (binascii.Error, ValueError) as erro:
-            raise HTTPException(
-                status_code=400,
-                detail="A foto deve estar em Base64 válido.",
-            ) from erro
-
-        return "\\x" + conteudo.hex()
 
     @staticmethod
     def _foto_para_resposta(foto: str | None) -> str | None:
@@ -75,7 +63,7 @@ class ServicoCasa:
         dados["fk_usuario_id"] = str(id_proprietario)
 
         if dados["foto"] is not None:
-            dados["foto"] = self._foto_para_banco(dados["foto"])
+            dados["foto"] = foto_para_banco(dados["foto"])
 
         resposta = self.supabase.table("casa").insert(dados).execute()
 
@@ -189,7 +177,7 @@ class ServicoCasa:
             )
 
         if "foto" in dados:
-            dados["foto"] = self._foto_para_banco(dados["foto"])
+            dados["foto"] = foto_para_banco(dados["foto"])
 
         resposta = self.supabase.table("casa").update(dados).eq("id", str(id_casa)).execute()
 

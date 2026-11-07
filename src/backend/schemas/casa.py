@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from schemas.usuario import FotoPerfilResposta
+
 
 def validar_timezone(valor: str) -> str:
     try:
@@ -79,7 +81,7 @@ class MoradorResposta(BaseModel):
     nome: str
     email: EmailStr
     telefone: Optional[int] = None
-    foto: Optional[str] = None
+    foto: Optional[FotoPerfilResposta] = None
     score: int
 
 

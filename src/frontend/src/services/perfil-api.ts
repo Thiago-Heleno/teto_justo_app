@@ -1,7 +1,12 @@
 import { requisitar } from "./api.ts";
 import { encerrarSessao } from "./sessao-store.ts";
 
-export type Perfil = { id: string; nome: string; email: string };
+export type Perfil = {
+  id: string;
+  nome: string;
+  email: string;
+  foto?: string | null;
+};
 
 export function carregarPerfil(signal?: AbortSignal) {
   return requisitar<Perfil>("/usuarios/eu", signal);
@@ -9,7 +14,7 @@ export function carregarPerfil(signal?: AbortSignal) {
 
 export function atualizarPerfil(
   id: string,
-  dados: Partial<Pick<Perfil, "nome" | "email">>,
+  dados: Partial<Pick<Perfil, "nome" | "email">> & { foto?: string },
 ) {
   return requisitar<Perfil>(`/usuarios/${id}`, undefined, {
     method: "PATCH",

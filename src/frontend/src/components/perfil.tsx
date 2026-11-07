@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/components/avatar";
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { sair } from "@/services/autenticacao-api";
@@ -27,6 +28,7 @@ import {
 } from "@/services/perfil-api";
 import { webPushDisponivel } from "@/services/web-push";
 import { validarPerfil, type ErrosCadastro } from "@/utils/cadastro";
+import { selecionarFoto } from "@/utils/selecionar-foto";
 
 function mensagemDe(falha: unknown, padrao: string) {
   if (falha instanceof ErroApi) return falha.message;
@@ -40,6 +42,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
   const [perfil, setPerfil] = useState<Perfil>();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [novaFoto, setNovaFoto] = useState<string>();
   const [errosCampos, setErrosCampos] = useState<ErrosCadastro>({});
   const [erro, setErro] = useState<string>();
   const [aviso, setAviso] = useState<string>();
@@ -104,7 +107,32 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
 
   const alterado =
     perfil !== undefined &&
-    (nome.trim() !== perfil.nome || email.trim() !== perfil.email);
+    (nome.trim() !== perfil.nome ||
+      email.trim() !== perfil.email ||
+      novaFoto !== undefined);
+
+  async function escolherFoto() {
+    if (!perfil || emAndamento.current) return;
+    emAndamento.current = true;
+    setOcupado(true);
+    setErro(undefined);
+    try {
+      const foto = await selecionarFoto();
+      if (foto !== null) {
+        setNovaFoto(foto === perfil.foto ? undefined : foto);
+        setAviso(undefined);
+      }
+    } catch (falha) {
+      setErro(
+        falha instanceof Error
+          ? falha.message
+          : "Não foi possível abrir a foto.",
+      );
+    } finally {
+      emAndamento.current = false;
+      setOcupado(false);
+    }
+  }
 
   async function salvar() {
     if (emAndamento.current || !perfil || !alterado) return;
@@ -120,13 +148,19 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
       const atualizado = await atualizarPerfil(perfil.id, {
         ...(nome.trim() !== perfil.nome && { nome: nome.trim() }),
         ...(email.trim() !== perfil.email && { email: email.trim() }),
+        ...(novaFoto !== undefined && { foto: novaFoto }),
       });
       setPerfil(atualizado);
+      setNovaFoto(undefined);
       setNome(atualizado.nome);
       setEmail(atualizado.email);
       setAviso("Dados atualizados.");
     } catch (falha) {
-      if (falha instanceof ErroApi && falha.status === 400) {
+      if (
+        falha instanceof ErroApi &&
+        falha.status === 400 &&
+        falha.message.toLowerCase().includes("e-mail")
+      ) {
         setErrosCampos({ email: falha.message });
       } else if (!(falha instanceof ErroApi && falha.status === 401)) {
         setErro(mensagemDe(falha, "Não foi possível salvar seus dados."));
@@ -192,6 +226,19 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
 
           {perfil && (
             <>
+              <Avatar
+                nome={perfil.nome}
+                foto={novaFoto ?? perfil.foto}
+                tamanho={64}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={ocupado}
+                onPress={escolherFoto}
+                style={styles.button}
+              >
+                <Text style={styles.buttonText}>Escolher foto</Text>
+              </Pressable>
               <Text style={styles.label}>Nome</Text>
               <TextInput
                 accessibilityLabel="Nome"

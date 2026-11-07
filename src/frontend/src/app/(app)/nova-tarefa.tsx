@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import {
   diasSemanaTarefa,
@@ -32,6 +33,7 @@ import {
   criarRotatividade as salvarRotatividade,
   criarTarefa as salvarTarefa,
   type Casa,
+  type Morador,
 } from "@/services/tarefas-api";
 import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
 
@@ -54,9 +56,7 @@ function IndicadorSelecao({ selecionado }: { selecionado: boolean }) {
 
 export default function NovaTarefaScreen() {
   const { width } = useWindowDimensions();
-  const [contexto, setContexto] = useState<
-    [Casa, { id: string; nome: string }[]] | null
-  >(null);
+  const [contexto, setContexto] = useState<[Casa, Morador[]] | null>(null);
   const [erroContexto, setErroContexto] = useState<string>();
   const [tentativa, setTentativa] = useState(0);
   const casa = contexto?.[0];
@@ -732,17 +732,11 @@ export default function NovaTarefaScreen() {
                             selecionado && styles.selected,
                           ]}
                         >
-                          <View style={styles.avatar}>
-                            <Text style={styles.help}>
-                              {morador.nome
-                                .split(" ")
-                                .filter(Boolean)
-                                .slice(0, 2)
-                                .map((parte) => parte[0])
-                                .join("")
-                                .toUpperCase()}
-                            </Text>
-                          </View>
+                          <Avatar
+                            nome={morador.nome}
+                            foto={morador.foto}
+                            tamanho={40}
+                          />
                           <Text style={[styles.body, styles.residentName]}>
                             {nomeExibido}
                           </Text>
@@ -1077,14 +1071,6 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     backgroundColor: Caldera.pumice,
     minHeight: 72,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Caldera.limestone,
-    alignItems: "center",
-    justifyContent: "center",
   },
   residentName: { flex: 1 },
   button: {
