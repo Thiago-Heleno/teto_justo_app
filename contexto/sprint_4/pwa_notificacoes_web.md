@@ -85,3 +85,15 @@ receba notificações Web Push, mantendo o fluxo Expo de Android/iOS.
 - A notificação web abre `/tarefas?abrir=<id>` na casa que estiver ativa no
   navegador; se for outra casa, a tarefa não é encontrada.
 - Se a sessão expirar (401), o token web não é removido da API, como no nativo.
+
+## Correção: permissão nunca solicitada na web
+
+- Sintoma: o botão de notificações do perfil sempre mostrava "Permita notificações…" e o navegador não perguntava nada.
+- Causa: `src/frontend/src/services/notificacoes.ts` importava `./web-push.ts` com extensão explícita. O Metro só aplica `.web.ts` quando a extensão é omitida, então a web usava o stub nativo (`ativarWebPush` retorna `false`). Causa deduzida da leitura do código; não foi reproduzida no navegador.
+- Solução: `notificacoes.ts` carrega `./web-push.web.ts` por `import()` apenas quando `Platform.OS === "web"`. A extensão no import foi mantida porque os testes em Node exigem o caminho completo.
+- Teste novo: `src/frontend/scripts/notificacoes-web.test.mjs` (unidade, com módulos mockados) verifica que, na web, ativar, consultar e remover chamam o Web Push. Incluído em `test:tarefas`.
+- Validações executadas (a partir de `src/frontend`): `npm run test:tarefas` com 90 testes passando; `npx tsc --noEmit` sem erros; `node scripts/generate-firebase-sw.mjs` gerou `public/firebase-messaging-sw.js` com a configuração preenchida.
+- `npx expo export --platform web` (a partir de `src/frontend`, com saída em pasta temporária) terminou sem erro. O bundle contém `teto_justo_push_token_web` e `Notification.requestPermission`, e o `firebase-messaging-sw.js` foi copiado para a raiz do export.
+- Não executado: `npm run lint` (excedeu o tempo limite), prompt de permissão no navegador, testes do backend (`httpx` não instalado no ambiente) e a validação no iPhone.
+- Pendências para o deploy: definir todas as `EXPO_PUBLIC_FIREBASE_*` (incluindo `EXPO_PUBLIC_FIREBASE_VAPID_KEY`) no Vercel e, no backend, `FIREBASE_SERVICE_ACCOUNT_JSON` e `WEB_APP_URL` (https).
+- iPhone: reinstalar o PWA na Tela de Início, abrir pelo ícone e ativar no perfil. Se a permissão já foi negada, reative nos Ajustes do iOS.
