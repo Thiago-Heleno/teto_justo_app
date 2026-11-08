@@ -42,7 +42,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
   const [perfil, setPerfil] = useState<Perfil>();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
-  const [novaFoto, setNovaFoto] = useState<string>();
+  const [novaFoto, setNovaFoto] = useState<string | null>();
   const [errosCampos, setErrosCampos] = useState<ErrosCadastro>({});
   const [erro, setErro] = useState<string>();
   const [aviso, setAviso] = useState<string>();
@@ -105,6 +105,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
     }
   }
 
+  const fotoExibida = novaFoto === undefined ? perfil?.foto : novaFoto;
   const alterado =
     perfil !== undefined &&
     (nome.trim() !== perfil.nome ||
@@ -226,11 +227,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
 
           {perfil && (
             <>
-              <Avatar
-                nome={perfil.nome}
-                foto={novaFoto ?? perfil.foto}
-                tamanho={64}
-              />
+              <Avatar nome={perfil.nome} foto={fotoExibida} tamanho={64} />
               <Pressable
                 accessibilityRole="button"
                 disabled={ocupado}
@@ -239,6 +236,22 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
               >
                 <Text style={styles.buttonText}>Escolher foto</Text>
               </Pressable>
+              {(fotoExibida || novaFoto === null) && (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={ocupado}
+                  onPress={() => {
+                    setNovaFoto(fotoExibida && perfil.foto ? null : undefined);
+                    setErro(undefined);
+                    setAviso(undefined);
+                  }}
+                  style={styles.button}
+                >
+                  <Text style={styles.buttonText}>
+                    {novaFoto === null ? "Desfazer remoção" : "Remover foto"}
+                  </Text>
+                </Pressable>
+              )}
               <Text style={styles.label}>Nome</Text>
               <TextInput
                 accessibilityLabel="Nome"

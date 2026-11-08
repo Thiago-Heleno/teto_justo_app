@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 
+import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
@@ -227,11 +228,6 @@ export function CalendarioTarefas({
             </Text>
           ) : (
             tarefasDoDia.map((tarefa) => {
-              const responsaveis = tarefa.usuarios_atribuidos.map(
-                (id) =>
-                  moradores.find((morador) => morador.id === id)?.nome ??
-                  "Morador indisponível",
-              );
               const horario = tarefa.data_fixa
                 ? "23:59"
                 : new Date(tarefa.data_fim).toLocaleTimeString("pt-BR", {
@@ -260,9 +256,36 @@ export function CalendarioTarefas({
                     </Text>
                   </View>
                   <Text style={styles.taskName}>{tarefa.nome}</Text>
-                  <Text style={styles.body}>
-                    Responsável: {responsaveis.join(", ") || "Sem responsável"}
-                  </Text>
+                  {tarefa.usuarios_atribuidos.length > 0 ? (
+                    <View style={styles.responsaveis}>
+                      <Text style={styles.caption}>
+                        {tarefa.usuarios_atribuidos.length === 1
+                          ? "Responsável"
+                          : "Responsáveis"}
+                      </Text>
+                      {tarefa.usuarios_atribuidos.map((id) => {
+                        const morador = moradores.find(
+                          (pessoa) => pessoa.id === id,
+                        );
+                        return (
+                          <View key={id} style={styles.pessoa}>
+                            {morador && (
+                              <Avatar
+                                nome={morador.nome}
+                                foto={morador.foto}
+                                tamanho={40}
+                              />
+                            )}
+                            <Text style={[styles.body, styles.nomePessoa]}>
+                              {morador?.nome ?? "Morador indisponível"}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={styles.body}>Sem responsável</Text>
+                  )}
                   {tarefa.descricao && (
                     <Text style={styles.body}>{tarefa.descricao}</Text>
                   )}
@@ -279,6 +302,9 @@ export function CalendarioTarefas({
 
 const styles = StyleSheet.create({
   container: { gap: Spacing.three },
+  responsaveis: { gap: Spacing.one },
+  pessoa: { flexDirection: "row", alignItems: "center", gap: Spacing.two },
+  nomePessoa: { flexShrink: 1 },
   eyebrow: { color: Caldera.obsidian, fontSize: 12, fontWeight: "500" },
   body: {
     color: Caldera.obsidian,

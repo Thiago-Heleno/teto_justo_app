@@ -535,3 +535,18 @@ test("edição do perfil envia só os campos alterados e devolve os dados novos"
   };
   assert.equal((await atualizarPerfil("morador", { nome: "Nova" })).nome, "Nova");
 });
+
+test("remove a foto do perfil com um PATCH contendo apenas foto nula", async () => {
+  sessao.setState({ token: novoToken(), pronta: true });
+  globalThis.fetch = async (url, opcoes) => {
+    assert.equal(url, "http://api.test/usuarios/morador");
+    assert.equal(opcoes.method, "PATCH");
+    assert.deepEqual(JSON.parse(opcoes.body), { foto: null });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "morador", nome: "Ana", foto: null }),
+    };
+  };
+  assert.equal((await atualizarPerfil("morador", { foto: null })).foto, null);
+});

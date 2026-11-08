@@ -184,6 +184,17 @@ class TesteBuscarUsuarioUnitario(unittest.TestCase):
 # informados mudam), erro 400 quando nenhum dado é enviado e erro 404 quando
 # o usuário não existe.
 class TesteAtualizarUsuarioUnitario(unittest.TestCase):
+    def test_remover_foto_preserva_os_outros_dados_do_usuario(self):
+        banco = BancoMemoria()
+        usuario_id = uuid4()
+        anterior = {"id": str(usuario_id), "nome": "Ana", "foto": "\\xffd8ff"}
+        banco.usuarios[str(usuario_id)] = anterior.copy()
+        servico = ServicoUsuario(banco)
+
+        servico.atualizar_usuario(usuario_id, UsuarioAtualizar(foto=None, nome=None))
+
+        self.assertEqual(servico.buscar_usuario(usuario_id), {**anterior, "foto": None})
+
     def test_atualizacao_grava_bytes_da_foto(self):
         banco = BancoMemoria()
         usuario_id = uuid4()
@@ -213,6 +224,7 @@ class TesteAtualizarUsuarioUnitario(unittest.TestCase):
             "nome": "Ana",
             "email": "ana@example.com",
             "telefone": None,
+            "foto": "\\xffd8ff",
         }
         servico = ServicoUsuario(banco)
         dados = UsuarioAtualizar(nome="Ana Paula")
@@ -220,6 +232,7 @@ class TesteAtualizarUsuarioUnitario(unittest.TestCase):
         atualizado = servico.atualizar_usuario(id_usuario, dados)
 
         self.assertEqual(atualizado["nome"], "Ana Paula")
+        self.assertEqual(atualizado["foto"], "\\xffd8ff")
         self.assertEqual(atualizado["email"], "ana@example.com")
 
     # UsuarioAtualizar() sem nenhum campo preenchido deve ser rejeitado com 400,

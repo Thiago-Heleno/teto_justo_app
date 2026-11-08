@@ -4,7 +4,9 @@ from binascii import Error
 from fastapi import HTTPException
 
 
-def foto_para_banco(foto: str) -> str:
+def foto_para_banco(foto: str | None) -> str | None:
+    if foto is None:
+        return None
     try:
         conteudo = b64decode(foto, validate=True)
     except (Error, ValueError) as erro:

@@ -11,8 +11,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
+import { listarMoradoresCasa } from "@/services/casas-api";
 import {
   carregarExtrato,
   carregarPlacar,
@@ -34,6 +36,9 @@ const dataHora = new Intl.DateTimeFormat("pt-BR", {
 
 export default function PontuacaoScreen() {
   const [placar, setPlacar] = useState<Placar>();
+  const [fotos, setFotos] = useState<Map<string, string | null | undefined>>(
+    new Map(),
+  );
   const [usuarioId, setUsuarioId] = useState<string>();
   const [extrato, setExtrato] = useState<Extrato>();
   const [periodo, setPeriodo] = useState<PeriodoPlacar>("semanal");
@@ -63,6 +68,14 @@ export default function PontuacaoScreen() {
           setPlacar(dadosPlacar);
           setUsuarioId(usuario?.id);
           setExtrato(dadosExtrato);
+          void listarMoradoresCasa(dadosPlacar.casa_id, controlador.signal)
+            .then((moradores) => {
+              if (!controlador.signal.aborted)
+                setFotos(new Map(moradores.map((m) => [m.id, m.foto])));
+            })
+            .catch(() => {
+              if (!controlador.signal.aborted) setFotos(new Map());
+            });
         })
         .catch((falha: unknown) => {
           if (!controlador.signal.aborted) {
@@ -210,6 +223,11 @@ export default function PontuacaoScreen() {
                     >
                       <Text style={styles.body}>{morador.posicao}º</Text>
                     </View>
+                    <Avatar
+                      nome={morador.nome}
+                      foto={fotos.get(morador.usuario_id)}
+                      tamanho={40}
+                    />
                     <Text style={[styles.name, styles.residentName]}>
                       {morador.nome}
                       {morador.usuario_id === usuarioId ? " · Você" : ""}

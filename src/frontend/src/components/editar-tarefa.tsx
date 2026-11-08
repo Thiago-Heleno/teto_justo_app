@@ -2,6 +2,7 @@ import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
 
+import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import {
   pesosTarefa,
@@ -216,6 +217,7 @@ export function EditarTarefa({
               <MotionPressable
                 accessibilityRole="radio"
                 accessibilityState={{ checked: responsavel === morador.id }}
+                accessibilityLabel={morador.nome}
                 key={morador.id}
                 onPress={() => {
                   setResponsavel(morador.id);
@@ -223,10 +225,14 @@ export function EditarTarefa({
                 }}
                 style={[
                   styles.option,
+                  styles.opcaoMorador,
                   responsavel === morador.id && styles.selected,
                 ]}
               >
-                <Text style={styles.optionText}>{morador.nome}</Text>
+                <Avatar nome={morador.nome} foto={morador.foto} tamanho={40} />
+                <Text style={[styles.optionText, { flexShrink: 1 }]}>
+                  {morador.nome}
+                </Text>
               </MotionPressable>
             ))}
           </View>
@@ -306,6 +312,12 @@ const styles = StyleSheet.create({
     borderRadius: 800,
     paddingHorizontal: Spacing.three,
     paddingVertical: 10,
+  },
+  opcaoMorador: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    maxWidth: "100%",
   },
   selected: { backgroundColor: Caldera.ember },
   optionText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },

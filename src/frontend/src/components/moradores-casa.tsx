@@ -2,6 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
 
+import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
@@ -122,6 +123,7 @@ export function MoradoresCasa({
       )}
       {moradores?.map((morador) => (
         <View key={morador.id} style={styles.row}>
+          <Avatar nome={morador.nome} foto={morador.foto} tamanho={48} />
           <View style={styles.identity}>
             <Text style={styles.name}>{morador.nome}</Text>
             <Text style={styles.role}>

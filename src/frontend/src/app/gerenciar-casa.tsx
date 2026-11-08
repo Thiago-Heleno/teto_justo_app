@@ -29,6 +29,7 @@ export default function GerenciarCasaScreen() {
   const [detalhes, setDetalhes] = useState(false);
   const [aviso, setAviso] = useState<string>();
   const casa = g.dados?.casa;
+  const fotoExibida = edicao?.foto === undefined ? casa?.foto : edicao.foto;
 
   async function escolherFoto() {
     if (!edicao || !casa) return;
@@ -121,11 +122,7 @@ export default function GerenciarCasaScreen() {
         {casa && (
           <>
             <View style={styles.card}>
-              <Avatar
-                nome={casa.nome}
-                foto={edicao?.foto ?? casa.foto}
-                tamanho={64}
-              />
+              <Avatar nome={casa.nome} foto={fotoExibida} tamanho={64} />
               <Text style={styles.subtitle}>{casa.nome}</Text>
               <Text style={styles.text}>{casa.endereco}</Text>
               <Text style={styles.text}>Fuso: {casa.timezone}</Text>
@@ -167,6 +164,21 @@ export default function GerenciarCasaScreen() {
                   disabled={g.ocupado}
                   onPress={escolherFoto}
                 />
+                {(fotoExibida || edicao.foto === null) && (
+                  <Acao
+                    texto={
+                      edicao.foto === null ? "Desfazer remoção" : "Remover foto"
+                    }
+                    disabled={g.ocupado}
+                    onPress={() => {
+                      setEdicao({
+                        ...edicao,
+                        foto: fotoExibida && casa.foto ? null : undefined,
+                      });
+                      g.setErro(undefined);
+                    }}
+                  />
+                )}
                 <Text style={styles.label}>Nome</Text>
                 <TextInput
                   accessibilityLabel="Nome da casa"
