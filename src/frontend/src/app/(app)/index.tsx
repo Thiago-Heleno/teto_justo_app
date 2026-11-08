@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   },
   housePhotoShade: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   houseLabel: { color: Caldera.chalk, fontSize: 14, fontWeight: "500" },
   houseName: {
