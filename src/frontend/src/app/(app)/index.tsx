@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { Link, useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
@@ -26,11 +27,14 @@ import {
   trocarCasa,
 } from "@/services/sessao-store";
 import { carregarUsuarioAtual } from "@/services/tarefas-api";
+import { uriFoto } from "@/utils/foto";
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const telaPequena = width < 600;
   const casa = useStore(sessao, (estado) => estado.casaAtiva);
+  const fotoCasa = casa?.foto ? uriFoto(casa.foto) : null;
+  const [fotoComErro, setFotoComErro] = useState<string>();
   const [erro, setErro] = useState<string>();
   const [usuarioId, setUsuarioId] = useState<string>();
   const [erroIdentidade, setErroIdentidade] = useState(false);
@@ -149,6 +153,17 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
+
+          {casa && fotoCasa && fotoCasa !== fotoComErro && (
+            <Image
+              key={fotoCasa}
+              accessibilityLabel={`Foto da casa ${casa.nome}`}
+              contentFit="cover"
+              source={{ uri: fotoCasa }}
+              onError={() => setFotoComErro(fotoCasa)}
+              style={[styles.banner, telaPequena && styles.bannerSmall]}
+            />
+          )}
 
           <View style={[styles.card, telaPequena && styles.cardSmall]}>
             <Text accessibilityRole="header" style={styles.sectionTitle}>
@@ -359,6 +374,8 @@ const styles = StyleSheet.create({
   },
   hero: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
   heroSmall: { flexDirection: "column", flexWrap: "nowrap" },
+  banner: { width: "100%", height: 220, borderRadius: 24 },
+  bannerSmall: { height: 144 },
   heroCopy: {
     flexGrow: 1,
     flexShrink: 1,

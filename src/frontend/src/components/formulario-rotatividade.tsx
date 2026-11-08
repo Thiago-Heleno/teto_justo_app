@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, Switch, Text, TextInput, View } from "react-native";
 
+import { Avatar } from "@/components/avatar";
 import { Acao, styles } from "@/components/gerenciamento-ui";
 import {
   diasSemanaTarefa,
@@ -253,6 +254,7 @@ export function FormularioRotatividade({
               disabled={ocupado}
               style={[
                 styles.button,
+                styles.row,
                 participantes.includes(m.id) && { backgroundColor: "#fc5000" },
               ]}
               onPress={() =>
@@ -263,6 +265,7 @@ export function FormularioRotatividade({
                 )
               }
             >
+              <Avatar nome={m.nome} foto={m.foto} tamanho={40} />
               <Text style={styles.buttonText}>{m.nome}</Text>
             </Pressable>
           ))}

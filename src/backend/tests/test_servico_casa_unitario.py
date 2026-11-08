@@ -319,6 +319,20 @@ def test_atualizar_casa_converte_nova_foto(servico, consulta, id_casa, id_usuari
     assert resultado["foto"] == nova_foto_base64
 
 
+def test_remover_foto_da_casa_altera_apenas_a_foto(
+    servico, consulta, id_casa, id_usuario, registro_casa
+):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}]),
+        SimpleNamespace(data=[{**registro_casa, "foto": None}]),
+    ]
+
+    resultado = servico.atualizar_casa(id_casa, CasaAtualizar(foto=None, nome=None), id_usuario)
+
+    consulta.update.assert_called_once_with({"foto": None})
+    assert resultado["foto"] is None
+
+
 def test_atualizar_fuso_da_casa(servico, consulta, id_casa, id_usuario, registro_casa):
     atualizado = {**registro_casa, "timezone": "UTC"}
     consulta.execute.side_effect = [

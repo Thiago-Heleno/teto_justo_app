@@ -85,6 +85,13 @@ test("envia a foto selecionada na edição da casa", async () => {
   ]);
 });
 
+test("remove a foto da casa com um PATCH contendo apenas foto nula", async () => {
+  await casas.atualizarCasa("c", { foto: null });
+  assert.deepEqual(chamadas, [
+    ["/casas/c", undefined, { method: "PATCH", body: { foto: null } }],
+  ]);
+});
+
 for (const status of [401, 403, 409, 422])
   test(`preserva erro ${status} do backend para exibição`, async () => {
     falha = Object.assign(new Error("Validação do backend"), {

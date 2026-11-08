@@ -169,15 +169,14 @@ class ServicoCasa:
             exclude_unset=True,
             exclude_none=True,
         )
+        if "foto" in dados_casa.model_fields_set:
+            dados["foto"] = foto_para_banco(dados_casa.foto)
 
         if not dados:
             raise HTTPException(
                 status_code=400,
                 detail="Nenhum dado para atualização.",
             )
-
-        if "foto" in dados:
-            dados["foto"] = foto_para_banco(dados["foto"])
 
         resposta = self.supabase.table("casa").update(dados).eq("id", str(id_casa)).execute()
 

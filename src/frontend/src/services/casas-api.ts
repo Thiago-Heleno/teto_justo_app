@@ -112,7 +112,7 @@ export function casaInicial(casas: Casa[], preferidaId: string | null) {
 }
 
 export type CasaAtualizar = Pick<Casa, "nome" | "endereco" | "timezone"> & {
-  foto?: string;
+  foto?: Casa["foto"];
 };
 
 export function carregarCasa(casaId: string, signal?: AbortSignal) {

@@ -30,7 +30,7 @@ class ServicoUsuario:
             "email": dados.email,
             "telefone": dados.telefone,
             "senha_hash": self._hash_senha(dados.senha),
-            "foto": foto_para_banco(dados.foto) if dados.foto is not None else None,
+            "foto": foto_para_banco(dados.foto),
             "usuario_tipo": dados.usuario_tipo,
         }
 
@@ -50,15 +50,12 @@ class ServicoUsuario:
         return busca.data[0]
 
     def atualizar_usuario(self, id_usuario: UUID, dados: UsuarioAtualizar):  # Voltou UUID
-        dados_limpos = {
-            k: v for k, v in dados.model_dump(exclude_unset=True).items() if v is not None
-        }
+        dados_limpos = dados.model_dump(exclude_unset=True, exclude_none=True)
+        if "foto" in dados.model_fields_set:
+            dados_limpos["foto"] = foto_para_banco(dados.foto)
 
         if not dados_limpos:
             raise HTTPException(status_code=400, detail="Nenhum dado para atualização.")
-
-        if "foto" in dados_limpos:
-            dados_limpos["foto"] = foto_para_banco(dados_limpos["foto"])
 
         if "email" in dados_limpos:
             duplicado = (
