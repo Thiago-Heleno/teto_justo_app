@@ -271,6 +271,13 @@ export default function PontuacaoScreen() {
                         }
                         style={styles.eventRow}
                       >
+                        {nome && (
+                          <Avatar
+                            nome={nome}
+                            foto={fotos.get(evento.fk_usuario_id)}
+                            tamanho={40}
+                          />
+                        )}
                         <View style={styles.residentCopy}>
                           <Text style={styles.name}>
                             {evento.tipo === "reversal"

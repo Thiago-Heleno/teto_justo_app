@@ -140,6 +140,19 @@ export default function HomeScreen() {
             </View>
             {casa && (
               <View style={[styles.houseCard, telaPequena && styles.cardSmall]}>
+                {fotoCasa && fotoCasa !== fotoComErro && (
+                  <>
+                    <Image
+                      key={fotoCasa}
+                      accessible={false}
+                      contentFit="cover"
+                      source={{ uri: fotoCasa }}
+                      onError={() => setFotoComErro(fotoCasa)}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <View pointerEvents="none" style={styles.housePhotoShade} />
+                  </>
+                )}
                 <Text style={styles.houseLabel}>VOCÊ ESTÁ EM</Text>
                 <Text
                   style={[
@@ -153,17 +166,6 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-
-          {casa && fotoCasa && fotoCasa !== fotoComErro && (
-            <Image
-              key={fotoCasa}
-              accessibilityLabel={`Foto da casa ${casa.nome}`}
-              contentFit="cover"
-              source={{ uri: fotoCasa }}
-              onError={() => setFotoComErro(fotoCasa)}
-              style={[styles.banner, telaPequena && styles.bannerSmall]}
-            />
-          )}
 
           <View style={[styles.card, telaPequena && styles.cardSmall]}>
             <Text accessibilityRole="header" style={styles.sectionTitle}>
@@ -374,8 +376,6 @@ const styles = StyleSheet.create({
   },
   hero: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.four },
   heroSmall: { flexDirection: "column", flexWrap: "nowrap" },
-  banner: { width: "100%", height: 220, borderRadius: 24 },
-  bannerSmall: { height: 144 },
   heroCopy: {
     flexGrow: 1,
     flexShrink: 1,
@@ -405,9 +405,14 @@ const styles = StyleSheet.create({
     flexBasis: 280,
     minWidth: 0,
     borderRadius: 40,
+    overflow: "hidden",
     backgroundColor: Caldera.ember,
     padding: Spacing.five,
     gap: Spacing.three,
+  },
+  housePhotoShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   houseLabel: { color: Caldera.chalk, fontSize: 14, fontWeight: "500" },
   houseName: {
