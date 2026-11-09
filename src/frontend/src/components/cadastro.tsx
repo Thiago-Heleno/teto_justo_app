@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { ArrowLeft, UserPlus } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
@@ -257,7 +258,10 @@ export function CadastroScreen({
               {enviando ? (
                 <ActivityIndicator color={Caldera.chalk} />
               ) : (
-                <Text style={styles.buttonText}>Criar conta</Text>
+                <>
+                  <UserPlus color={Caldera.chalk} size={18} />
+                  <Text style={styles.buttonText}>Criar conta</Text>
+                </>
               )}
             </Pressable>
             <Pressable
@@ -268,6 +272,7 @@ export function CadastroScreen({
               onPress={() => onVoltar(email.trim())}
               style={styles.backButton}
             >
+              <ArrowLeft color={Caldera.obsidian} size={18} />
               <Text style={styles.backButtonText}>Já tenho conta</Text>
             </Pressable>
           </View>
@@ -314,10 +319,20 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
     marginTop: 12,
   },
   buttonText: { color: Caldera.chalk, fontWeight: "700", fontSize: 16 },
-  backButton: { alignItems: "center", padding: 16, marginTop: 8 },
+  backButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    padding: 16,
+    marginTop: 8,
+  },
   backButtonText: { color: Caldera.obsidian, fontWeight: "600" },
   disabled: { opacity: 0.6 },
 });

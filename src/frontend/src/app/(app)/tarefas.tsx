@@ -1,4 +1,11 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  RefreshCw,
+  SlidersHorizontal,
+} from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
@@ -397,6 +404,7 @@ export default function TarefasScreen() {
               onPress={() => setTentativa((atual) => atual + 1)}
               style={styles.retryButton}
             >
+              <RefreshCw color={Caldera.obsidian} size={18} />
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
             </MotionPressable>
           )}
@@ -446,6 +454,7 @@ export default function TarefasScreen() {
               onPress={() => setTentativa((atual) => atual + 1)}
               style={styles.retryButton}
             >
+              <RefreshCw color={Caldera.obsidian} size={18} />
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
             </MotionPressable>
           </View>
@@ -463,6 +472,7 @@ export default function TarefasScreen() {
               onPress={() => setTentativa((atual) => atual + 1)}
               style={styles.retryButton}
             >
+              <RefreshCw color={Caldera.obsidian} size={18} />
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
             </MotionPressable>
           </View>
@@ -565,6 +575,7 @@ export default function TarefasScreen() {
                     onPress={() => setTentativa((atual) => atual + 1)}
                     style={styles.retryButton}
                   >
+                    <RefreshCw color={Caldera.obsidian} size={18} />
                     <Text style={styles.retryButtonText}>
                       {atualizando ? "Atualizando…" : "Atualizar"}
                     </Text>
@@ -584,9 +595,15 @@ export default function TarefasScreen() {
                 onPress={() => setFiltrosAbertos((aberto) => !aberto)}
                 style={styles.filtersToggle}
               >
+                <SlidersHorizontal color={Caldera.obsidian} size={18} />
                 <Text style={styles.filterPillText}>
-                  {`Filtros${filtrosAtivos ? ` (${quantidadeFiltros})` : ""} ${filtrosAbertos ? "▴" : "▾"}`}
+                  {`Filtros${filtrosAtivos ? ` (${quantidadeFiltros})` : ""}`}
                 </Text>
+                {filtrosAbertos ? (
+                  <ChevronUp color={Caldera.obsidian} size={18} />
+                ) : (
+                  <ChevronDown color={Caldera.obsidian} size={18} />
+                )}
               </MotionPressable>
               {filtrosAbertos && (
                 <View
@@ -793,7 +810,10 @@ export default function TarefasScreen() {
                           </View>
                         </View>
 
-                        <Text style={styles.detailsLink}>Ver detalhes →</Text>
+                        <View style={styles.detailsRow}>
+                          <Text style={styles.detailsLink}>Ver detalhes</Text>
+                          <ChevronRight color={Caldera.obsidian} size={18} />
+                        </View>
                       </MotionPressable>
                     </Animated.View>
                   );
@@ -826,6 +846,7 @@ export default function TarefasScreen() {
                 }
                 style={[styles.retryButton, styles.loadMoreButton]}
               >
+                <ChevronDown color={Caldera.obsidian} size={18} />
                 <Text style={styles.retryButtonText}>Carregar mais</Text>
               </MotionPressable>
             )}
@@ -911,7 +932,10 @@ const styles = StyleSheet.create({
   },
   filtersSection: { gap: Spacing.three },
   filtersToggle: {
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.two,
     minHeight: 44,
     justifyContent: "center",
     borderWidth: 1.5,
@@ -1024,6 +1048,7 @@ const styles = StyleSheet.create({
   },
   metaValue: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   avatars: { flexDirection: "row", flexWrap: "wrap", maxWidth: "100%" },
+  detailsRow: { flexDirection: "row", alignItems: "center", gap: Spacing.one },
   detailsLink: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   emptyCard: {
     backgroundColor: Caldera.limestone,
@@ -1051,6 +1076,9 @@ const styles = StyleSheet.create({
   },
   pageNotice: { width: "100%", maxWidth: 1280, alignSelf: "center" },
   retryButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.two,
     backgroundColor: Caldera.ember,
     borderRadius: 800,
     paddingHorizontal: Spacing.four,
@@ -1058,7 +1086,10 @@ const styles = StyleSheet.create({
   },
   retryButtonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   loadMoreButton: {
+    alignItems: "center",
     alignSelf: "center",
+    flexDirection: "row",
+    gap: Spacing.two,
     minHeight: 44,
     justifyContent: "center",
   },

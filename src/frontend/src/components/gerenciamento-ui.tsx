@@ -1,12 +1,15 @@
+import { Check, X, type LucideIcon } from "lucide-react-native";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Caldera, CompactFont } from "@/constants/theme";
 
 export function Acao({
   texto,
+  icone: Icone,
   onPress,
   disabled = false,
 }: {
   texto: string;
+  icone?: LucideIcon;
   onPress: () => void;
   disabled?: boolean;
 }) {
@@ -18,6 +21,7 @@ export function Acao({
       onPress={onPress}
       style={[styles.button, disabled && { opacity: 0.5 }]}
     >
+      {Icone && <Icone color={Caldera.obsidian} size={18} />}
       <Text style={styles.buttonText}>{texto}</Text>
     </Pressable>
   );
@@ -46,8 +50,14 @@ export function ConfirmarAcao({
         <View accessibilityViewIsModal style={styles.modal}>
           <Text style={styles.text}>{mensagem}</Text>
           <View style={styles.row}>
-            <Acao texto="Cancelar" disabled={ocupado} onPress={onCancelar} />
             <Acao
+              texto="Cancelar"
+              icone={X}
+              disabled={ocupado}
+              onPress={onCancelar}
+            />
+            <Acao
+              icone={Check}
               texto={ocupado ? "Aguarde…" : "Confirmar"}
               disabled={ocupado}
               onPress={onConfirmar}
@@ -103,6 +113,9 @@ export const styles = StyleSheet.create({
     borderColor: Caldera.obsidian,
     padding: 14,
     alignSelf: "flex-start",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   buttonText: { color: Caldera.obsidian, fontWeight: "700" },
   error: { color: "#a32316", fontSize: 16 },

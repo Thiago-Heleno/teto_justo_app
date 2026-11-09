@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Copy, RefreshCw, UserPlus, X } from "lucide-react-native";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
@@ -130,6 +131,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
         onPress={() => void gerar()}
         style={[styles.button, styles.primaryButton]}
       >
+        <UserPlus color={Caldera.obsidian} size={18} />
         <Text style={styles.buttonText}>Convidar morador</Text>
       </MotionPressable>
     );
@@ -178,6 +180,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
               onPress={() => void copiar()}
               style={[styles.button, styles.primaryButton]}
             >
+              <Copy color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>
                 {copiando ? "Copiando…" : "Copiar convite"}
               </Text>
@@ -202,6 +205,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
             onPress={() => void gerar()}
             style={styles.button}
           >
+            <RefreshCw color={Caldera.obsidian} size={18} />
             <Text style={styles.buttonText}>
               {expirado ? "Gerar novo convite" : "Tentar novamente"}
             </Text>
@@ -212,6 +216,7 @@ function EmissaoConvite({ casa }: { casa: Casa }) {
           onPress={fechar}
           style={styles.button}
         >
+          <X color={Caldera.obsidian} size={18} />
           <Text style={styles.buttonText}>Fechar convite</Text>
         </MotionPressable>
       </View>
@@ -252,7 +257,10 @@ const styles = StyleSheet.create({
   },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   button: {
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.two,
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,

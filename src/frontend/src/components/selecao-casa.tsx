@@ -7,6 +7,14 @@ import {
   Text,
   View,
 } from "react-native";
+import {
+  ArrowRight,
+  Plus,
+  RefreshCw,
+  Ticket,
+  User,
+  LogOut,
+} from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
@@ -190,7 +198,10 @@ function SelecaoCasa({
               <Avatar nome={casa.nome} foto={casa.foto} tamanho={48} />
               <Text style={styles.houseName}>{casa.nome}</Text>
               <Text style={styles.description}>{casa.endereco}</Text>
-              <Text style={styles.enter}>Entrar nesta casa →</Text>
+              <View style={styles.enterRow}>
+                <Text style={styles.enter}>Entrar nesta casa</Text>
+                <ArrowRight color={Caldera.obsidian} size={18} />
+              </View>
             </Pressable>
           ))}
 
@@ -213,6 +224,7 @@ function SelecaoCasa({
                 ocupado && styles.dimmed,
               ]}
             >
+              <Plus color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>Criar casa</Text>
             </Pressable>
             <Pressable
@@ -222,6 +234,7 @@ function SelecaoCasa({
               onPress={onEntrar}
               style={[styles.button, ocupado && styles.dimmed]}
             >
+              <Ticket color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>Entrar por convite</Text>
             </Pressable>
             {!carregando && (
@@ -232,6 +245,7 @@ function SelecaoCasa({
                 onPress={atualizar}
                 style={[styles.button, ocupado && styles.dimmed]}
               >
+                <RefreshCw color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>
                   {casas === null ? "Tentar novamente" : "Atualizar lista"}
                 </Text>
@@ -244,6 +258,7 @@ function SelecaoCasa({
               onPress={onPerfil}
               style={[styles.button, ocupado && styles.dimmed]}
             >
+              <User color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>Meu perfil</Text>
             </Pressable>
             <Pressable
@@ -253,6 +268,7 @@ function SelecaoCasa({
               onPress={() => void executar(sair)}
               style={[styles.button, ocupado && styles.dimmed]}
             >
+              <LogOut color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>Sair da conta</Text>
             </Pressable>
           </View>
@@ -283,9 +299,18 @@ const styles = StyleSheet.create({
   },
   houseButton: { borderWidth: 1, borderColor: Caldera.obsidian },
   houseName: { color: Caldera.obsidian, fontSize: 23, fontWeight: "700" },
-  enter: { color: Caldera.obsidian, fontWeight: "700", marginTop: 8 },
+  enter: { color: Caldera.obsidian, fontWeight: "700" },
+  enterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   button: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
     borderWidth: 1,
     borderColor: Caldera.obsidian,
     borderRadius: 24,

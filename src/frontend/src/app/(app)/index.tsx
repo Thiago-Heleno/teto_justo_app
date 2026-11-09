@@ -1,5 +1,14 @@
 import { Image } from "expo-image";
 import { Link, useFocusEffect } from "expo-router";
+import {
+  ArrowLeftRight,
+  Info,
+  ListChecks,
+  LogOut,
+  Repeat,
+  Settings,
+  UserMinus,
+} from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import {
   Modal,
@@ -183,7 +192,8 @@ export default function HomeScreen() {
                     styles.primaryButton,
                   ])}
                 >
-                  <Text style={styles.buttonText}>Ver tarefas →</Text>
+                  <ListChecks color={Caldera.obsidian} size={18} />
+                  <Text style={styles.buttonText}>Ver tarefas</Text>
                 </MotionPressable>
               </Link>
               <Link href="/gerenciar-casa" asChild>
@@ -196,6 +206,7 @@ export default function HomeScreen() {
                     ocupado && styles.disabled,
                   ])}
                 >
+                  <Settings color={Caldera.obsidian} size={18} />
                   <Text style={styles.buttonText}>Gerenciar casa</Text>
                 </MotionPressable>
               </Link>
@@ -209,6 +220,7 @@ export default function HomeScreen() {
                     ocupado && styles.disabled,
                   ])}
                 >
+                  <Repeat color={Caldera.obsidian} size={18} />
                   <Text style={styles.buttonText}>Regras de rodízio</Text>
                 </MotionPressable>
               </Link>
@@ -218,6 +230,7 @@ export default function HomeScreen() {
                   onPress={() => setDetalhesAbertos(true)}
                   style={styles.button}
                 >
+                  <Info color={Caldera.obsidian} size={18} />
                   <Text style={styles.buttonText}>Detalhes da casa</Text>
                 </MotionPressable>
               )}
@@ -278,6 +291,7 @@ export default function HomeScreen() {
                 onPress={trocarCasa}
                 style={[styles.button, ocupado && styles.disabled]}
               >
+                <ArrowLeftRight color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>Trocar de casa</Text>
               </MotionPressable>
               {podeSairDaCasa && (
@@ -288,6 +302,7 @@ export default function HomeScreen() {
                   onPress={() => setConfirmacaoAberta(true)}
                   style={[styles.button, ocupado && styles.disabled]}
                 >
+                  <UserMinus color={Caldera.obsidian} size={18} />
                   <Text style={styles.buttonText}>Sair desta casa</Text>
                 </MotionPressable>
               )}
@@ -298,6 +313,7 @@ export default function HomeScreen() {
                 disabled={ocupado}
                 style={[styles.button, ocupado && styles.disabled]}
               >
+                <LogOut color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>
                   {saindo ? "Saindo…" : "Sair da conta"}
                 </Text>
@@ -451,6 +467,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   button: {
     alignSelf: "flex-start",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.two,
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,

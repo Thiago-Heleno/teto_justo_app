@@ -6,6 +6,14 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from "expo-router/ui";
+import {
+  CirclePlus,
+  House,
+  ListChecks,
+  Trophy,
+  User,
+  type LucideIcon,
+} from "lucide-react-native";
 import { View, StyleSheet } from "react-native";
 
 import { ThemedText } from "./themed-text";
@@ -21,19 +29,19 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="index" href="/" asChild>
-            <TabButton>Home</TabButton>
+            <TabButton icon={House}>Home</TabButton>
           </TabTrigger>
           <TabTrigger name="nova-tarefa" href="/nova-tarefa" asChild>
-            <TabButton>Criar</TabButton>
+            <TabButton icon={CirclePlus}>Criar</TabButton>
           </TabTrigger>
           <TabTrigger name="tarefas" href="/tarefas" asChild>
-            <TabButton>Tarefas</TabButton>
+            <TabButton icon={ListChecks}>Tarefas</TabButton>
           </TabTrigger>
           <TabTrigger name="pontuacao" href="/pontuacao" asChild>
-            <TabButton>Pontuação</TabButton>
+            <TabButton icon={Trophy}>Pontuação</TabButton>
           </TabTrigger>
           <TabTrigger name="perfil" href="/perfil" asChild>
-            <TabButton>Perfil</TabButton>
+            <TabButton icon={User}>Perfil</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -43,9 +51,10 @@ export default function AppTabs() {
 
 export function TabButton({
   children,
+  icon: Icon,
   isFocused,
   ...props
-}: TabTriggerSlotProps) {
+}: TabTriggerSlotProps & { icon: LucideIcon }) {
   return (
     <MotionPressable {...props} style={undefined}>
       <ThemedView
@@ -54,6 +63,7 @@ export function TabButton({
           isFocused && styles.tabButtonViewSelected,
         ]}
       >
+        <Icon color={Caldera.obsidian} size={16} />
         <ThemedText type="small" style={styles.tabButtonText}>
           {children}
         </ThemedText>
@@ -92,6 +102,9 @@ const styles = StyleSheet.create({
     maxWidth: 1280,
   },
   tabButtonView: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.one,
     backgroundColor: Caldera.limestone,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,

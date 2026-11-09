@@ -1,6 +1,7 @@
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FormularioRotatividade } from "@/components/formulario-rotatividade";
@@ -94,6 +95,7 @@ export default function RotatividadesScreen() {
         )}
         <Acao
           texto="Atualizar lista"
+          icone={RefreshCw}
           disabled={g.ocupado}
           onPress={() => {
             setEdicao(null);
@@ -114,6 +116,7 @@ export default function RotatividadesScreen() {
         {g.admin && !edicao && (
           <Acao
             texto="Criar regra"
+            icone={Plus}
             disabled={g.ocupado}
             onPress={() => {
               g.setErro(undefined);
@@ -179,6 +182,7 @@ export default function RotatividadesScreen() {
                 <View style={styles.row}>
                   <Acao
                     texto={`Editar ${regra.nome}`}
+                    icone={Pencil}
                     disabled={g.ocupado || Boolean(edicao)}
                     onPress={() => {
                       g.setErro(undefined);
@@ -188,6 +192,7 @@ export default function RotatividadesScreen() {
                   />
                   <Acao
                     texto={`Remover ${regra.nome}`}
+                    icone={Trash2}
                     disabled={g.ocupado || Boolean(edicao)}
                     onPress={() => setRemover(regra)}
                   />

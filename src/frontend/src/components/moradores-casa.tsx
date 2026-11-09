@@ -1,6 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
+import { RefreshCw, UserMinus, X } from "lucide-react-native";
 
 import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
@@ -154,6 +155,7 @@ export function MoradoresCasa({
           onPress={() => setTentativa((valor) => valor + 1)}
           style={styles.button}
         >
+          <RefreshCw color={Caldera.obsidian} size={18} />
           <Text style={styles.buttonText}>
             {moradores ? "Atualizar moradores" : "Tentar novamente"}
           </Text>
@@ -184,6 +186,7 @@ export function MoradoresCasa({
                 onPress={() => setSelecionado(null)}
                 style={styles.button}
               >
+                <X color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>Cancelar</Text>
               </MotionPressable>
               <MotionPressable
@@ -193,6 +196,7 @@ export function MoradoresCasa({
                 onPress={() => void confirmarRemocao()}
                 style={styles.button}
               >
+                <UserMinus color="#a32316" size={18} />
                 <Text style={styles.error}>
                   {removendo ? "Removendo…" : "Confirmar remoção"}
                 </Text>
@@ -238,7 +242,10 @@ const styles = StyleSheet.create({
   },
   role: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   button: {
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.two,
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,

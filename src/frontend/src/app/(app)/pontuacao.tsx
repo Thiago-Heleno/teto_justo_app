@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
+import { ChevronDown, CircleHelp, RefreshCw } from "lucide-react-native";
 import {
   ActivityIndicator,
   Platform,
@@ -128,6 +129,7 @@ export default function PontuacaoScreen() {
               onPress={() => setTentativa((valor) => valor + 1)}
               style={styles.action}
             >
+              <RefreshCw color={Caldera.obsidian} size={18} />
               <Text style={styles.body}>
                 {carregando ? "Atualizando…" : "Atualizar"}
               </Text>
@@ -156,6 +158,7 @@ export default function PontuacaoScreen() {
                 onPress={() => setTentativa((valor) => valor + 1)}
                 style={styles.action}
               >
+                <RefreshCw color={Caldera.obsidian} size={18} />
                 <Text style={styles.body}>Tentar novamente</Text>
               </MotionPressable>
             </View>
@@ -173,6 +176,7 @@ export default function PontuacaoScreen() {
                   onPress={() => setAjudaAberta((aberta) => !aberta)}
                   style={styles.helpAction}
                 >
+                  <CircleHelp color={Caldera.obsidian} size={16} />
                   <Text style={styles.caption}>Como funciona</Text>
                 </MotionPressable>
               </View>
@@ -310,6 +314,7 @@ export default function PontuacaoScreen() {
                   }
                   style={styles.action}
                 >
+                  <ChevronDown color={Caldera.obsidian} size={18} />
                   <Text style={styles.body}>Ver mais</Text>
                 </MotionPressable>
               )}
@@ -385,13 +390,21 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   action: {
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.two,
     backgroundColor: Caldera.ember,
     borderRadius: 800,
     paddingHorizontal: Spacing.four,
     paddingVertical: 12,
   },
-  helpAction: { minHeight: 44, justifyContent: "center" },
+  helpAction: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.one,
+    minHeight: 44,
+  },
   pills: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   pill: {
     borderRadius: 800,

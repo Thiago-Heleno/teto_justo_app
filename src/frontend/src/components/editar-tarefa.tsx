@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
+import { Save, X } from "lucide-react-native";
 import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
 
 import { Avatar } from "@/components/avatar";
@@ -252,6 +253,7 @@ export function EditarTarefa({
             onPress={() => void salvar()}
             style={[styles.saveButton, salvando && styles.disabled]}
           >
+            <Save color={Caldera.obsidian} size={18} />
             <Text style={styles.saveText}>
               {salvando ? "Salvando..." : "Salvar alterações"}
             </Text>
@@ -262,6 +264,7 @@ export function EditarTarefa({
             onPress={onCancelar}
             style={styles.cancelButton}
           >
+            <X color={Caldera.obsidian} size={18} />
             <Text style={styles.cancelText}>Cancelar</Text>
           </MotionPressable>
         </View>
@@ -324,6 +327,9 @@ const styles = StyleSheet.create({
   errorText: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   saveButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.two,
     backgroundColor: Caldera.ember,
     borderRadius: 800,
     paddingHorizontal: Spacing.four,
@@ -332,6 +338,9 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.6 },
   saveText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   cancelButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.two,
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,

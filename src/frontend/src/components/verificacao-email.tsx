@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { MailCheck, Pencil, RotateCw } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
@@ -187,7 +188,10 @@ export function VerificacaoEmailScreen({
               {enviando ? (
                 <ActivityIndicator color={Caldera.chalk} />
               ) : (
-                <Text style={styles.buttonText}>Verificar e criar conta</Text>
+                <>
+                  <MailCheck color={Caldera.chalk} size={18} />
+                  <Text style={styles.buttonText}>Verificar e criar conta</Text>
+                </>
               )}
             </Pressable>
             <Pressable
@@ -204,6 +208,7 @@ export function VerificacaoEmailScreen({
                 (ocupadoTela || espera > 0) && styles.disabled,
               ]}
             >
+              <RotateCw color={Caldera.obsidian} size={18} />
               <Text style={styles.linkText}>
                 {reenviando
                   ? "Enviando..."
@@ -220,6 +225,7 @@ export function VerificacaoEmailScreen({
               onPress={() => onVoltar(dados.email)}
               style={styles.linkButton}
             >
+              <Pencil color={Caldera.obsidian} size={18} />
               <Text style={styles.linkText}>Corrigir meus dados</Text>
             </Pressable>
           </View>
@@ -269,10 +275,20 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
     marginTop: 12,
   },
   buttonText: { color: Caldera.chalk, fontWeight: "700", fontSize: 16 },
-  linkButton: { alignItems: "center", padding: 16, marginTop: 8 },
+  linkButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    padding: 16,
+    marginTop: 8,
+  },
   linkText: { color: Caldera.obsidian, fontWeight: "600" },
   disabled: { opacity: 0.6 },
 });

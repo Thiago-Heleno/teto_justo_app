@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { Plus, RefreshCw, Repeat } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
@@ -280,6 +281,7 @@ export default function NovaTarefaScreen() {
                       setTentativa((atual) => atual + 1);
                     }}
                   >
+                    <RefreshCw color={Caldera.obsidian} size={18} />
                     <Text style={styles.body}>Tentar novamente</Text>
                   </MotionPressable>
                 )}
@@ -382,6 +384,7 @@ export default function NovaTarefaScreen() {
                   onPress={criarOutraTarefa}
                   style={styles.button}
                 >
+                  <Plus color={Caldera.obsidian} size={18} />
                   <Text style={styles.body}>
                     {tarefa.rotatividade
                       ? "Criar outro rodízio"
@@ -920,6 +923,11 @@ export default function NovaTarefaScreen() {
                   onPress={() => void criarTarefa()}
                   style={styles.button}
                 >
+                  {rotativa ? (
+                    <Repeat color={Caldera.obsidian} size={18} />
+                  ) : (
+                    <Plus color={Caldera.obsidian} size={18} />
+                  )}
                   <Text style={styles.body}>
                     {salvando
                       ? "Criando..."
@@ -1080,6 +1088,8 @@ const styles = StyleSheet.create({
     borderRadius: 800,
     backgroundColor: Caldera.ember,
     alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.two,
     justifyContent: "center",
   },
 });

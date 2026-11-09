@@ -7,6 +7,17 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  Camera,
+  Eye,
+  EyeOff,
+  Pencil,
+  RefreshCw,
+  Save,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
@@ -116,6 +127,7 @@ export default function GerenciarCasaScreen() {
         )}
         <Acao
           texto="Atualizar dados"
+          icone={RefreshCw}
           disabled={g.ocupado}
           onPress={g.atualizar}
         />
@@ -131,6 +143,7 @@ export default function GerenciarCasaScreen() {
               </Text>
               <Acao
                 texto={detalhes ? "Ocultar detalhes" : "Ver detalhes e foto"}
+                icone={detalhes ? EyeOff : Eye}
                 disabled={g.ocupado}
                 onPress={() => setDetalhes(!detalhes)}
               />
@@ -144,6 +157,7 @@ export default function GerenciarCasaScreen() {
               {g.admin && !edicao && (
                 <Acao
                   texto="Editar casa"
+                  icone={Pencil}
                   disabled={g.ocupado}
                   onPress={() => {
                     setAviso(undefined);
@@ -161,11 +175,13 @@ export default function GerenciarCasaScreen() {
                 <Text style={styles.subtitle}>Editar casa</Text>
                 <Acao
                   texto="Escolher foto"
+                  icone={Camera}
                   disabled={g.ocupado}
                   onPress={escolherFoto}
                 />
                 {(fotoExibida || edicao.foto === null) && (
                   <Acao
+                    icone={edicao.foto === null ? Undo2 : Trash2}
                     texto={
                       edicao.foto === null ? "Desfazer remoção" : "Remover foto"
                     }
@@ -211,11 +227,13 @@ export default function GerenciarCasaScreen() {
                 <View style={styles.row}>
                   <Acao
                     texto="Salvar casa"
+                    icone={Save}
                     disabled={g.ocupado}
                     onPress={() => void salvar()}
                   />
                   <Acao
                     texto="Cancelar edição"
+                    icone={X}
                     disabled={g.ocupado}
                     onPress={() => setEdicao(null)}
                   />
@@ -233,6 +251,7 @@ export default function GerenciarCasaScreen() {
             {g.admin && (
               <Acao
                 texto="Excluir casa"
+                icone={Trash2}
                 disabled={g.ocupado}
                 onPress={() => setConfirmacao("casa")}
               />

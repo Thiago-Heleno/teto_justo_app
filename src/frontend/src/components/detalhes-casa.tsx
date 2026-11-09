@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { RefreshCw, X } from "lucide-react-native";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
@@ -68,6 +69,7 @@ export function DetalhesCasa({
           onPress={onFechar}
           style={styles.button}
         >
+          <X color={Caldera.obsidian} size={18} />
           <Text style={styles.buttonText}>Fechar</Text>
         </MotionPressable>
       </View>
@@ -94,6 +96,7 @@ export function DetalhesCasa({
             }}
             style={styles.button}
           >
+            <RefreshCw color={Caldera.obsidian} size={18} />
             <Text style={styles.buttonText}>Tentar novamente</Text>
           </MotionPressable>
         </View>
@@ -165,7 +168,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.64,
   },
   button: {
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.two,
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,

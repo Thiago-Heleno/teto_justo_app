@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { ArrowLeft, Send } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
@@ -121,7 +122,10 @@ export function RecuperarSenhaScreen({
               {enviando ? (
                 <ActivityIndicator color={Caldera.chalk} />
               ) : (
-                <Text style={styles.buttonText}>Enviar código</Text>
+                <>
+                  <Send color={Caldera.chalk} size={18} />
+                  <Text style={styles.buttonText}>Enviar código</Text>
+                </>
               )}
             </Pressable>
             <Pressable
@@ -132,6 +136,7 @@ export function RecuperarSenhaScreen({
               onPress={() => onVoltar(email.trim())}
               style={styles.linkButton}
             >
+              <ArrowLeft color={Caldera.obsidian} size={18} />
               <Text style={styles.linkText}>Voltar ao login</Text>
             </Pressable>
           </View>
@@ -177,10 +182,20 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
     marginTop: 12,
   },
   buttonText: { color: Caldera.chalk, fontWeight: "700", fontSize: 16 },
-  linkButton: { alignItems: "center", padding: 16, marginTop: 8 },
+  linkButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    padding: 16,
+    marginTop: 8,
+  },
   linkText: { color: Caldera.obsidian, fontWeight: "600" },
   disabled: { opacity: 0.6 },
 });

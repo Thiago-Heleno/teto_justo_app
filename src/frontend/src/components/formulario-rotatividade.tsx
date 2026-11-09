@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, Switch, Text, TextInput, View } from "react-native";
+import { Save, X } from "lucide-react-native";
 
 import { Avatar } from "@/components/avatar";
 import { Acao, styles } from "@/components/gerenciamento-ui";
@@ -278,11 +279,17 @@ export function FormularioRotatividade({
       )}
       <View style={styles.row}>
         <Acao
+          icone={Save}
           texto={ocupado ? "Salvando…" : "Salvar regra"}
           disabled={ocupado}
           onPress={enviar}
         />
-        <Acao texto="Cancelar" disabled={ocupado} onPress={onCancelar} />
+        <Acao
+          texto="Cancelar"
+          icone={X}
+          disabled={ocupado}
+          onPress={onCancelar}
+        />
       </View>
     </View>
   );

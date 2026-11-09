@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { ArrowLeft, DoorOpen, Ticket } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera, CompactFont } from "@/constants/theme";
@@ -190,9 +191,16 @@ export function EntrarCasa({
                   accessibilityLabel="Confirmando sua entrada"
                 />
               ) : (
-                <Text style={styles.buttonText}>
-                  {casaConfirmada ? "Abrir casa" : "Entrar na casa"}
-                </Text>
+                <>
+                  {casaConfirmada ? (
+                    <DoorOpen color={Caldera.obsidian} size={18} />
+                  ) : (
+                    <Ticket color={Caldera.obsidian} size={18} />
+                  )}
+                  <Text style={styles.buttonText}>
+                    {casaConfirmada ? "Abrir casa" : "Entrar na casa"}
+                  </Text>
+                </>
               )}
             </Pressable>
             <Pressable
@@ -202,6 +210,7 @@ export function EntrarCasa({
               onPress={onVoltar}
               style={[styles.secondaryButton, enviando && styles.dimmed]}
             >
+              <ArrowLeft color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>Voltar às casas</Text>
             </Pressable>
           </View>
@@ -244,6 +253,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 18,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
   },
   secondaryButton: {
     borderWidth: 1,
@@ -251,6 +263,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 16,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
   },
   buttonText: { color: Caldera.obsidian, fontWeight: "700", fontSize: 16 },
   dimmed: { opacity: 0.6 },

@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyRound, LogIn, UserPlus } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Caldera } from "@/constants/theme";
@@ -146,7 +147,10 @@ export function LoginScreen({
               {enviando ? (
                 <ActivityIndicator color={Caldera.chalk} />
               ) : (
-                <Text style={styles.buttonText}>Entrar</Text>
+                <>
+                  <LogIn color={Caldera.chalk} size={18} />
+                  <Text style={styles.buttonText}>Entrar</Text>
+                </>
               )}
             </Pressable>
             <Pressable
@@ -157,6 +161,7 @@ export function LoginScreen({
               onPress={() => onEsqueciSenha(email.trim())}
               style={styles.createAccountButton}
             >
+              <KeyRound color={Caldera.obsidian} size={18} />
               <Text style={styles.createAccountText}>Esqueci minha senha</Text>
             </Pressable>
             <Pressable
@@ -167,6 +172,7 @@ export function LoginScreen({
               onPress={() => onCriarConta(email.trim())}
               style={styles.createAccountButton}
             >
+              <UserPlus color={Caldera.obsidian} size={18} />
               <Text style={styles.createAccountText}>Criar conta</Text>
             </Pressable>
           </View>
@@ -210,12 +216,22 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
     marginTop: 8,
   },
   buttonText: { color: Caldera.chalk, fontWeight: "700", fontSize: 16 },
   disabled: { opacity: 0.6 },
   error: { color: "#a32316", marginBottom: 12, lineHeight: 22 },
   success: { color: "#176b39", marginBottom: 12, lineHeight: 22 },
-  createAccountButton: { alignItems: "center", padding: 16, marginTop: 8 },
+  createAccountButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    padding: 16,
+    marginTop: 8,
+  },
   createAccountText: { color: Caldera.obsidian, fontWeight: "600" },
 });

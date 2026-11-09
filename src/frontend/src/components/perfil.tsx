@@ -10,6 +10,18 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  ArrowLeft,
+  Bell,
+  BellRing,
+  Camera,
+  LogOut,
+  RefreshCw,
+  Save,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
@@ -234,6 +246,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 onPress={escolherFoto}
                 style={styles.button}
               >
+                <Camera color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>Escolher foto</Text>
               </Pressable>
               {(fotoExibida || novaFoto === null) && (
@@ -247,6 +260,11 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                   }}
                   style={styles.button}
                 >
+                  {novaFoto === null ? (
+                    <Undo2 color={Caldera.obsidian} size={18} />
+                  ) : (
+                    <Trash2 color={Caldera.obsidian} size={18} />
+                  )}
                   <Text style={styles.buttonText}>
                     {novaFoto === null ? "Desfazer remoção" : "Remover foto"}
                   </Text>
@@ -321,6 +339,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
               }}
               style={styles.button}
             >
+              <RefreshCw color={Caldera.obsidian} size={18} />
               <Text style={styles.buttonText}>Tentar novamente</Text>
             </Pressable>
           )}
@@ -340,6 +359,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 (ocupado || !alterado) && styles.dimmed,
               ]}
             >
+              <Save color={Caldera.chalk} size={18} />
               <Text style={[styles.buttonText, styles.primaryText]}>
                 Salvar alterações
               </Text>
@@ -367,6 +387,11 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 (pushAtivo || ativandoPush) && styles.dimmed,
               ]}
             >
+              {pushAtivo ? (
+                <BellRing color={Caldera.obsidian} size={18} />
+              ) : (
+                <Bell color={Caldera.obsidian} size={18} />
+              )}
               <Text style={styles.buttonText}>
                 {pushAtivo ? "Notificações ativas" : "Ativar notificações"}
               </Text>
@@ -382,6 +407,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 onPress={onVoltar}
                 style={[styles.button, ocupado && styles.dimmed]}
               >
+                <ArrowLeft color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>Voltar</Text>
               </Pressable>
             )}
@@ -393,6 +419,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 onPress={() => void sairDaConta()}
                 style={[styles.button, ocupado && styles.dimmed]}
               >
+                <LogOut color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>Sair da conta</Text>
               </Pressable>
             )}
@@ -404,6 +431,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 onPress={() => setConfirmacaoAberta(true)}
                 style={[styles.button, styles.danger, ocupado && styles.dimmed]}
               >
+                <Trash2 color="#a32316" size={18} />
                 <Text style={styles.dangerText}>Excluir conta</Text>
               </Pressable>
             )}
@@ -435,6 +463,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 onPress={() => setConfirmacaoAberta(false)}
                 style={[styles.button, ocupado && styles.dimmed]}
               >
+                <X color={Caldera.obsidian} size={18} />
                 <Text style={styles.buttonText}>Cancelar</Text>
               </Pressable>
               <Pressable
@@ -444,6 +473,7 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
                 onPress={() => void confirmarExclusao()}
                 style={[styles.button, styles.danger, ocupado && styles.dimmed]}
               >
+                <Trash2 color="#a32316" size={18} />
                 <Text style={styles.dangerText}>
                   {ocupado ? "Excluindo…" : "Excluir conta"}
                 </Text>
@@ -488,7 +518,10 @@ const styles = StyleSheet.create({
   description: { color: "#555", fontSize: 16, lineHeight: 24 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 16 },
   button: {
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: 8,
     borderWidth: 1,
     borderColor: Caldera.obsidian,
     borderRadius: 12,

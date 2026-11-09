@@ -16,7 +16,12 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { TriangleAlert } from "lucide-react-native";
+import {
+  CircleCheck,
+  Pencil,
+  RotateCcw,
+  TriangleAlert,
+} from "lucide-react-native";
 
 import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
@@ -244,6 +249,7 @@ export function DetalheTarefa({
                   onPress={onEditar}
                   style={[styles.editButton, telaPequena && styles.buttonSmall]}
                 >
+                  <Pencil color={Caldera.obsidian} size={18} />
                   <Text style={styles.editButtonText}>Editar tarefa</Text>
                 </MotionPressable>
               )}
@@ -262,6 +268,7 @@ export function DetalheTarefa({
                     finalizando && styles.finishButtonDisabled,
                   ]}
                 >
+                  <CircleCheck color={Caldera.obsidian} size={18} />
                   <Text style={styles.finishButtonText}>
                     {finalizando ? "Finalizando..." : "Finalizar tarefa"}
                   </Text>
@@ -282,6 +289,7 @@ export function DetalheTarefa({
                     reabrindo && styles.finishButtonDisabled,
                   ]}
                 >
+                  <RotateCcw color={Caldera.obsidian} size={18} />
                   <Text style={styles.editButtonText}>
                     {reabrindo ? "Reabrindo..." : "Reabrir tarefa"}
                   </Text>
@@ -514,6 +522,10 @@ const styles = StyleSheet.create({
   buttonSmall: { alignSelf: "stretch" },
   editButton: {
     maxWidth: "100%",
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.two,
     borderWidth: 1.5,
     borderColor: Caldera.obsidian,
     borderRadius: 800,
@@ -550,6 +562,10 @@ const styles = StyleSheet.create({
   },
   finishButton: {
     maxWidth: "100%",
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.two,
     backgroundColor: Caldera.ember,
     borderRadius: 800,
     paddingHorizontal: Spacing.four,

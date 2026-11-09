@@ -7,6 +7,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react-native";
 
 import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
@@ -116,7 +117,7 @@ export function CalendarioTarefas({
                 onPress={() => onSelecionarDia(`${mudarMes(mes, -1)}-01`)}
                 style={styles.arrow}
               >
-                <Text style={styles.arrowText}>‹</Text>
+                <ChevronLeft color={Caldera.obsidian} size={24} />
               </MotionPressable>
               <MotionPressable
                 accessibilityRole="button"
@@ -125,6 +126,7 @@ export function CalendarioTarefas({
                 }
                 style={styles.button}
               >
+                <CalendarDays color={Caldera.obsidian} size={18} />
                 <Text style={styles.body}>Hoje</Text>
               </MotionPressable>
               <MotionPressable
@@ -133,7 +135,7 @@ export function CalendarioTarefas({
                 onPress={() => onSelecionarDia(`${mudarMes(mes, 1)}-01`)}
                 style={styles.arrow}
               >
-                <Text style={styles.arrowText}>›</Text>
+                <ChevronRight color={Caldera.obsidian} size={24} />
               </MotionPressable>
             </View>
           </View>
@@ -320,7 +322,10 @@ const styles = StyleSheet.create({
     borderRadius: 800,
     borderWidth: 1,
     borderColor: Caldera.obsidian,
+    alignItems: "center",
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.two,
     justifyContent: "center",
   },
   layout: { gap: Spacing.four, alignItems: "stretch" },
@@ -356,7 +361,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  arrowText: { color: Caldera.obsidian, fontSize: 28, lineHeight: 32 },
   week: { flexDirection: "row" },
   weekday: {
     flex: 1,
