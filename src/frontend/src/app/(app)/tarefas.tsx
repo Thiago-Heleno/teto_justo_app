@@ -495,6 +495,7 @@ export default function TarefasScreen() {
         ) : tarefaSelecionada ? (
           <DetalheTarefa
             tarefa={tarefaSelecionada}
+            fusoDaCasa={casa.timezone}
             moradores={moradores}
             usuarioAtualId={usuarioAtual.id}
             onVoltar={() => {
@@ -795,7 +796,11 @@ export default function TarefasScreen() {
                           <View style={styles.deadline}>
                             <Text style={styles.metaLabel}>PRAZO</Text>
                             <Text style={styles.metaValue}>
-                              {formatarPrazo(tarefa.data_fim, tarefa.data_fixa)}
+                              {formatarPrazo(
+                                tarefa.data_fim,
+                                tarefa.data_fixa,
+                                casa.timezone,
+                              )}
                             </Text>
                           </View>
                           <View style={styles.avatars}>

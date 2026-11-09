@@ -32,6 +32,7 @@ import { formatarPrazo } from "@/utils/filtros-tarefa";
 
 type Props = {
   tarefa: Tarefa;
+  fusoDaCasa: string;
   moradores: Morador[];
   usuarioAtualId: string;
   onVoltar: () => void;
@@ -50,6 +51,7 @@ export type ResultadoFinalizacao = {
 
 export function DetalheTarefa({
   tarefa,
+  fusoDaCasa,
   moradores,
   usuarioAtualId,
   onVoltar,
@@ -206,7 +208,7 @@ export function DetalheTarefa({
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>PRAZO</Text>
               <Text style={styles.infoValue}>
-                {formatarPrazo(tarefa.data_fim, tarefa.data_fixa)}
+                {formatarPrazo(tarefa.data_fim, tarefa.data_fixa, fusoDaCasa)}
               </Text>
             </View>
             <View style={styles.infoCard}>

@@ -213,14 +213,18 @@ def test_criar_casa_rejeita_proprietario_informado_pelo_cliente():
         )
 
 
-def test_buscar_casa_por_id(servico, consulta, id_casa, registro_casa, foto):
-    consulta.execute.return_value = SimpleNamespace(data=[registro_casa])
+@pytest.mark.parametrize(
+    "fuso,esperado", [("America/Sao_Paulo", "America/Sao_Paulo"), ("America/Invalido", "UTC")]
+)
+def test_buscar_casa_por_id(servico, consulta, id_casa, registro_casa, foto, fuso, esperado):
+    consulta.execute.return_value = SimpleNamespace(data=[{**registro_casa, "timezone": fuso}])
 
     resultado = servico.buscar_casa(id_casa)
 
     assert resultado["id"] == registro_casa["id"]
     assert resultado["nome"] == "Casa Azul"
     assert resultado["foto"] == foto["base64"]
+    assert resultado["timezone"] == esperado
 
     consulta.select.assert_called_once_with("*")
     consulta.eq.assert_called_once_with("id", str(id_casa))

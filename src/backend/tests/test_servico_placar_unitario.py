@@ -155,8 +155,14 @@ def test_extrato_inclui_nome_da_tarefa_em_creditos_e_estornos():
     ]
 
 
-def test_placar_respeita_semana_domingo_e_virada_de_ano_no_fuso_da_casa():
-    servico, banco, casa_id, usuario_id = montar_servico()
+@pytest.mark.parametrize(
+    "fuso,esperado,semanal,mensal",
+    [("America/Sao_Paulo", "America/Sao_Paulo", 7, 15), ("America/Invalido", "UTC", 12, 17)],
+)
+def test_placar_respeita_semana_domingo_e_virada_de_ano_no_fuso_da_casa(
+    fuso, esperado, semanal, mensal
+):
+    servico, banco, casa_id, usuario_id = montar_servico(fuso=fuso)
     banco.registros["score_event"] = [
         evento(casa_id, usuario_id, "2027-01-01T02:59:59", 2),
         evento(casa_id, usuario_id, "2027-01-01T03:00:00+00:00", 3),
@@ -168,14 +174,14 @@ def test_placar_respeita_semana_domingo_e_virada_de_ano_no_fuso_da_casa():
 
     assert placar == {
         "casa_id": str(casa_id),
-        "fuso_horario": "America/Sao_Paulo",
+        "fuso_horario": esperado,
         "moradores": [
             {
                 "usuario_id": str(usuario_id),
                 "nome": "Ana",
-                "semanal": 7,
-                "mensal": 15,
-                "anual": 15,
+                "semanal": semanal,
+                "mensal": mensal,
+                "anual": mensal,
                 "acumulado": 17,
             }
         ],

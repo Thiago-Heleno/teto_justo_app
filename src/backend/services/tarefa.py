@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import BackgroundTasks, HTTPException
 from postgrest.exceptions import APIError
 
+from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.ciclo_vida_tarefa import (
@@ -48,12 +49,10 @@ class ServicoTarefa:
         resposta = self.supabase.table("casa").select("timezone").eq("id", str(id_casa)).execute()
         if not resposta.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
-        return ZoneInfo(resposta.data[0].get("timezone") or "America/Sao_Paulo")
+        return fuso_armazenado(resposta.data[0].get("timezone")) or FUSO_UTC
 
     def _fuso_tarefa(self, tarefa: dict) -> ZoneInfo:
-        if tarefa.get("timezone"):
-            return ZoneInfo(tarefa["timezone"])
-        return self._fuso_casa(tarefa["fk_casa_id"])
+        return fuso_armazenado(tarefa.get("timezone")) or self._fuso_casa(tarefa["fk_casa_id"])
 
     def _atribuir_usuarios(
         self,

@@ -10,8 +10,11 @@ import firebase_admin
 from fastapi import BackgroundTasks, HTTPException
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import FirebaseError
+from postgrest.exceptions import APIError
 
+from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.notificacao import DispositivoPushRegistrar, TicketPush
+from services.ciclo_vida_tarefa import instante_utc
 from services.score import ServicoScore
 
 
@@ -262,30 +265,15 @@ class ServicoNotificacao:
             .execute()
         )
 
-    @staticmethod
-    def _data_horaria(valor: str | datetime) -> datetime:
-        if isinstance(valor, datetime):
-            data = valor
-        else:
-            data = datetime.fromisoformat(valor.replace("Z", "+00:00"))
-        if data.tzinfo is None or data.utcoffset() is None:
-            return data.replace(tzinfo=timezone.utc)
-        return data.astimezone(timezone.utc)
-
-    def _fuso_tarefa(self, tarefa: dict) -> ZoneInfo:
-        # O fuso pertence à casa, não à tabela tarefa.
-        try:
-            resposta = (
-                self.supabase.table("casa")
-                .select("timezone")
-                .eq("id", tarefa["fk_casa_id"])
-                .execute()
-            )
-            nome_fuso = (resposta.data or [{}])[0].get("timezone")
-            return ZoneInfo(nome_fuso or "America/Sao_Paulo")
-        except Exception:
-            # Mantém o job resiliente e compatível com casas legadas.
-            return ZoneInfo("America/Sao_Paulo")
+    def _fuso_da_casa(self, id_casa: str) -> ZoneInfo:
+        resposta = (
+            self.supabase.table("casa")
+            .select("timezone")
+            .eq("id", id_casa)
+            .execute()
+        )
+        nome_fuso = (resposta.data or [{}])[0].get("timezone")
+        return fuso_armazenado(nome_fuso) or FUSO_UTC
 
     def avisar_vencimentos(self, agora: datetime | None = None) -> dict[str, int]:
         instante = agora or datetime.now(timezone.utc)
@@ -331,13 +319,18 @@ class ServicoNotificacao:
 
         resultado = {"tarefas_elegiveis": 0, "avisos_enviados": 0, "falhas": 0}
         for tarefa in tarefas_hoje:
-            data_fim = self._data_horaria(tarefa["data_fim"])
-            fuso = self._fuso_tarefa(tarefa)
+            data_fim = instante_utc(tarefa["data_fim"])
+            try:
+                fuso = self._fuso_da_casa(tarefa["fk_casa_id"])
+            except (APIError, httpx.RequestError):
+                _LOGGER.warning("Não foi possível consultar o fuso para o aviso de vencimento.")
+                resultado["falhas"] += 1
+                continue
             hoje_local = instante.astimezone(fuso).date()
             if data_fim.astimezone(fuso).date() != hoje_local:
                 continue
             data_inicio = tarefa.get("data_inicio")
-            if data_inicio and self._data_horaria(data_inicio) > instante:
+            if data_inicio and instante_utc(data_inicio) > instante:
                 continue
 
             atribuicoes = (
@@ -376,7 +369,7 @@ class ServicoNotificacao:
             resultado["falhas"] += len(envio["falhas"])
 
         for tarefa in tarefas_atrasadas:
-            data_fim = self._data_horaria(tarefa["data_fim"])
+            data_fim = instante_utc(tarefa["data_fim"])
             dias_atraso = ServicoScore.calcular_dias_atraso(data_fim, instante)
             if dias_atraso <= 0 or dias_atraso > tarefa["atraso_maximo"]:
                 continue

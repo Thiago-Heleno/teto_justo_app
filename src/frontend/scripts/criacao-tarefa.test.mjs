@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { prepararTarefa } from "../src/utils/criacao-tarefa.ts";
+import { formatarDataDigitada } from "../src/utils/data-fixa.ts";
 
 const moradores = [{ id: "ana" }, { id: "bruno" }, { id: "carla" }];
 const formulario = {
@@ -172,9 +173,26 @@ test("repetição aceita de 1 a 4 semanas sem alterar os dias nem os participant
   assert.equal(preparar({ semanas: 0 }).tarefa.rotatividade, null);
 });
 
+test("máscara de data aceita digitação, colagem e exclusão", () => {
+  let valor = "";
+  for (const digito of "29022028") {
+    valor = formatarDataDigitada(valor + digito);
+  }
+  assert.equal(valor, "29-02-2028");
+  assert.equal(formatarDataDigitada("29/02/2028"), valor);
+  assert.equal(formatarDataDigitada("2028-02-29"), valor);
+  assert.equal(formatarDataDigitada("29-02-"), "29-02");
+  assert.equal(formatarDataDigitada(""), "");
+});
+
 test("dia fixo unitário exige data válida e não altera agendamento de rodízio", () => {
-  assert.ok(preparar({ modoPrazo: "dia_fixo", dataFixa: "2026-02-30" }).erros.dataFixa);
-  assert.equal(preparar({ modoPrazo: "dia_fixo", dataFixa: "2026-10-05" }).tarefa.data_fixa, "2026-10-05");
+  for (const dataFixa of ["", "29-02-20", "31-02-2028", "29-02-2027"]) {
+    assert.ok(preparar({ modoPrazo: "dia_fixo", dataFixa }).erros.dataFixa);
+  }
+  assert.equal(
+    preparar({ modoPrazo: "dia_fixo", dataFixa: "29-02-2028" }).tarefa.data_fixa,
+    "2028-02-29",
+  );
   const rotativa = preparar({ rotativa: true, responsavel: null, participantes: ["ana", "bruno"], diasSemana: [1], modoPrazo: "dia_fixo" });
   assert.deepEqual(rotativa.erros, {});
   assert.equal(rotativa.tarefa.data_fixa, undefined);

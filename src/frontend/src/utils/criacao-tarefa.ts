@@ -6,6 +6,7 @@ import type {
   PrazoDias,
   TarefaDemonstracao,
 } from "@/constants/tarefa";
+import { dataFixaParaIso } from "./data-fixa.ts";
 
 export type FormularioTarefa = {
   nome: string;
@@ -37,17 +38,6 @@ export type ErrosCriacao = Partial<
   >
 >;
 
-function dataValida(valor: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
-  const [ano, mes, dia] = valor.split("-").map(Number);
-  const data = new Date(Date.UTC(ano, mes - 1, dia));
-  return (
-    data.getUTCFullYear() === ano &&
-    data.getUTCMonth() === mes - 1 &&
-    data.getUTCDate() === dia
-  );
-}
-
 export function prepararTarefa(
   formulario: FormularioTarefa,
   moradores: { id: string }[],
@@ -78,8 +68,10 @@ export function prepararTarefa(
     erros.atrasoMaximo = "Selecione a tolerância de 1 a 5 dias.";
   if (modoPrazo !== "intervalo" && modoPrazo !== "dia_fixo")
     erros.dataFixa = "Selecione um modo de prazo.";
-  if (!rotativa && modoPrazo === "dia_fixo" && !dataValida(dataFixa))
-    erros.dataFixa = "Informe uma data válida no formato AAAA-MM-DD.";
+  const exigeDataFixa = !rotativa && modoPrazo === "dia_fixo";
+  const dataFixaIso = exigeDataFixa ? dataFixaParaIso(dataFixa) : undefined;
+  if (exigeDataFixa && !dataFixaIso)
+    erros.dataFixa = "Informe uma data válida no formato DD-MM-AAAA.";
   if (rotativa) {
     if (![1, 2, 3, 4].includes(semanas)) {
       erros.semanas = "Selecione um intervalo de 1 a 4 semanas.";
@@ -122,7 +114,7 @@ export function prepararTarefa(
       prazo_dias: dias,
       atraso_maximo: atrasoMaximo,
       modo_prazo: modoPrazo,
-      ...(rotativa || modoPrazo !== "dia_fixo" ? {} : { data_fixa: dataFixa }),
+      ...(dataFixaIso ? { data_fixa: dataFixaIso } : {}),
       usuarios_atribuidos: [rotativa ? participantes[0] : responsavel!],
       rotatividade: rotativa
         ? {

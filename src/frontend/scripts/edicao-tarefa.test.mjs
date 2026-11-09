@@ -46,7 +46,7 @@ test("data fixa usa data local ISO somente se for alterada", () => {
   const fixa = { ...tarefa, modo_prazo: "dia_fixo", data_fixa: "2026-10-01" };
   assert.equal(
     prepararEdicaoTarefa(
-      { ...formulario, dataFixa: "2026-10-03" },
+      { ...formulario, dataFixa: "03-10-2026" },
       fixa,
       moradores,
     ).dados.data_fixa,
@@ -55,7 +55,7 @@ test("data fixa usa data local ISO somente se for alterada", () => {
   assert.equal(
     "data_fixa" in
       prepararEdicaoTarefa(
-        { ...formulario, dataFixa: "2026-10-01" },
+        { ...formulario, dataFixa: "01-10-2026" },
         fixa,
         moradores,
       ).dados,
@@ -63,7 +63,7 @@ test("data fixa usa data local ISO somente se for alterada", () => {
   );
   assert.ok(
     prepararEdicaoTarefa(
-      { ...formulario, dataFixa: "2026-02-30" },
+      { ...formulario, dataFixa: "30-02-2026" },
       fixa,
       moradores,
     ).erros.dataFixa,
@@ -78,7 +78,7 @@ test("edição de ocorrência rotativa em dia fixo envia a nova data", () => {
     data_fixa: "2026-10-01",
   };
   const resultado = prepararEdicaoTarefa(
-    { ...formulario, dataFixa: "2026-10-03" },
+    { ...formulario, dataFixa: "03-10-2026" },
     rotativa,
     moradores,
   );
