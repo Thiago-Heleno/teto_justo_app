@@ -77,6 +77,19 @@ test("edita casa sem enviar dono e remove vínculo sem excluir usuário", async 
   ]);
 });
 
+for (const politica_reclamacao of ["nenhuma", "uma_reclamacao", "votacao"]) {
+  test(`altera apenas a política da casa para ${politica_reclamacao}`, async () => {
+    await casas.atualizarCasa("c", { politica_reclamacao });
+    assert.deepEqual(chamadas, [
+      [
+        "/casas/c",
+        undefined,
+        { method: "PATCH", body: { politica_reclamacao } },
+      ],
+    ]);
+  });
+}
+
 test("envia a foto selecionada na edição da casa", async () => {
   const dados = { foto: "iVBORw0KGgo=" };
   await casas.atualizarCasa("c", dados);

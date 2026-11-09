@@ -23,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/avatar";
 import { MoradoresCasa } from "@/components/moradores-casa";
 import { DetalhesCasa } from "@/components/detalhes-casa";
+import { SeletorPoliticaReclamacao } from "@/components/seletor-politica-reclamacao";
 import { Acao, ConfirmarAcao, styles } from "@/components/gerenciamento-ui";
 import { useGerenciamentoCasa } from "@/hooks/use-gerenciamento-casa";
 import {
@@ -70,6 +71,9 @@ export default function GerenciarCasaScreen() {
         timezone: edicao.timezone,
       }),
       ...(edicao.foto !== undefined && { foto: edicao.foto }),
+      ...(edicao.politica_reclamacao !== casa.politica_reclamacao && {
+        politica_reclamacao: edicao.politica_reclamacao,
+      }),
     };
     if (!Object.keys(alteracoes).length) {
       setEdicao(null);
@@ -165,6 +169,7 @@ export default function GerenciarCasaScreen() {
                       nome: casa.nome,
                       endereco: casa.endereco,
                       timezone: casa.timezone,
+                      politica_reclamacao: casa.politica_reclamacao,
                     });
                   }}
                 />
@@ -222,6 +227,13 @@ export default function GerenciarCasaScreen() {
                   value={edicao.timezone}
                   onChangeText={(timezone) =>
                     setEdicao({ ...edicao, timezone })
+                  }
+                />
+                <SeletorPoliticaReclamacao
+                  valor={edicao.politica_reclamacao}
+                  editavel={!g.ocupado}
+                  onChange={(politica_reclamacao) =>
+                    setEdicao({ ...edicao, politica_reclamacao })
                   }
                 />
                 <View style={styles.row}>
