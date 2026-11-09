@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
 
+from core.fuso import FUSO_UTC, fuso_armazenado
+
 from schemas.rotatividade import RotatividadeAtualizar, RotatividadeCriar
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.ciclo_vida_tarefa import instante_utc, janela_dia_fixo
@@ -61,7 +63,7 @@ class ServicoAgendamentoRotatividade:
         if not resposta_casa.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
 
-        fuso = ZoneInfo(resposta_casa.data[0]["timezone"])
+        fuso = fuso_armazenado(resposta_casa.data[0].get("timezone")) or FUSO_UTC
         agora_local = datetime.now(fuso)
         payload = {
             "fk_casa_id": str(dados.fk_casa_id),

@@ -82,7 +82,7 @@ def atualizar_prazo(
         if vencimento <= instante_utc(agora):
             raise HTTPException(status_code=422, detail="A data fixa deve estar no futuro.")
         dados.update(data_inicio=inicio.isoformat(), data_fim=vencimento.isoformat())
-        if not tarefa.get("timezone"):
+        if tarefa.get("timezone") != fuso.key:
             dados["timezone"] = fuso.key
     elif "prazo_dias" in dados:
         inicio = tarefa.get("data_inicio") or tarefa.get("criado_em")

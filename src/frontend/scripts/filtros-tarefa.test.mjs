@@ -97,13 +97,19 @@ test("em aberto combina responsável e prazo incluindo pendências anteriores", 
 
 test("dia fixo mostra a data da casa sem depender do fuso do aparelho", () => {
   assert.equal(
-    formatarPrazo("2026-10-03T02:59:59Z", "2026-10-02"),
+    formatarPrazo("2026-10-03T02:59:59Z", "2026-10-02", "Asia/Tokyo"),
     "02 out. 2026, 23:59",
   );
 });
 
-test("prazo por intervalo usa o mesmo formato de data e inclui o ano", () => {
-  assert.equal(formatarPrazo("2026-10-15T12:30:00"), "15 out. 2026, 12:30");
+test("prazo por intervalo converte do UTC para o fuso da casa, inclusive na virada do dia", () => {
+  for (const data of ["2026-10-15T01:30:00", "2026-10-15T01:30:00Z"]) {
+    assert.equal(
+      formatarPrazo(data, null, "America/Sao_Paulo"),
+      "14 out. 2026, 22:30",
+    );
+    assert.equal(formatarPrazo(data, null, "UTC"), "15 out. 2026, 01:30");
+  }
 });
 
 const limites = [

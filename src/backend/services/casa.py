@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
 
+from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.casa import CasaAtualizar, CasaCriar
 from schemas.pertencer import PertencerCriar
 from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
@@ -43,7 +44,7 @@ class ServicoCasa:
             "endereco": casa["endereco"],
             "foto": self._foto_para_resposta(casa.get("foto")),
             "fk_usuario_id": casa["fk_usuario_id"],
-            "timezone": casa.get("timezone") or "America/Sao_Paulo",
+            "timezone": (fuso_armazenado(casa.get("timezone")) or FUSO_UTC).key,
             "politica_reclamacao": casa.get("politica_reclamacao") or "nenhuma",
         }
 

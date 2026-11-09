@@ -37,6 +37,7 @@ import {
   type Morador,
 } from "@/services/tarefas-api";
 import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
+import { formatarDataDigitada } from "@/utils/data-fixa";
 
 function ErroCampo({ mensagem }: { mensagem?: string }) {
   if (!mensagem) return null;
@@ -610,16 +611,16 @@ export default function NovaTarefaScreen() {
                       <>
                         <Text style={styles.body}>Data do vencimento *</Text>
                         <TextInput
-                          accessibilityLabel="Data do vencimento no formato ano, mês e dia"
+                          accessibilityLabel="Data do vencimento no formato dia, mês e ano"
                           autoCapitalize="none"
                           inputMode="numeric"
-                          placeholder="2026-10-01"
+                          placeholder="DD-MM-AAAA"
                           placeholderTextColor={Caldera.obsidian}
                           selectionColor={Caldera.ember}
                           style={styles.input}
                           value={dataFixa}
                           onChangeText={(valor) => {
-                            setDataFixa(valor);
+                            setDataFixa(formatarDataDigitada(valor));
                             setErros((atuais) => ({
                               ...atuais,
                               dataFixa: undefined,

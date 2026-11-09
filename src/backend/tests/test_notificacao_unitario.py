@@ -882,9 +882,10 @@ def test_rota_recibos_valida_corpo_antes_de_consultar_expo(
 
 
 class BancoAvisos:
-    def __init__(self, tarefas, atribuicoes):
+    def __init__(self, tarefas, atribuicoes, casas=()):
         self.tarefas = tarefas
         self.atribuicoes = atribuicoes
+        self.casas = casas
         self.antes_de_atualizar = None
 
     def table(self, nome):
@@ -933,7 +934,11 @@ class ConsultaAvisos:
         return self
 
     def execute(self):
-        origem = self.banco.tarefas if self.nome == "tarefa" else self.banco.atribuicoes
+        origem = {
+            "tarefa": self.banco.tarefas,
+            "atribuida": self.banco.atribuicoes,
+            "casa": self.banco.casas,
+        }[self.nome]
         if self.alteracao is not None and self.banco.antes_de_atualizar:
             self.banco.antes_de_atualizar()
         registros = [item for item in origem if all(filtro(item) for filtro in self.filtros)]
@@ -944,6 +949,60 @@ class ConsultaAvisos:
             inicio, fim = self.intervalo
             registros = registros[inicio : fim + 1]
         return SimpleNamespace(data=deepcopy(registros))
+
+
+@pytest.mark.parametrize(
+    "fuso,envia_aviso", [(None, True), ("America/Invalido", True), ("America/Sao_Paulo", False)]
+)
+def test_job_usa_fuso_da_casa_ou_utc_na_virada_do_dia(monkeypatch, fuso, envia_aviso):
+    agora = datetime(2026, 10, 19, 2, tzinfo=timezone.utc)
+    casa = {"id": str(uuid4()), "timezone": fuso}
+    tarefa = {
+        "id": str(uuid4()),
+        "fk_casa_id": casa["id"],
+        "data_fim": (agora + timedelta(hours=1)).isoformat(),
+        "estado_atual": "pendente",
+    }
+    banco = BancoAvisos(
+        [tarefa], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}], [casa]
+    )
+    servico = ServicoNotificacao(banco)
+    enviar = Mock(return_value={"aceitos": [{}], "falhas": []})
+    monkeypatch.setattr(servico, "enviar_push", enviar)
+
+    resultado = servico.avisar_vencimentos(agora)
+
+    assert resultado["avisos_enviados"] == int(envia_aviso)
+    assert enviar.call_count == int(envia_aviso)
+
+
+def test_job_pode_repetir_aviso_depois_de_falha_na_consulta_do_fuso(monkeypatch):
+    agora = datetime(2026, 10, 19, 2, tzinfo=timezone.utc)
+    tarefa = {
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
+        "data_fim": (agora + timedelta(hours=1)).isoformat(),
+        "estado_atual": "pendente",
+    }
+    banco = BancoAvisos([tarefa], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4())}])
+    servico = ServicoNotificacao(banco)
+    enviar = Mock(return_value={"aceitos": [{}], "falhas": []})
+    monkeypatch.setattr(servico, "enviar_push", enviar)
+    consulta_original = banco.table
+
+    def consultar(nome):
+        if nome == "casa":
+            raise httpx.ConnectError("Consulta indisponível")
+        return consulta_original(nome)
+
+    with monkeypatch.context() as falha:
+        falha.setattr(banco, "table", consultar)
+        assert servico.avisar_vencimentos(agora)["falhas"] == 1
+        assert tarefa.get("aviso_enviado_em") is None
+        enviar.assert_not_called()
+
+    assert servico.avisar_vencimentos(agora)["avisos_enviados"] == 1
+    assert tarefa["aviso_enviado_em"] == agora.isoformat()
 
 
 def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):

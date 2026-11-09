@@ -120,6 +120,7 @@ def test_edicao_de_dia_fixo_nao_depende_da_duracao(cenario, prazo_dias, alteraco
     tarefa.update(
         modo_prazo="dia_fixo",
         prazo_dias=prazo_dias,
+        timezone="America/Invalido",
         data_fim="2030-01-13T02:59:59.999999+00:00",
     )
 
@@ -127,6 +128,7 @@ def test_edicao_de_dia_fixo_nao_depende_da_duracao(cenario, prazo_dias, alteraco
 
     assert dados["data_inicio"] == "2030-01-12T03:00:00+00:00"
     assert dados["data_fim"] == "2030-01-13T02:59:59.999999+00:00"
+    assert dados["timezone"] == "America/Sao_Paulo"
 
 
 @pytest.mark.parametrize("deslocamento", [timedelta(microseconds=-1), timedelta(0)])

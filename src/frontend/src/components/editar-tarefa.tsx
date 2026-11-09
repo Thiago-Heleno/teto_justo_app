@@ -13,6 +13,7 @@ import {
 } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import type { Morador, Tarefa, TarefaAtualizar } from "@/services/tarefas-api";
+import { formatarDataDigitada } from "@/utils/data-fixa";
 import {
   prepararEdicaoTarefa,
   type ErrosEdicaoTarefa,
@@ -47,7 +48,9 @@ export function EditarTarefa({
     (tarefa.prazo_dias ?? null) as PrazoDias | null,
   );
   const [atrasoMaximo, setAtrasoMaximo] = useState(tarefa.atraso_maximo);
-  const [dataFixa, setDataFixa] = useState(tarefa.data_fixa ?? "");
+  const [dataFixa, setDataFixa] = useState(() =>
+    formatarDataDigitada(tarefa.data_fixa ?? ""),
+  );
   const [responsavel, setResponsavel] = useState(
     tarefa.usuarios_atribuidos[0] ?? "",
   );
@@ -190,18 +193,17 @@ export function EditarTarefa({
         {tarefa.modo_prazo === "dia_fixo" && (
           <View style={styles.field}>
             <Text style={styles.label}>Data do vencimento</Text>
-            <Text style={styles.help}>Use o formato AAAA-MM-DD.</Text>
             {tarefa.tipo === "rotativa" && (
               <Text style={styles.help}>
                 A alteração vale apenas para esta ocorrência do rodízio.
               </Text>
             )}
             <TextInput
-              accessibilityLabel="Data do vencimento no formato ano, mês e dia"
+              accessibilityLabel="Data do vencimento no formato dia, mês e ano"
               autoCapitalize="none"
               inputMode="numeric"
-              onChangeText={setDataFixa}
-              placeholder="2026-10-01"
+              onChangeText={(valor) => setDataFixa(formatarDataDigitada(valor))}
+              placeholder="DD-MM-AAAA"
               placeholderTextColor={Caldera.obsidian}
               selectionColor={Caldera.ember}
               style={styles.input}

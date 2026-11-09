@@ -1,5 +1,6 @@
 import type { PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { Tarefa, TarefaAtualizar } from "@/services/tarefas-api";
+import { dataFixaParaIso } from "./data-fixa.ts";
 
 export type FormularioEdicaoTarefa = {
   nome: string;
@@ -18,17 +19,6 @@ export type ErrosEdicaoTarefa = Partial<
   >
 >;
 
-function dataValida(valor: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
-  const [ano, mes, dia] = valor.split("-").map(Number);
-  const data = new Date(Date.UTC(ano, mes - 1, dia));
-  return (
-    data.getUTCFullYear() === ano &&
-    data.getUTCMonth() === mes - 1 &&
-    data.getUTCDate() === dia
-  );
-}
-
 export function prepararEdicaoTarefa(
   formulario: FormularioEdicaoTarefa,
   tarefaOriginal: Tarefa,
@@ -36,6 +26,10 @@ export function prepararEdicaoTarefa(
 ): { erros: ErrosEdicaoTarefa; dados?: TarefaAtualizar } {
   const erros: ErrosEdicaoTarefa = {};
   const nome = formulario.nome.trim();
+  const usaDiaFixo = tarefaOriginal.modo_prazo === "dia_fixo";
+  const dataFixaIso = usaDiaFixo
+    ? dataFixaParaIso(formulario.dataFixa)
+    : undefined;
 
   if (!nome) erros.nome = "Informe o nome da tarefa.";
   if (
@@ -49,11 +43,11 @@ export function prepararEdicaoTarefa(
   )
     erros.atrasoMaximo = "Selecione uma tolerância de 1 a 5 dias.";
   if (
-    tarefaOriginal.modo_prazo === "dia_fixo" &&
-    formulario.dataFixa !== (tarefaOriginal.data_fixa ?? "") &&
-    !dataValida(formulario.dataFixa)
+    usaDiaFixo &&
+    (formulario.dataFixa || tarefaOriginal.data_fixa) &&
+    !dataFixaIso
   )
-    erros.dataFixa = "Informe uma data válida no formato AAAA-MM-DD.";
+    erros.dataFixa = "Informe uma data válida no formato DD-MM-AAAA.";
   if (!moradores.some(({ id }) => id === formulario.responsavel))
     erros.responsavel = "Selecione um responsável desta casa.";
 
@@ -72,9 +66,8 @@ export function prepararEdicaoTarefa(
       ...(formulario.atrasoMaximo !== tarefaOriginal.atraso_maximo
         ? { atraso_maximo: formulario.atrasoMaximo }
         : {}),
-      ...(tarefaOriginal.modo_prazo === "dia_fixo" &&
-      formulario.dataFixa !== (tarefaOriginal.data_fixa ?? "")
-        ? { data_fixa: formulario.dataFixa }
+      ...(dataFixaIso && dataFixaIso !== tarefaOriginal.data_fixa
+        ? { data_fixa: dataFixaIso }
         : {}),
       usuarios_atribuidos: [formulario.responsavel],
     },

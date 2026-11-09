@@ -77,22 +77,24 @@ export function ordenarTarefas<
   );
 }
 
-export function formatarPrazo(data: string, dataFixa?: string | null) {
-  const prazo = new Date(data);
-  const dia = dataFixa ? Number(dataFixa.slice(8, 10)) : prazo.getDate();
-  const mes = dataFixa
-    ? new Date(`${dataFixa}T00:00:00Z`).toLocaleDateString("pt-BR", {
-        month: "short",
-        timeZone: "UTC",
-      })
-    : prazo.toLocaleDateString("pt-BR", { month: "short" });
-  const ano = dataFixa ? dataFixa.slice(0, 4) : String(prazo.getFullYear());
-  const horario = dataFixa
-    ? "23:59"
-    : prazo.toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-  return `${String(dia).padStart(2, "0")} ${mes} ${ano}, ${horario}`;
+export function formatarPrazo(
+  data: string,
+  dataFixa: string | null | undefined,
+  fuso: string,
+) {
+  const instante = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(data) ? data : data + "Z";
+  const prazo = new Date(dataFixa ? dataFixa + "T23:59:00Z" : instante);
+  const partes = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: dataFixa ? "UTC" : fuso,
+  }).formatToParts(prazo);
+  const { day, month, year, hour, minute } = Object.fromEntries(
+    partes.map(({ type, value }) => [type, value]),
+  );
+  return `${day} ${month} ${year}, ${hour}:${minute}`;
 }

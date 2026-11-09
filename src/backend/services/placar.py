@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
+from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
 from services.ciclo_vida_tarefa import instante_utc
 
@@ -57,12 +58,8 @@ class ServicoPlacar:
         if not resposta_casa.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
 
-        nome_fuso = resposta_casa.data[0].get("timezone") or "America/Sao_Paulo"
-        try:
-            fuso = ZoneInfo(nome_fuso)
-        except (ValueError, KeyError) as erro:
-            raise HTTPException(status_code=500, detail="Fuso horário da casa inválido.") from erro
-        return nome_fuso, fuso
+        fuso = fuso_armazenado(resposta_casa.data[0].get("timezone")) or FUSO_UTC
+        return fuso.key, fuso
 
     def _vinculos_e_nomes(
         self, id_casa: UUID, incluir_inativos: bool = False

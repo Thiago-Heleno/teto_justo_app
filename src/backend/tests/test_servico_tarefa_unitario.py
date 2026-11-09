@@ -1,6 +1,6 @@
 """Testes unitários do serviço de tarefas."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call
 from uuid import UUID, uuid4
@@ -328,6 +328,8 @@ def test_listar_tarefas_por_casa_filtra_prazos_atrasados(servico, consulta, ids_
         ("America/Sao_Paulo", "2026-10-23T15:00:00Z", "2026-10-24T00:00:00-03:00", False),
         ("America/Sao_Paulo", "2026-10-24T01:00:00Z", "2026-10-24T02:59:59.999999Z", True),
         ("America/Sao_Paulo", "2026-10-24T01:00:00Z", "2026-10-24T03:00:00Z", False),
+        (None, "2026-10-23T23:30:00Z", "2026-10-24T00:00:00", False),
+        ("America/Invalido", "2026-10-23T23:30:00Z", "2026-10-24T00:00:00Z", False),
         ("Asia/Tokyo", "2026-10-23T16:00:00Z", "2026-10-24T23:59:59.999999+09:00", True),
         ("Asia/Tokyo", "2026-10-23T16:00:00Z", "2026-10-23T23:59:59.999999+09:00", False),
         ("America/New_York", "2026-03-08T16:00:00Z", "2026-03-08T00:00:00-05:00", True),
@@ -1256,6 +1258,66 @@ def test_resposta_explicita_utc_para_datas_legadas_sem_fuso(servico, consulta, r
     assert resposta["data_inicio"] == "2026-09-01T08:00:00+00:00"
     assert resposta["data_fim"] == "2026-09-02T08:00:00+00:00"
     assert resposta["concluida_em"] == "2026-09-02T07:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "fuso_tarefa,fuso_casa,dia",
+    [
+        ("America/Sao_Paulo", "UTC", "2026-09-01"),
+        ("America/Invalido", "America/Sao_Paulo", "2026-09-01"),
+        (None, "America/Sao_Paulo", "2026-09-01"),
+        ("America/Invalido", None, "2026-09-02"),
+    ],
+)
+def test_resposta_recupera_o_dia_fixo_no_fuso_aplicavel(
+    servico, consulta, registro_tarefa, fuso_tarefa, fuso_casa, dia
+):
+    tarefa = {
+        **registro_tarefa,
+        "estado_atual": "finalizado",
+        "modo_prazo": "dia_fixo",
+        "timezone": fuso_tarefa,
+        "data_fim": "2026-09-02T02:59:59.999999",
+    }
+    consulta.execute.return_value = SimpleNamespace(
+        data=[{"timezone": fuso_casa, "fk_usuario_id": registro_tarefa["fk_usuario_id"]}]
+    )
+
+    assert servico._montar_resposta(tarefa)["data_fixa"] == dia
+
+
+def test_criacao_com_fuso_invalido_grava_dia_fixo_em_utc(
+    servico, consulta, ids_relacionados, monkeypatch
+):
+    monkeypatch.setattr(ServicoAutorizacaoCasa, "garantir_administrador_da_casa", MagicMock())
+    monkeypatch.setattr(ServicoAutorizacaoCasa, "garantir_responsaveis_da_casa", MagicMock())
+    servico._atribuir_usuarios = MagicMock()
+    servico._buscar_usuarios_atribuidos = MagicMock(return_value=[])
+    dia = date(2099, 10, 15)
+
+    def executar():
+        if not consulta.insert.called:
+            return SimpleNamespace(data=[{"timezone": "America/Invalido"}])
+        return SimpleNamespace(data=[{"id": str(uuid4()), **consulta.insert.call_args.args[0]}])
+
+    consulta.execute.side_effect = executar
+    dados = TarefaCriar(
+        nome="Limpar cozinha",
+        peso=2,
+        prazo_dias=3,
+        atraso_maximo=2,
+        modo_prazo="dia_fixo",
+        data_fixa=dia,
+        fk_casa_id=ids_relacionados["fk_casa_id"],
+        usuarios_atribuidos=ids_relacionados["usuarios_atribuidos"],
+    )
+
+    resposta = servico.criar_tarefa(dados, ids_relacionados["fk_usuario_id"])
+
+    assert consulta.insert.call_args.args[0]["timezone"] == "UTC"
+    assert resposta["data_inicio"] == "2099-10-15T00:00:00+00:00"
+    assert resposta["data_fim"] == "2099-10-15T23:59:59.999999+00:00"
+    assert resposta["data_fixa"] == "2099-10-15"
 
 
 def test_excluir_tarefa_rotativa_da_409(servico, consulta, id_tarefa, registro_tarefa):

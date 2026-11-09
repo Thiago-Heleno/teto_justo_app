@@ -38,7 +38,10 @@ def test_data_de_ocorrencia_sem_fuso_e_interpretada_como_utc():
     ) == date(2026, 9, 30)
 
 
-def test_cria_configuracao_e_participantes_com_escritas_diretas(monkeypatch):
+@pytest.mark.parametrize(
+    "fuso_casa,fuso_regra", [("America/Sao_Paulo", "America/Sao_Paulo"), (None, "UTC")]
+)
+def test_cria_configuracao_e_participantes_com_escritas_diretas(monkeypatch, fuso_casa, fuso_regra):
     id_casa = uuid4()
     id_admin = uuid4()
     participantes = [uuid4(), uuid4()]
@@ -53,7 +56,7 @@ def test_cria_configuracao_e_participantes_com_escritas_diretas(monkeypatch):
     consulta.eq.return_value = consulta
     consulta.insert.return_value = consulta
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[{"timezone": "UTC"}]),
+        SimpleNamespace(data=[{"timezone": fuso_casa}]),
         SimpleNamespace(data=[configuracao]),
         SimpleNamespace(data=[{}, {}]),
     ]
@@ -102,7 +105,7 @@ def test_cria_configuracao_e_participantes_com_escritas_diretas(monkeypatch):
     configuracao_gravada = consulta.insert.call_args_list[0].args[0]
     participantes_gravados = consulta.insert.call_args_list[1].args[0]
     assert configuracao_gravada["fk_usuario_id"] == str(id_admin)
-    assert configuracao_gravada["timezone"] == "UTC"
+    assert configuracao_gravada["timezone"] == fuso_regra
     assert participantes_gravados == [
         {
             "fk_rotatividade_id": configuracao["id"],
