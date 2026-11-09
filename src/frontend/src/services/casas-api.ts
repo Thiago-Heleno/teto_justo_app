@@ -111,7 +111,10 @@ export function casaInicial(casas: Casa[], preferidaId: string | null) {
   );
 }
 
-export type CasaAtualizar = Pick<Casa, "nome" | "endereco" | "timezone"> & {
+export type CasaAtualizar = Pick<
+  Casa,
+  "nome" | "endereco" | "timezone" | "politica_reclamacao"
+> & {
   foto?: Casa["foto"];
 };
 
@@ -130,6 +133,9 @@ export function atualizarCasa(
       ...(dados.nome !== undefined && { nome: dados.nome.trim() }),
       ...(dados.endereco !== undefined && { endereco: dados.endereco.trim() }),
       ...(dados.timezone !== undefined && { timezone: dados.timezone.trim() }),
+      ...(dados.politica_reclamacao !== undefined && {
+        politica_reclamacao: dados.politica_reclamacao,
+      }),
       ...(dados.foto !== undefined && { foto: dados.foto }),
     },
   });
