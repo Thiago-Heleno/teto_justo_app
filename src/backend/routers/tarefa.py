@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -91,10 +92,11 @@ def reclamar_tarefa(
     id_tarefa: UUID,
     usuario_atual: UsuarioAtual,
     tarefas_fundo: BackgroundTasks,
+    concluida_em: datetime | None = None,
     supabase=Depends(get_supabase),
 ):
     servico = ServicoReclamacao(supabase, tarefas_fundo)
-    return servico.reclamar_tarefa(id_tarefa, usuario_atual.id)
+    return servico.reclamar_tarefa(id_tarefa, usuario_atual.id, concluida_em)
 
 
 @router.patch("/{id_tarefa}", response_model=TarefaResposta)

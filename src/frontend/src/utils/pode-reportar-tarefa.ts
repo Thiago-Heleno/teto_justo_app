@@ -1,31 +1,18 @@
-import type { Tarefa } from "@/services/tarefas-api";
+import type { PoliticaReclamacao } from "@/services/casas-api";
 
-const JANELA_REPORTAGEM_MS = 24 * 60 * 60 * 1000;
+export const JANELA_REPORTAGEM_MS = 24 * 60 * 60 * 1000;
 
 export function podeReportarTarefa(
-  tarefa: Pick<
-    Tarefa,
-    | "estado_atual"
-    | "concluida_em"
-    | "politica_reclamacao"
-    | "usuarios_atribuidos"
-  >,
-  usuarioId: string,
+  concluidaEm: string,
+  politica: PoliticaReclamacao,
+  ehResponsavel: boolean,
   agora = Date.now(),
 ) {
-  if (
-    tarefa.estado_atual !== "finalizado" ||
-    tarefa.politica_reclamacao === "nenhuma" ||
-    tarefa.usuarios_atribuidos.includes(usuarioId) ||
-    !tarefa.concluida_em
-  ) {
-    return false;
-  }
-
-  const concluidaEm = new Date(tarefa.concluida_em).getTime();
+  const idade = agora - Date.parse(concluidaEm);
   return (
-    Number.isFinite(concluidaEm) &&
-    agora >= concluidaEm &&
-    agora - concluidaEm <= JANELA_REPORTAGEM_MS
+    !ehResponsavel &&
+    (politica === "uma_reclamacao" || politica === "votacao") &&
+    idade >= 0 &&
+    idade <= JANELA_REPORTAGEM_MS
   );
 }

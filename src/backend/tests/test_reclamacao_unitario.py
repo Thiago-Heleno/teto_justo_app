@@ -101,6 +101,16 @@ def test_rejeita_conclusao_sem_data_ou_fora_da_janela(cenario, concluida_em):
     assert banco.registros["reclamacao_tarefa"] == []
 
 
+def test_rejeita_reclamacao_enviada_para_uma_conclusao_anterior(cenario):
+    banco, servico, tarefa, morador, agora = cenario
+
+    with pytest.raises(HTTPException) as erro:
+        servico.reclamar_tarefa(UUID(tarefa["id"]), morador, agora - timedelta(minutes=10))
+
+    assert erro.value.status_code == 409
+    assert banco.registros["reclamacao_tarefa"] == []
+
+
 def test_rejeita_data_de_conclusao_no_futuro(cenario):
     banco, servico, tarefa, morador, agora = cenario
     tarefa["concluida_em"] = (agora + timedelta(microseconds=1)).isoformat()
@@ -345,7 +355,8 @@ def test_reclamacoes_com_mesma_leitura_reabrem_e_estornam_uma_unica_vez(cenario,
     assert banco.registros["pertencer"][1]["score"] == 100
 
 
-def test_rota_aceita_post_sem_corpo_e_devolve_tarefa_reaberta(cenario):
+@pytest.mark.parametrize("informar_conclusao", [False, True])
+def test_rota_aceita_post_sem_corpo_e_devolve_tarefa_reaberta(cenario, informar_conclusao):
     banco, _, tarefa, morador, _ = cenario
     # O primeiro report não reabre; o segundo alcança o mínimo.
     servico_preparo = ServicoReclamacao(banco, BackgroundTasks())
@@ -356,7 +367,8 @@ def test_rota_aceita_post_sem_corpo_e_devolve_tarefa_reaberta(cenario):
     app.dependency_overrides[obter_usuario_atual] = lambda: SimpleNamespace(id=morador)
 
     with TestClient(app) as cliente:
-        resposta = cliente.post(f"/tarefas/{tarefa['id']}/reclamacoes")
+        parametros = {"concluida_em": tarefa["concluida_em"]} if informar_conclusao else {}
+        resposta = cliente.post(f"/tarefas/{tarefa['id']}/reclamacoes", params=parametros)
 
     assert resposta.status_code == 200, resposta.text
     assert resposta.json()["id"] == tarefa["id"]

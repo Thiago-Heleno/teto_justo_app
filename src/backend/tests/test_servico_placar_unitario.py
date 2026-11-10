@@ -114,6 +114,7 @@ def evento(casa_id, usuario_id, instante, pontos):
         "fk_usuario_id": str(usuario_id),
         "fk_tarefa_id": str(uuid4()),
         "tipo": "credito" if pontos >= 0 else "reversal",
+        "ciclo": 0,
         "criado_em": instante,
         "pontuacao": pontos,
     }
@@ -122,7 +123,14 @@ def evento(casa_id, usuario_id, instante, pontos):
 def montar_servico(fuso="America/Sao_Paulo", score=0, eventos=None):
     casa_id, usuario_id = uuid4(), uuid4()
     banco = Banco(
-        [{"id": str(casa_id), "timezone": fuso, "fk_usuario_id": str(usuario_id)}],
+        [
+            {
+                "id": str(casa_id),
+                "timezone": fuso,
+                "fk_usuario_id": str(usuario_id),
+                "politica_reclamacao": "nenhuma",
+            }
+        ],
         [
             {
                 "fk_casa_id": str(casa_id),
@@ -143,8 +151,20 @@ def test_extrato_inclui_nome_da_tarefa_em_creditos_e_estornos():
     estorno = evento(casa_id, usuario_id, "2026-10-02T10:00:00Z", -25)
     banco.registros["score_event"] = [credito, estorno]
     banco.registros["tarefa"] = [
-        {"id": credito["fk_tarefa_id"], "nome": "Lavar a louça"},
-        {"id": estorno["fk_tarefa_id"], "nome": "Tirar o lixo"},
+        {
+            "id": credito["fk_tarefa_id"],
+            "nome": "Lavar a louça",
+            "estado_atual": "finalizado",
+            "concluida_em": credito["criado_em"],
+            "reaberturas": 0,
+        },
+        {
+            "id": estorno["fk_tarefa_id"],
+            "nome": "Tirar o lixo",
+            "estado_atual": "pendente",
+            "concluida_em": None,
+            "reaberturas": 1,
+        },
     ]
 
     extrato = servico.obter_extrato(casa_id, FiltroExtratoScore())
@@ -153,6 +173,32 @@ def test_extrato_inclui_nome_da_tarefa_em_creditos_e_estornos():
         "Tirar o lixo",
         "Lavar a louça",
     ]
+
+
+def test_extrato_identifica_somente_a_conclusao_do_ciclo_atual():
+    servico, banco, casa_id, usuario_id = montar_servico()
+    antigo = evento(casa_id, usuario_id, "2026-10-01T10:00:00Z", 25)
+    estorno = {**antigo, "id": str(uuid4()), "tipo": "reversal", "pontuacao": -25}
+    atual = {**antigo, "id": str(uuid4()), "ciclo": 1}
+    instante = "2026-10-01T11:05:00Z"
+    banco.registros["score_event"] = [antigo, estorno, atual]
+    banco.registros["tarefa"] = [
+        {
+            "id": antigo["fk_tarefa_id"],
+            "nome": "Lavar a louça",
+            "estado_atual": "finalizado",
+            "concluida_em": instante,
+            "reaberturas": 1,
+        }
+    ]
+
+    extrato = servico.obter_extrato(casa_id, FiltroExtratoScore())
+
+    assert {e["id"]: e["concluida_em"] for e in extrato["eventos"]} == {
+        antigo["id"]: None,
+        estorno["id"]: None,
+        atual["id"]: datetime.fromisoformat(instante),
+    }
 
 
 @pytest.mark.parametrize(
@@ -405,10 +451,10 @@ def test_extrato_filtra_usuario_e_casa_e_pagina_em_ordem_estavel():
     )
 
     assert primeira["eventos"] == [
-        {**eventos[2], "nome_tarefa": None},
-        {**eventos[1], "nome_tarefa": None},
+        {**eventos[2], "nome_tarefa": None, "concluida_em": None},
+        {**eventos[1], "nome_tarefa": None, "concluida_em": None},
     ]
-    assert segunda["eventos"] == [{**eventos[0], "nome_tarefa": None}]
+    assert segunda["eventos"] == [{**eventos[0], "nome_tarefa": None, "concluida_em": None}]
     assert esgotada["eventos"] == []
     assert primeira["total"] == segunda["total"] == esgotada["total"] == 3
 
