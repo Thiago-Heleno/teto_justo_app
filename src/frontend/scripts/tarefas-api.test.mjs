@@ -224,12 +224,12 @@ test("reporta a tarefa pelo endpoint autenticado", async () => {
   };
 
   try {
-    await reportarTarefa("tarefa-123");
+    const concluidaEm = "2026-11-10T14:00:00.123456+00:00";
+    await reportarTarefa("tarefa-123", concluidaEm);
 
-    assert.equal(
-      requisicao.url,
-      "http://api.test/tarefas/tarefa-123/reclamacoes",
-    );
+    const url = new URL(requisicao.url);
+    assert.equal(url.pathname, "/tarefas/tarefa-123/reclamacoes");
+    assert.equal(url.searchParams.get("concluida_em"), concluidaEm);
     assert.equal(requisicao.opcoes.method, "POST");
     assert.equal(requisicao.opcoes.body, undefined);
     assert.ok(requisicao.opcoes.headers.Authorization);

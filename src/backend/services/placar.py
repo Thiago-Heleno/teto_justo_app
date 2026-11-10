@@ -51,15 +51,18 @@ class ServicoPlacar:
             consulta = consulta.lt("criado_em", fim_utc.isoformat())
         return consulta
 
-    def _fuso_da_casa(self, id_casa: UUID) -> tuple[str, ZoneInfo]:
+    def _configuracao_da_casa(self, id_casa: UUID) -> tuple[ZoneInfo, str]:
         resposta_casa = (
-            self.supabase.table("casa").select("timezone").eq("id", str(id_casa)).execute()
+            self.supabase.table("casa")
+            .select("timezone,politica_reclamacao")
+            .eq("id", str(id_casa))
+            .execute()
         )
         if not resposta_casa.data:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
 
-        fuso = fuso_armazenado(resposta_casa.data[0].get("timezone")) or FUSO_UTC
-        return fuso.key, fuso
+        casa = resposta_casa.data[0]
+        return fuso_armazenado(casa.get("timezone")) or FUSO_UTC, casa["politica_reclamacao"]
 
     def _vinculos_e_nomes(
         self, id_casa: UUID, incluir_inativos: bool = False
@@ -94,7 +97,7 @@ class ServicoPlacar:
         return vinculos, nomes
 
     def _dados(self, id_casa: UUID, agora: datetime, incluir_inativos: bool = False):
-        nome_fuso, fuso = self._fuso_da_casa(id_casa)
+        fuso, _ = self._configuracao_da_casa(id_casa)
         vinculos, nomes = self._vinculos_e_nomes(id_casa, incluir_inativos)
         ids = [str(vinculo["fk_usuario_id"]) for vinculo in vinculos]
 
@@ -135,7 +138,7 @@ class ServicoPlacar:
         ]
         moradores.sort(key=lambda morador: (morador["nome"].casefold(), morador["usuario_id"]))
         saldos = {str(vinculo["fk_usuario_id"]): vinculo["score"] for vinculo in vinculos}
-        return nome_fuso, moradores, saldos, eventos_sem_vinculo
+        return fuso.key, moradores, saldos, eventos_sem_vinculo
 
     def obter_placar(self, id_casa: UUID, agora: datetime | None = None) -> dict:
         nome_fuso, moradores, _, _ = self._dados(id_casa, agora or datetime.now(timezone.utc))
@@ -170,11 +173,11 @@ class ServicoPlacar:
         )
 
     def obter_extrato(self, id_casa: UUID, filtros: FiltroExtratoScore) -> dict:
-        nome_fuso, fuso = self._fuso_da_casa(id_casa)
+        fuso, politica = self._configuracao_da_casa(id_casa)
         consulta = (
             self.supabase.table("score_event")
             .select(
-                "id,fk_casa_id,fk_usuario_id,fk_tarefa_id,pontuacao,tipo,criado_em",
+                "id,fk_casa_id,fk_usuario_id,fk_tarefa_id,pontuacao,tipo,criado_em,ciclo",
                 count="exact",
             )
             .eq("fk_casa_id", str(id_casa))
@@ -201,25 +204,34 @@ class ServicoPlacar:
         if eventos:
             tarefas = (
                 self.supabase.table("tarefa")
-                .select("id,nome")
+                .select("id,nome,concluida_em,estado_atual,reaberturas")
                 .in_("id", list({str(evento["fk_tarefa_id"]) for evento in eventos}))
                 .execute()
             ).data
-            nomes_tarefas = {str(tarefa["id"]): tarefa["nome"] for tarefa in tarefas}
-            eventos = [
-                {**evento, "nome_tarefa": nomes_tarefas.get(str(evento["fk_tarefa_id"]))}
-                for evento in eventos
-            ]
+            por_id = {str(tarefa["id"]): tarefa for tarefa in tarefas}
+            for evento in eventos:
+                tarefa = por_id.get(str(evento["fk_tarefa_id"]))
+                evento["nome_tarefa"] = tarefa["nome"] if tarefa else None
+                evento["concluida_em"] = None
+                if (
+                    tarefa
+                    and evento["tipo"] == "credito"
+                    and evento["ciclo"] == tarefa["reaberturas"]
+                    and tarefa["estado_atual"] == "finalizado"
+                    and tarefa["concluida_em"]
+                ):
+                    evento["concluida_em"] = instante_utc(tarefa["concluida_em"])
         return {
             "casa_id": str(id_casa),
-            "fuso_horario": nome_fuso,
+            "fuso_horario": fuso.key,
+            "politica_reclamacao": politica,
             **filtros.model_dump(),
             "total": resposta.count,
             "eventos": eventos,
         }
 
     def obter_ranking(self, id_casa: UUID, filtros: FiltroPeriodoScore) -> dict:
-        nome_fuso, fuso = self._fuso_da_casa(id_casa)
+        fuso, _ = self._configuracao_da_casa(id_casa)
         vinculos, nomes = self._vinculos_e_nomes(id_casa)
         totais = {str(vinculo["fk_usuario_id"]): 0 for vinculo in vinculos}
         for evento in self._eventos_da_casa(id_casa, *self._limites_periodo(filtros, fuso)):
@@ -245,7 +257,7 @@ class ServicoPlacar:
             pontos_anteriores = morador["pontos"]
         return {
             "casa_id": str(id_casa),
-            "fuso_horario": nome_fuso,
+            "fuso_horario": fuso.key,
             **filtros.model_dump(),
             "moradores": moradores,
         }

@@ -14,7 +14,9 @@ class ServicoReclamacao:
         self.supabase = cliente_supabase
         self.tarefas = ServicoTarefa(cliente_supabase, tarefas_fundo)
 
-    def reclamar_tarefa(self, id_tarefa: UUID, id_usuario: UUID) -> dict:
+    def reclamar_tarefa(
+        self, id_tarefa: UUID, id_usuario: UUID, conclusao_esperada: datetime | None = None
+    ) -> dict:
         tarefa = self.tarefas._buscar_tarefa_bruta(id_tarefa)
         id_casa = str(tarefa["fk_casa_id"])
         casas = (
@@ -53,6 +55,10 @@ class ServicoReclamacao:
             raise HTTPException(
                 status_code=409,
                 detail="A reclamação deve ser feita até 24h após a conclusão.",
+            )
+        if conclusao_esperada and instante_utc(conclusao_esperada) != instante_utc(concluida_em):
+            raise HTTPException(
+                status_code=409, detail="A conclusão da tarefa mudou. Atualize para continuar."
             )
         politica = casas[0]["politica_reclamacao"]
         if politica == "nenhuma":

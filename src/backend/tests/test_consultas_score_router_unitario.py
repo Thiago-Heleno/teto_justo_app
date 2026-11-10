@@ -78,12 +78,19 @@ def test_extrato_e_ranking_aplicam_periodo_informado_na_url(consulta_score):
     assert extrato.json() == {
         "casa_id": str(casa_id),
         "fuso_horario": "America/Sao_Paulo",
+        "politica_reclamacao": "nenhuma",
         **periodo,
         "fk_usuario_id": str(usuario_id),
         "inicio": 0,
         "limite": 1,
         "total": 1,
-        "eventos": [{**credito, "nome_tarefa": None}],
+        "eventos": [
+            {
+                **{k: v for k, v in credito.items() if k != "ciclo"},
+                "nome_tarefa": None,
+                "concluida_em": None,
+            }
+        ],
     }
 
 

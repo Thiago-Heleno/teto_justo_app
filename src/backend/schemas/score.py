@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from schemas.casa import PoliticaReclamacao
+
 
 class FiltroPeriodoScore(BaseModel):
     data_inicio: date | None = Field(
@@ -38,6 +40,9 @@ class ScoreEventResposta(BaseModel):
     fk_usuario_id: UUID
     fk_tarefa_id: UUID
     nome_tarefa: str | None = None
+    concluida_em: datetime | None = Field(
+        default=None, description="Instante da conclusão vigente, apenas no crédito correspondente."
+    )
     pontuacao: int
     tipo: Literal["credito", "reversal"]
     criado_em: datetime
@@ -46,6 +51,7 @@ class ScoreEventResposta(BaseModel):
 class ExtratoScoreResposta(BaseModel):
     casa_id: UUID
     fuso_horario: str
+    politica_reclamacao: PoliticaReclamacao
     fk_usuario_id: UUID | None
     data_inicio: date | None
     data_fim: date | None

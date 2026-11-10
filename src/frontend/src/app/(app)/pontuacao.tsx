@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
+import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { listarMoradoresCasa } from "@/services/casas-api";
@@ -97,6 +98,9 @@ export default function PontuacaoScreen() {
   );
 
   const resumo = placar ? resumirPlacar(placar, periodo) : undefined;
+  const moradorAtivo = placar?.moradores.some(
+    (m) => m.usuario_id === usuarioId,
+  );
   const rotulo = periodosPlacar.find(
     (opcao) => opcao.valor === periodo,
   )!.rotulo;
@@ -263,45 +267,61 @@ export default function PontuacaoScreen() {
                       (morador) => morador.usuario_id === evento.fk_usuario_id,
                     )?.nome;
                     return (
-                      <MotionPressable
-                        key={evento.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Ver detalhes de ${evento.nome_tarefa?.trim() || "tarefa sem nome disponível"}`}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/tarefas",
-                            params: { abrir: evento.fk_tarefa_id },
-                          })
-                        }
-                        style={styles.eventRow}
-                      >
-                        {nome && (
-                          <Avatar
-                            nome={nome}
-                            foto={fotos.get(evento.fk_usuario_id)}
-                            tamanho={40}
-                          />
-                        )}
-                        <View style={styles.residentCopy}>
+                      <View key={evento.id} style={styles.eventCard}>
+                        <MotionPressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Ver detalhes de ${evento.nome_tarefa?.trim() || "tarefa sem nome disponível"}`}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/tarefas",
+                              params: { abrir: evento.fk_tarefa_id },
+                            })
+                          }
+                          style={styles.eventRow}
+                        >
+                          {nome && (
+                            <Avatar
+                              nome={nome}
+                              foto={fotos.get(evento.fk_usuario_id)}
+                              tamanho={40}
+                            />
+                          )}
+                          <View style={styles.residentCopy}>
+                            <Text style={styles.name}>
+                              {evento.tipo === "reversal"
+                                ? "Estorno por reabertura"
+                                : "Tarefa concluída"}
+                              {nome ? ` · ${nome}` : ""}
+                            </Text>
+                            <Text style={styles.body} numberOfLines={2}>
+                              {evento.nome_tarefa?.trim() ||
+                                "Tarefa sem nome disponível"}
+                            </Text>
+                            <Text style={styles.caption}>
+                              {dataHora.format(new Date(evento.criado_em))}
+                            </Text>
+                          </View>
                           <Text style={styles.name}>
-                            {evento.tipo === "reversal"
-                              ? "Estorno por reabertura"
-                              : "Tarefa concluída"}
-                            {nome ? ` · ${nome}` : ""}
+                            {evento.pontuacao > 0 ? "+" : ""}
+                            {numero.format(evento.pontuacao)} pts
                           </Text>
-                          <Text style={styles.body} numberOfLines={2}>
-                            {evento.nome_tarefa?.trim() ||
-                              "Tarefa sem nome disponível"}
-                          </Text>
-                          <Text style={styles.caption}>
-                            {dataHora.format(new Date(evento.criado_em))}
-                          </Text>
-                        </View>
-                        <Text style={styles.name}>
-                          {evento.pontuacao > 0 ? "+" : ""}
-                          {numero.format(evento.pontuacao)} pts
-                        </Text>
-                      </MotionPressable>
+                        </MotionPressable>
+                        {moradorAtivo &&
+                          evento.tipo === "credito" &&
+                          evento.concluida_em && (
+                            <BotaoReportarTarefa
+                              tarefaId={evento.fk_tarefa_id}
+                              concluidaEm={evento.concluida_em}
+                              politica={extrato.politica_reclamacao}
+                              ehResponsavel={evento.fk_usuario_id === usuarioId}
+                              onReportada={(tarefa) => {
+                                if (tarefa.estado_atual !== "finalizado") {
+                                  setTentativa((valor) => valor + 1);
+                                }
+                              }}
+                            />
+                          )}
+                      </View>
                     );
                   })
               )}
@@ -443,15 +463,18 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     fontWeight: "500",
   },
+  eventCard: {
+    backgroundColor: Caldera.pumice,
+    borderRadius: 24,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
   eventRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.three,
-    backgroundColor: Caldera.pumice,
-    borderRadius: 24,
-    padding: Spacing.three,
   },
   points: {
     color: Caldera.obsidian,

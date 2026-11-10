@@ -86,6 +86,7 @@ export type EventoExtrato = {
   fk_usuario_id: string;
   fk_tarefa_id: string;
   nome_tarefa?: string | null;
+  concluida_em?: string | null;
   pontuacao: number;
   tipo: "credito" | "reversal";
   criado_em: string;
@@ -94,6 +95,7 @@ export type EventoExtrato = {
 export type Extrato = {
   casa_id: string;
   fuso_horario: string;
+  politica_reclamacao: Tarefa["politica_reclamacao"];
   total: number;
   eventos: EventoExtrato[];
 };
@@ -188,10 +190,19 @@ export function reabrirTarefa(idTarefa: string, signal?: AbortSignal) {
   });
 }
 
-export function reportarTarefa(idTarefa: string, signal?: AbortSignal) {
-  return requisitar<Tarefa>(`/tarefas/${idTarefa}/reclamacoes`, signal, {
-    method: "POST",
-  });
+export function reportarTarefa(
+  idTarefa: string,
+  concluidaEm: string,
+  signal?: AbortSignal,
+) {
+  const parametros = new URLSearchParams({ concluida_em: concluidaEm });
+  return requisitar<Tarefa>(
+    `/tarefas/${idTarefa}/reclamacoes?${parametros}`,
+    signal,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export function editarTarefa(

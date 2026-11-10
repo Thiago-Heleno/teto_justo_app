@@ -1,41 +1,15 @@
-# Reportar tarefa no frontend
+# Reportar tarefa no detalhe e no extrato
 
-## Objetivo
+O morador pode denunciar uma conclusão no detalhe da tarefa ou em **Pontuação → Movimentações recentes**. As duas telas usam `src/frontend/src/components/botao-reportar-tarefa.tsx`. O botão aparece para os demais moradores ativos quando a política da casa permite denúncias. O prazo inclui o instante exato de 24 horas após a conclusão. A tela oculta o botão quando esse prazo termina.
 
-Adicionar a ação de reportar uma tarefa finalizada no frontend, conectada ao
-contrato futuro de reclamações. A implementação não cria rota, serviço ou
-alteração de banco no backend.
+## Decisões
 
-## Alterações
+- O extrato devolve a política atual da casa e o instante de conclusão apenas no crédito do ciclo que continua finalizado. O serviço aproveita as consultas existentes à casa e às tarefas. Estornos e créditos de ciclos anteriores continuam abrindo o detalhe.
+- As duas telas enviam o instante de conclusão recebido da API no parâmetro opcional `concluida_em` de `POST /tarefas/{id}/reclamacoes`. O backend valida o prazo e rejeita com HTTP 409 uma denúncia destinada a uma execução anterior. Clientes que omitem o parâmetro continuam usando o contrato anterior.
+- Após o envio, o botão indica “Reportado”. Se a votação reabrir a tarefa pelo extrato, a aba recarrega o placar e as movimentações para mostrar o estorno. O registro da denúncia, a votação e o estorno usam os serviços existentes.
 
-- A tela de detalhe exibe `Reportar` somente para moradores que não são o dono
-  da casa, quando a tarefa está finalizada, foi concluída há menos de 24 horas
-  e `politica_reclamacao` não é `nenhuma`.
-- O botão usa `TriangleAlert` de `lucide-react-native` e mostra
-  `reclamacoes_count/reclamacoes_limite`.
-- O frontend chama `POST /tarefas/{id}/reclamacoes` sem corpo e substitui a
-  tarefa local pelo retorno da API.
-- Erros retornados em `detail` continuam sendo exibidos pela mensagem padrão de
-  `requisitar`.
+## Validação local
 
-## Contrato esperado
-
-A tarefa retornada pela API inclui `politica_reclamacao`,
-`reclamacoes_count` e `reclamacoes_limite`. As políticas previstas são
-`nenhuma`, `uma_reclamacao` e `votacao`.
-
-## Validação
-
-- `npm run test:tarefas`, a partir de `src/frontend` — **88 testes aprovados**.
-- `npx prettier --check` nos arquivos novos — aprovado.
-- `git diff --check`, a partir da raiz — aprovado.
-- `npx tsc --noEmit`, a partir de `src/frontend` — ainda falha em erros
-  preexistentes de tipos de rotas em outras telas; não houve erro nos arquivos
-  alterados nesta tarefa.
-- O lint global também mantém falhas preexistentes de normalização CRLF em
-  arquivos do frontend.
-
-## Limitações
-
-A rota ainda não existe no backend nesta etapa; até sua implementação, a ação
-pode retornar erro da API. O frontend apenas consome o contrato definido.
+- A partir de `src/frontend`, `npm run test:tarefas` aprovou 94 testes.
+- A partir de `src/backend`, `python -m pytest -q tests/test_servico_placar_unitario.py` aprovou 19 testes. Outros 38 testes do serviço de reclamação passaram com o import do SDK Firebase simulado. Os testes cobrem a expiração, a identificação do ciclo e a rejeição de uma conclusão desatualizada.
+- O ambiente local estava sem `firebase-admin`, `firebase` e `lucide-react-native`. A suíte completa do backend, o ESLint e o TypeScript ficaram bloqueados. O TestClient também ficou bloqueado ao iniciar o loop de eventos do Windows. A interface não foi validada visualmente.
