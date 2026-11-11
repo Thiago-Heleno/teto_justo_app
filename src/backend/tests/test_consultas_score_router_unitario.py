@@ -90,6 +90,7 @@ def test_extrato_e_ranking_aplicam_periodo_informado_na_url(consulta_score):
                 "nome_tarefa": None,
                 "concluida_em": None,
                 "reclamacoes_count": 0,
+                "usuario_reclamou": False,
             }
         ],
     }
