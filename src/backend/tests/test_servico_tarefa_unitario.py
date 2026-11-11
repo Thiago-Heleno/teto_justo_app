@@ -76,7 +76,7 @@ def registro_tarefa(id_tarefa, ids_relacionados):
 
 
 def test_criar_tarefa_com_atribuicoes(servico, consulta, registro_tarefa, ids_relacionados):
-    # A ordem esperada é: autorizar casa (retorna o dono), validar responsáveis
+    # A ordem esperada é: autorizar casa (retorna o administrador), validar responsáveis
     # (casa e 'pertencer'), inserir tarefa, inserir atribuições e buscar
     # as atribuições da resposta.
     consulta.execute.side_effect = [
@@ -501,7 +501,10 @@ def test_responsavel_finaliza_com_pontos_calculados_no_backend(
     TarefaResposta.model_validate(resultado)
 
 
-def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa, registro_tarefa):
+@pytest.mark.parametrize("criador", [True, False], ids=["criador", "outro_morador"])
+def test_nao_responsavel_nao_pode_finalizar_tarefa(
+    servico, consulta, id_tarefa, registro_tarefa, criador
+):
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
@@ -511,7 +514,7 @@ def test_nao_responsavel_nao_pode_finalizar_tarefa(servico, consulta, id_tarefa,
         servico.atualizar_tarefa(
             id_tarefa,
             TarefaAtualizar(estado_atual="finalizado"),
-            uuid4(),
+            UUID(registro_tarefa["fk_usuario_id"]) if criador else uuid4(),
         )
 
     assert erro.value.status_code == 403
@@ -568,8 +571,9 @@ def test_endpoint_de_conclusao_usa_responsavel_e_registra_pontos(
     assert dados_evento["pontuacao"] == 25
 
 
+@pytest.mark.parametrize("criador", [True, False], ids=["criador", "outro_morador"])
 def test_endpoint_de_conclusao_rejeita_nao_responsavel(
-    servico, banco, consulta, id_tarefa, registro_tarefa
+    servico, banco, consulta, id_tarefa, registro_tarefa, criador
 ):
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
@@ -577,7 +581,9 @@ def test_endpoint_de_conclusao_rejeita_nao_responsavel(
     ]
 
     with pytest.raises(HTTPException) as erro:
-        servico.concluir_tarefa(id_tarefa, uuid4())
+        servico.concluir_tarefa(
+            id_tarefa, UUID(registro_tarefa["fk_usuario_id"]) if criador else uuid4()
+        )
 
     assert erro.value.status_code == 403
     banco.rpc.assert_not_called()
@@ -836,7 +842,7 @@ def test_atualizar_tarefa_rejeita_responsavel_de_outra_casa(
 ):
     usuario_estranho = uuid4()
 
-    # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (dono) e
+    # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (administrador) e
     # 4. busca os vínculos 'pertencer' da casa para validar os responsáveis.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
@@ -857,10 +863,10 @@ def test_atualizar_tarefa_rejeita_responsavel_de_outra_casa(
 
 
 @pytest.mark.parametrize("tem_aviso_atraso", [True, False])
-def test_atualizar_responsavel_aceita_dono_com_e_sem_coluna_de_aviso_atraso(
+def test_atualizar_responsavel_aceita_administrador_com_e_sem_coluna_de_aviso_atraso(
     servico, consulta, id_tarefa, registro_tarefa, tem_aviso_atraso
 ):
-    dono_id = registro_tarefa["fk_usuario_id"]
+    administrador_id = registro_tarefa["fk_usuario_id"]
     if not tem_aviso_atraso:
         registro_tarefa.pop("aviso_atraso_enviado_em")
 
@@ -876,29 +882,31 @@ def test_atualizar_responsavel_aceita_dono_com_e_sem_coluna_de_aviso_atraso(
 
     consulta.update.side_effect = atualizar
 
-    # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (dono),
+    # 1. Busca tarefa, 2. autoriza pela casa, 3. busca a casa (administrador),
     # 4. busca 'pertencer', 5. lê os responsáveis anteriores, 6. reabre o aviso,
     # 7. deleta atribuições, 8. insere a nova e 9/10. busca tarefa e responsáveis.
     consulta.execute.side_effect = [
         SimpleNamespace(data=[registro_tarefa]),
-        SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
-        SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
+        SimpleNamespace(data=[{"fk_usuario_id": administrador_id}]),
+        SimpleNamespace(data=[{"fk_usuario_id": administrador_id}]),
         SimpleNamespace(data=[]),
         SimpleNamespace(data=[]),
         SimpleNamespace(data=[registro_tarefa]),
         SimpleNamespace(data=[{"deleted": True}]),
-        SimpleNamespace(data=[{"fk_usuario_id": dono_id, "fk_tarefa_id": registro_tarefa["id"]}]),
+        SimpleNamespace(
+            data=[{"fk_usuario_id": administrador_id, "fk_tarefa_id": registro_tarefa["id"]}]
+        ),
         SimpleNamespace(data=[registro_tarefa]),
-        SimpleNamespace(data=[{"fk_usuario_id": dono_id}]),
+        SimpleNamespace(data=[{"fk_usuario_id": administrador_id}]),
     ]
 
     resultado = servico.atualizar_tarefa(
         id_tarefa,
-        TarefaAtualizar(usuarios_atribuidos=[UUID(dono_id)]),
-        UUID(dono_id),
+        TarefaAtualizar(usuarios_atribuidos=[UUID(administrador_id)]),
+        UUID(administrador_id),
     )
 
-    assert resultado["usuarios_atribuidos"] == [dono_id]
+    assert resultado["usuarios_atribuidos"] == [administrador_id]
     avisos = {"aviso_enviado_em": None}
     if tem_aviso_atraso:
         avisos["aviso_atraso_enviado_em"] = None
@@ -1116,17 +1124,17 @@ def test_administrador_nao_reabre_tarefa_encerrada(servico, consulta, registro_t
 
 def test_responsavel_invalido_nao_produz_edicao_parcial(servico, consulta, registro_tarefa):
     servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
-    dono = registro_tarefa["fk_usuario_id"]
+    administrador = registro_tarefa["fk_usuario_id"]
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[{"fk_usuario_id": dono}]),
-        SimpleNamespace(data=[{"fk_usuario_id": dono}]),
+        SimpleNamespace(data=[{"fk_usuario_id": administrador}]),
+        SimpleNamespace(data=[{"fk_usuario_id": administrador}]),
         SimpleNamespace(data=[]),
     ]
     with pytest.raises(HTTPException) as erro:
         servico.atualizar_tarefa(
             UUID(registro_tarefa["id"]),
             TarefaAtualizar(peso=3, usuarios_atribuidos=[uuid4()]),
-            UUID(dono),
+            UUID(administrador),
         )
     assert erro.value.status_code == 422
     consulta.update.assert_not_called()
@@ -1186,7 +1194,7 @@ def test_responsavel_nao_finaliza_duas_vezes(servico, banco, consulta, registro_
     banco.rpc.assert_not_called()
 
 
-def test_proprietario_sem_vinculo_ativo_nao_recebe_pontos(
+def test_administrador_sem_vinculo_ativo_nao_recebe_pontos(
     servico,
     banco,
     consulta,

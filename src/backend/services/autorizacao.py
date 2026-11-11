@@ -6,10 +6,10 @@ from fastapi import HTTPException, status
 
 def papel_na_casa(
     id_usuario: UUID | str,
-    id_proprietario: UUID | str,
+    id_administrador: UUID | str,
     vinculo_ativo: bool,
 ) -> Literal["administrador", "morador", "nenhum"]:
-    if str(id_usuario) == str(id_proprietario):
+    if str(id_usuario) == str(id_administrador):
         return "administrador"
     return "morador" if vinculo_ativo else "nenhum"
 
@@ -83,8 +83,8 @@ class ServicoAutorizacaoCasa:
         ).data or []
         if not casa:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
-        id_proprietario = casa[0]["fk_usuario_id"]
-        if papel_na_casa(id_usuario, id_proprietario, False) == "administrador":
+        id_administrador = casa[0]["fk_usuario_id"]
+        if papel_na_casa(id_usuario, id_administrador, False) == "administrador":
             return
         vinculo = (
             self.supabase.table("pertencer")
@@ -95,7 +95,7 @@ class ServicoAutorizacaoCasa:
             .limit(1)
             .execute()
         ).data or []
-        if papel_na_casa(id_usuario, id_proprietario, bool(vinculo)) == "nenhum":
+        if papel_na_casa(id_usuario, id_administrador, bool(vinculo)) == "nenhum":
             raise HTTPException(status_code=403, detail="Acesso restrito aos moradores da casa.")
 
     def ids_usuarios_visiveis(self, id_usuario: UUID | str) -> list[str]:

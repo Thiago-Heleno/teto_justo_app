@@ -27,7 +27,7 @@ def cenario(monkeypatch):
 
     monkeypatch.setattr("services.tarefa.datetime", Relogio)
     monkeypatch.setattr("services.reclamacao.datetime", Relogio)
-    dono, responsavel, morador, casa_id, tarefa_id = [str(uuid4()) for _ in range(5)]
+    administrador, responsavel, morador, casa_id, tarefa_id = [str(uuid4()) for _ in range(5)]
     tarefa = {
         "id": tarefa_id,
         "nome": "Limpar cozinha",
@@ -38,17 +38,19 @@ def cenario(monkeypatch):
         "data_fim": (agora + timedelta(days=2)).isoformat(),
         "data_inicio": (agora - timedelta(days=1)).isoformat(),
         "fk_casa_id": casa_id,
-        "fk_usuario_id": dono,
+        "fk_usuario_id": administrador,
         "reaberturas": 0,
     }
     banco = SupabaseEmMemoria(
         {
-            "casa": [{"id": casa_id, "fk_usuario_id": dono, "politica_reclamacao": "votacao"}],
+            "casa": [
+                {"id": casa_id, "fk_usuario_id": administrador, "politica_reclamacao": "votacao"}
+            ],
             "tarefa": [tarefa],
             "atribuida": [{"fk_tarefa_id": tarefa_id, "fk_usuario_id": responsavel}],
             "pertencer": [
                 {"fk_casa_id": casa_id, "fk_usuario_id": usuario, "ativo": True, "score": 100}
-                for usuario in [dono, responsavel, morador, str(uuid4()), str(uuid4())]
+                for usuario in [administrador, responsavel, morador, str(uuid4()), str(uuid4())]
             ],
             "score_event": [],
             "reclamacao_tarefa": [],
@@ -202,14 +204,14 @@ def test_responsavel_nao_pode_reclamar_da_propria_tarefa(cenario):
     assert banco.registros["reclamacao_tarefa"] == []
 
 
-def test_proprietario_com_vinculo_ativo_pode_reclamar(cenario):
+def test_administrador_com_vinculo_ativo_pode_reclamar(cenario):
     banco, servico, tarefa, _, _ = cenario
-    dono = UUID(banco.registros["casa"][0]["fk_usuario_id"])
+    administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
 
-    resultado = servico.reclamar_tarefa(UUID(tarefa["id"]), dono)
+    resultado = servico.reclamar_tarefa(UUID(tarefa["id"]), administrador)
 
     assert resultado["estado_atual"] == "finalizado"
-    assert banco.registros["reclamacao_tarefa"][0]["fk_usuario_id"] == str(dono)
+    assert banco.registros["reclamacao_tarefa"][0]["fk_usuario_id"] == str(administrador)
 
 
 @pytest.mark.parametrize(

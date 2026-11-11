@@ -102,7 +102,7 @@ class ServicoPertencer:
         if papel_na_casa(fk_usuario_id, casa[0]["fk_usuario_id"], False) == "administrador":
             raise HTTPException(
                 status_code=409,
-                detail="O proprietário não pode sair da própria casa.",
+                detail="O administrador não pode sair da própria casa.",
             )
         vinculo = (
             self.supabase.table("pertencer")

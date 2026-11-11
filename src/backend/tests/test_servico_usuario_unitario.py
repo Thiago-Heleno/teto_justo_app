@@ -304,8 +304,8 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
 
         self.assertEqual(contexto.exception.status_code, 404)
 
-    # Proprietário de casa recebe 409 com mensagem clara e a conta é preservada.
-    def test_delecao_de_proprietario_gera_erro_409(self):
+    # Administrador de casa recebe 409 com mensagem clara e a conta é preservada.
+    def test_delecao_de_administrador_gera_erro_409(self):
         banco = BancoMemoria()
         id_usuario, id_casa = str(uuid4()), str(uuid4())
         banco.usuarios[id_usuario] = {"id": id_usuario, "nome": "Ana"}
@@ -316,7 +316,7 @@ class TesteDeletarUsuarioUnitario(unittest.TestCase):
             servico.deletar_usuario(id_usuario)
 
         self.assertEqual(contexto.exception.status_code, 409)
-        self.assertIn("proprietário de uma casa", contexto.exception.detail)
+        self.assertIn("administrador de uma casa", contexto.exception.detail)
         self.assertIn(id_usuario, banco.usuarios)
 
     def _banco_com_historico(self):

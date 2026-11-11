@@ -1388,17 +1388,17 @@ def test_reclamacao_e_reabertura_enviam_push_apenas_ao_responsavel_atribuido(
     mensagem,
     segundo_plano,
 ):
-    responsavel, criador, proprietario = uuid4(), uuid4(), uuid4()
+    responsavel, criador, administrador = uuid4(), uuid4(), uuid4()
     tarefa = {
         "id": str(uuid4()),
         "fk_casa_id": str(uuid4()),
         "fk_usuario_id": str(criador),
     }
     destino = dispositivo(responsavel)
-    outros = [dispositivo(criador), dispositivo(proprietario)]
+    outros = [dispositivo(criador), dispositivo(administrador)]
     banco = SupabaseEmMemoria(
         {
-            "casa": [{"id": tarefa["fk_casa_id"], "fk_usuario_id": str(proprietario)}],
+            "casa": [{"id": tarefa["fk_casa_id"], "fk_usuario_id": str(administrador)}],
             "atribuida": [
                 {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)},
                 {"fk_tarefa_id": str(uuid4()), "fk_usuario_id": str(criador)},

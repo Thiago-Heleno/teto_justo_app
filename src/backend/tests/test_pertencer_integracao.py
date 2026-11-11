@@ -14,7 +14,7 @@ from main import app
 def dependencias_temporarias(autenticacao_temporaria):
     supabase = get_supabase()
     marcador = uuid4().hex
-    proprietario_id = autenticacao_temporaria["usuario_id"]
+    administrador_id = autenticacao_temporaria["usuario_id"]
 
     # Casa temporária, vinculada ao usuário acima.
     res_casa = (
@@ -22,7 +22,7 @@ def dependencias_temporarias(autenticacao_temporaria):
         .insert(
             {
                 "nome": f"Casa Teste {marcador}",
-                "fk_usuario_id": proprietario_id,
+                "fk_usuario_id": administrador_id,
             }
         )
         .execute()
@@ -160,8 +160,8 @@ def test_outro_usuario_nao_pode_gerenciar_moradores(
     casa_id = dependencias_temporarias["casa_id"]
     outro_usuario = criar_autenticacao_temporaria()
 
-    with TestClient(app, headers=autenticacao_temporaria["headers"]) as dono:
-        criado = dono.post(
+    with TestClient(app, headers=autenticacao_temporaria["headers"]) as administrador:
+        criado = administrador.post(
             "/pertencer/",
             json={"fk_usuario_id": usuario_id, "fk_casa_id": casa_id},
         )

@@ -87,7 +87,7 @@ class ServicoUsuario:
         if casa_propria.data:
             raise HTTPException(
                 status_code=409,
-                detail="Você é proprietário de uma casa e não pode excluir a conta. "
+                detail="Você é administrador de uma casa e não pode excluir a conta. "
                 "Exclua a casa antes de excluir a conta.",
             )
 

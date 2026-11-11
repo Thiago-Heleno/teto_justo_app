@@ -33,13 +33,13 @@ def _decodificar_base64url(valor: str) -> bytes:
 
 
 class ServicoConviteCasa:
-    def emitir(self, id_casa: UUID, id_proprietario: UUID) -> dict:
+    def emitir(self, id_casa: UUID, id_administrador: UUID) -> dict:
         chave = _chave_convite()
         exp = int((datetime.now(timezone.utc) + _DURACAO_CONVITE).timestamp())
         dados = {
             "v": 1,
             "casa_id": str(id_casa),
-            "emissor_id": str(id_proprietario),
+            "emissor_id": str(id_administrador),
             "exp": exp,
         }
         conteudo = json.dumps(dados, sort_keys=True, separators=(",", ":")).encode("utf-8")

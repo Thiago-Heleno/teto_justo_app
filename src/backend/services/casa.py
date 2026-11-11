@@ -59,9 +59,9 @@ class ServicoCasa:
 
         return resposta.data[0]
 
-    def criar_casa(self, dados_casa: CasaCriar, id_proprietario: UUID):
+    def criar_casa(self, dados_casa: CasaCriar, id_administrador: UUID):
         dados = dados_casa.model_dump(mode="json")
-        dados["fk_usuario_id"] = str(id_proprietario)
+        dados["fk_usuario_id"] = str(id_administrador)
 
         if dados["foto"] is not None:
             dados["foto"] = foto_para_banco(dados["foto"])
@@ -80,7 +80,7 @@ class ServicoCasa:
                 self.supabase.table("pertencer")
                 .insert(
                     {
-                        "fk_usuario_id": str(id_proprietario),
+                        "fk_usuario_id": str(id_administrador),
                         "fk_casa_id": casa["id"],
                         "score": 0,
                     }
@@ -88,12 +88,12 @@ class ServicoCasa:
                 .execute()
             )
             if not vinculo.data:
-                raise RuntimeError("Vínculo do proprietário não foi criado.")
+                raise RuntimeError("Vínculo do administrador não foi criado.")
         except Exception as erro:
             self.supabase.table("casa").delete().eq("id", casa["id"]).execute()
             raise HTTPException(
                 status_code=500,
-                detail="Erro ao vincular o proprietário à casa.",
+                detail="Erro ao vincular o administrador à casa.",
             ) from erro
 
         return self._montar_resposta(casa)

@@ -86,7 +86,7 @@ def _cenario():
         nome: str(uuid4())
         for nome in (
             "atual",
-            "dono_compartilhada",
+            "administrador_compartilhada",
             "outro",
             "ex_morador",
             "casa_propria",
@@ -109,13 +109,13 @@ def _cenario():
             "usuario_tipo": 0,
             "data_criacao": None,
         }
-        for nome in ("atual", "dono_compartilhada", "outro", "ex_morador")
+        for nome in ("atual", "administrador_compartilhada", "outro", "ex_morador")
     ]
     casas = [
-        {"id": ids[casa], "fk_usuario_id": ids[dono], "politica_reclamacao": "nenhuma"}
-        for casa, dono in (
+        {"id": ids[casa], "fk_usuario_id": ids[administrador], "politica_reclamacao": "nenhuma"}
+        for casa, administrador in (
             ("casa_propria", "atual"),
-            ("casa_compartilhada", "dono_compartilhada"),
+            ("casa_compartilhada", "administrador_compartilhada"),
             ("casa_alheia", "outro"),
             ("casa_saida", "ex_morador"),
         )
@@ -129,7 +129,7 @@ def _cenario():
         },
         {
             "fk_casa_id": ids["casa_compartilhada"],
-            "fk_usuario_id": ids["dono_compartilhada"],
+            "fk_usuario_id": ids["administrador_compartilhada"],
             "ativo": True,
             "score": 0,
         },
@@ -152,7 +152,7 @@ def _cenario():
             "id": ids[tarefa],
             "nome": tarefa,
             "fk_casa_id": ids[casa],
-            "fk_usuario_id": ids[dono],
+            "fk_usuario_id": ids[administrador],
             "estado_atual": "pendente",
             "dificuldade": 1,
             "atraso_maximo": 1,
@@ -160,9 +160,9 @@ def _cenario():
             "modo_prazo": "intervalo",
             "tipo": "unitaria",
         }
-        for tarefa, casa, dono in (
+        for tarefa, casa, administrador in (
             ("tarefa_propria", "casa_propria", "atual"),
-            ("tarefa_compartilhada", "casa_compartilhada", "dono_compartilhada"),
+            ("tarefa_compartilhada", "casa_compartilhada", "administrador_compartilhada"),
             ("tarefa_alheia", "casa_alheia", "outro"),
             ("tarefa_saida", "casa_saida", "ex_morador"),
         )
@@ -229,10 +229,10 @@ def test_perfis_apenas_da_mesma_casa_e_alteracoes_apenas_da_propria_conta():
             assert lista.status_code == 200, lista.text
             assert {usuario["id"] for usuario in lista.json()} == {
                 ids["atual"],
-                ids["dono_compartilhada"],
+                ids["administrador_compartilhada"],
             }
             assert len(cliente.get("/usuarios/?inicio=1&limite=1").json()) == 1
-            assert cliente.get(f"/usuarios/{ids['dono_compartilhada']}").status_code == 200
+            assert cliente.get(f"/usuarios/{ids['administrador_compartilhada']}").status_code == 200
             assert cliente.get(f"/usuarios/{ids['outro']}").status_code == 403
             assert cliente.get(f"/usuarios/{ids['ex_morador']}").status_code == 403
             assert cliente.patch(f"/usuarios/{ids['outro']}", json={"nome": "X"}).status_code == 403
