@@ -239,37 +239,47 @@ export function PerfilUsuario({ onVoltar }: { onVoltar?: () => void }) {
 
           {perfil && (
             <>
-              <Avatar nome={perfil.nome} foto={fotoExibida} tamanho={64} />
-              <Pressable
-                accessibilityRole="button"
-                disabled={ocupado}
-                onPress={escolherFoto}
-                style={styles.button}
-              >
-                <Camera color={Caldera.obsidian} size={18} />
-                <Text style={styles.buttonText}>Escolher foto</Text>
-              </Pressable>
-              {(fotoExibida || novaFoto === null) && (
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={ocupado}
-                  onPress={() => {
-                    setNovaFoto(fotoExibida && perfil.foto ? null : undefined);
-                    setErro(undefined);
-                    setAviso(undefined);
-                  }}
-                  style={styles.button}
-                >
-                  {novaFoto === null ? (
-                    <Undo2 color={Caldera.obsidian} size={18} />
-                  ) : (
-                    <Trash2 color={Caldera.obsidian} size={18} />
+              <View style={styles.photoRow}>
+                <Avatar nome={perfil.nome} foto={fotoExibida} tamanho={96} />
+                <View style={styles.photoActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={ocupado}
+                    onPress={escolherFoto}
+                    style={[styles.button, styles.photoButton]}
+                  >
+                    <Camera color={Caldera.obsidian} size={18} />
+                    <Text style={[styles.buttonText, styles.photoButtonText]}>
+                      Escolher foto
+                    </Text>
+                  </Pressable>
+                  {(fotoExibida || novaFoto === null) && (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={ocupado}
+                      onPress={() => {
+                        setNovaFoto(
+                          fotoExibida && perfil.foto ? null : undefined,
+                        );
+                        setErro(undefined);
+                        setAviso(undefined);
+                      }}
+                      style={[styles.button, styles.photoButton]}
+                    >
+                      {novaFoto === null ? (
+                        <Undo2 color={Caldera.obsidian} size={18} />
+                      ) : (
+                        <Trash2 color={Caldera.obsidian} size={18} />
+                      )}
+                      <Text style={[styles.buttonText, styles.photoButtonText]}>
+                        {novaFoto === null
+                          ? "Desfazer remoção"
+                          : "Remover foto"}
+                      </Text>
+                    </Pressable>
                   )}
-                  <Text style={styles.buttonText}>
-                    {novaFoto === null ? "Desfazer remoção" : "Remover foto"}
-                  </Text>
-                </Pressable>
-              )}
+                </View>
+              </View>
               <Text style={styles.label}>Nome</Text>
               <TextInput
                 accessibilityLabel="Nome"
@@ -502,6 +512,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 16,
   },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  photoActions: { flex: 1, minWidth: 0, gap: 8 },
+  photoButton: { maxWidth: "100%", minHeight: 44, padding: 10 },
+  photoButtonText: { flexShrink: 1 },
   label: { color: Caldera.obsidian, fontWeight: "600" },
   input: {
     backgroundColor: Caldera.chalk,

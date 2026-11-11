@@ -12,7 +12,6 @@ import {
 import { useCallback, useRef, useState } from "react";
 import {
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -377,12 +376,12 @@ const styles = StyleSheet.create({
   page: {
     flexGrow: 1,
     paddingHorizontal: Spacing.four,
-    paddingTop: Platform.OS === "web" ? 112 : Spacing.four,
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.six,
   },
   pageSmall: {
     paddingHorizontal: Spacing.three,
-    paddingTop: Platform.OS === "web" ? 160 : Spacing.three,
+    paddingTop: Spacing.three,
   },
   content: {
     width: "100%",

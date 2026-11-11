@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: Spacing.three,
-    paddingTop: Platform.OS === "web" ? 120 : Spacing.four,
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.six,
   },
   form: {
