@@ -194,7 +194,7 @@ def obter_extrato(
 ):
     ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoPlacar(supabase)
-    return servico.obter_extrato(id_casa, filtros)
+    return servico.obter_extrato(id_casa, filtros, usuario_atual.id)
 
 
 @router.get("/{id_casa}/ranking", response_model=RankingScoreResposta)

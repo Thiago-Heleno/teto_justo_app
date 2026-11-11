@@ -14,9 +14,10 @@ class ServicoReclamacao:
         self.supabase = cliente_supabase
         self.tarefas = ServicoTarefa(cliente_supabase, tarefas_fundo)
 
-    def reclamar_tarefa(
+    def _validar_reclamacao(
         self, id_tarefa: UUID, id_usuario: UUID, conclusao_esperada: datetime | None = None
-    ) -> dict:
+    ) -> tuple:
+        self.tarefas.id_usuario_atual = id_usuario
         tarefa = self.tarefas._buscar_tarefa_bruta(id_tarefa)
         id_casa = str(tarefa["fk_casa_id"])
         casas = (
@@ -64,6 +65,28 @@ class ServicoReclamacao:
         if politica == "nenhuma":
             raise HTTPException(status_code=409, detail="Esta casa não permite reclamações.")
 
+        return tarefa, agora, politica, ids_moradores, responsaveis
+
+    def retirar_reclamacao(
+        self, id_tarefa: UUID, id_usuario: UUID, conclusao_esperada: datetime | None = None
+    ) -> dict:
+        tarefa, agora, _, _, _ = self._validar_reclamacao(id_tarefa, id_usuario, conclusao_esperada)
+        (
+            self.supabase.table("reclamacao_tarefa")
+            .delete()
+            .eq("fk_tarefa_id", str(id_tarefa))
+            .eq("fk_usuario_id", str(id_usuario))
+            .eq("ciclo", tarefa.get("reaberturas") or 0)
+            .execute()
+        )
+        return self.tarefas._montar_resposta(tarefa, agora)
+
+    def reclamar_tarefa(
+        self, id_tarefa: UUID, id_usuario: UUID, conclusao_esperada: datetime | None = None
+    ) -> dict:
+        tarefa, agora, politica, ids_moradores, responsaveis = self._validar_reclamacao(
+            id_tarefa, id_usuario, conclusao_esperada
+        )
         ciclo = tarefa.get("reaberturas") or 0
         try:
             self.supabase.table("reclamacao_tarefa").insert(

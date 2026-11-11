@@ -233,6 +233,40 @@ def test_extrato_conta_votos_por_tarefa_e_ciclo():
 
 
 @pytest.mark.parametrize(
+    "ciclo_voto,proprio,esperado", [(1, True, True), (0, True, False), (1, False, False)]
+)
+def test_extrato_identifica_voto_do_consulente_no_ciclo_atual(ciclo_voto, proprio, esperado):
+    servico, banco, casa_id, usuario_id = montar_servico()
+    banco.registros["casa"][0]["politica_reclamacao"] = "votacao"
+    credito = evento(casa_id, usuario_id, "2026-11-10T12:00:00Z", 25)
+    credito["ciclo"] = 1
+    banco.registros["score_event"] = [credito]
+    banco.registros["tarefa"] = [
+        {
+            "id": credito["fk_tarefa_id"],
+            "nome": "Louça",
+            "estado_atual": "finalizado",
+            "concluida_em": credito["criado_em"],
+            "reaberturas": 1,
+        }
+    ]
+    consulente = uuid4()
+    banco.registros["reclamacao_tarefa"] = [
+        {
+            "fk_tarefa_id": credito["fk_tarefa_id"],
+            "ciclo": ciclo_voto,
+            "fk_usuario_id": str(consulente if proprio else uuid4()),
+        }
+    ]
+
+    extrato = servico.obter_extrato(
+        casa_id, FiltroExtratoScore(fk_usuario_id=usuario_id), consulente
+    )
+
+    assert extrato["eventos"][0]["usuario_reclamou"] is esperado
+
+
+@pytest.mark.parametrize(
     "fuso,esperado,semanal,mensal",
     [("America/Sao_Paulo", "America/Sao_Paulo", 7, 15), ("America/Invalido", "UTC", 12, 17)],
 )

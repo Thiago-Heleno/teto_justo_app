@@ -21,7 +21,7 @@ def criar_tarefa(
     tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.criar_tarefa(tarefa, usuario_atual.id)
 
 
@@ -33,7 +33,7 @@ def listar_tarefas(
     limite: int = Query(100, ge=1),
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.listar_tarefas_acessiveis(usuario_atual.id, inicio, limite)
 
 
@@ -48,7 +48,7 @@ def listar_tarefas_por_casa(
     supabase=Depends(get_supabase),
 ):
     ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.listar_tarefas_por_casa(
         id_casa, estado=estado, responsavel=responsavel, prazo=prazo
     )
@@ -61,7 +61,7 @@ def buscar_tarefa(
     tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.buscar_tarefa_autorizada(id_tarefa, usuario_atual.id)
 
 
@@ -72,7 +72,7 @@ def concluir_tarefa(
     tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.concluir_tarefa(id_tarefa, usuario_atual.id)
 
 
@@ -83,7 +83,7 @@ def reabrir_tarefa(
     tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.reabrir_tarefa(id_tarefa, usuario_atual.id)
 
 
@@ -99,6 +99,18 @@ def reclamar_tarefa(
     return servico.reclamar_tarefa(id_tarefa, usuario_atual.id, concluida_em)
 
 
+@router.delete("/{id_tarefa}/reclamacoes", response_model=TarefaResposta)
+def retirar_reclamacao(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
+    concluida_em: datetime | None = None,
+    supabase=Depends(get_supabase),
+):
+    servico = ServicoReclamacao(supabase, tarefas_fundo)
+    return servico.retirar_reclamacao(id_tarefa, usuario_atual.id, concluida_em)
+
+
 @router.patch("/{id_tarefa}", response_model=TarefaResposta)
 def atualizar_tarefa(
     id_tarefa: UUID,
@@ -107,7 +119,7 @@ def atualizar_tarefa(
     tarefas_fundo: BackgroundTasks,
     supabase=Depends(get_supabase),
 ):
-    servico = ServicoTarefa(supabase, tarefas_fundo)
+    servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.atualizar_tarefa(id_tarefa, tarefa, usuario_atual.id)
 
 

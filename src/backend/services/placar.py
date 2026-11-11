@@ -174,7 +174,9 @@ class ServicoPlacar:
             self._meia_noite_utc(filtros.data_fim, fuso) if filtros.data_fim else None,
         )
 
-    def obter_extrato(self, id_casa: UUID, filtros: FiltroExtratoScore) -> dict:
+    def obter_extrato(
+        self, id_casa: UUID, filtros: FiltroExtratoScore, id_usuario_atual: UUID | None = None
+    ) -> dict:
         fuso, politica = self._configuracao_da_casa(id_casa)
         consulta = (
             self.supabase.table("score_event")
@@ -229,12 +231,21 @@ class ServicoPlacar:
                     "reclamacao_tarefa",
                     "fk_tarefa_id",
                     [evento["fk_tarefa_id"] for evento in conclusoes],
-                    "fk_tarefa_id,ciclo",
+                    "fk_tarefa_id,ciclo,fk_usuario_id",
                     ("fk_tarefa_id", "ciclo", "fk_usuario_id"),
                 )
                 por_ciclo = Counter((voto["fk_tarefa_id"], voto["ciclo"]) for voto in votos)
+                votos_do_usuario = {
+                    (voto["fk_tarefa_id"], voto["ciclo"])
+                    for voto in votos
+                    if str(voto["fk_usuario_id"]) == str(id_usuario_atual)
+                }
                 for evento in conclusoes:
                     evento["reclamacoes_count"] = por_ciclo[evento["fk_tarefa_id"], evento["ciclo"]]
+                    evento["usuario_reclamou"] = (
+                        evento["fk_tarefa_id"],
+                        evento["ciclo"],
+                    ) in votos_do_usuario
         return {
             "casa_id": str(id_casa),
             "fuso_horario": fuso.key,

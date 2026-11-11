@@ -24,8 +24,14 @@ _FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "antigas", "atrasadas")
 
 
 class ServicoTarefa:
-    def __init__(self, cliente_supabase, tarefas_fundo: BackgroundTasks | None = None):
+    def __init__(
+        self,
+        cliente_supabase,
+        tarefas_fundo: BackgroundTasks | None = None,
+        id_usuario_atual: UUID | None = None,
+    ):
         self.supabase = cliente_supabase
+        self.id_usuario_atual = id_usuario_atual
         self.notificacoes = ServicoNotificacao(cliente_supabase, tarefas_fundo)
         self.ciclo_vida = ServicoCicloVidaTarefa(cliente_supabase, self.notificacoes)
         self._moradores_politica_por_casa: dict[str, tuple[str, set[str]]] = {}
@@ -121,18 +127,23 @@ class ServicoTarefa:
                 "politica_reclamacao": politica,
                 "reclamacoes_count": 0,
                 "reclamacoes_limite": 0,
+                "usuario_reclamou": False,
             }
 
-        total = (
+        reclamacoes = (
             self.supabase.table("reclamacao_tarefa")
             .select("fk_usuario_id", count="exact")
             .eq("fk_tarefa_id", str(tarefa["id"]))
             .eq("ciclo", tarefa.get("reaberturas") or 0)
             .execute()
-        ).count
+        )
         return {
             "politica_reclamacao": politica,
-            "reclamacoes_count": total or 0,
+            "reclamacoes_count": reclamacoes.count or 0,
+            "usuario_reclamou": any(
+                str(voto["fk_usuario_id"]) == str(self.id_usuario_atual)
+                for voto in reclamacoes.data
+            ),
             "reclamacoes_limite": self._limite_reclamacoes(moradores, responsaveis),
         }
 

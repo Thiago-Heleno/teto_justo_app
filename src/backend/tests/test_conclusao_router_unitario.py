@@ -49,8 +49,9 @@ def test_post_conclusoes_envia_tarefa_e_usuario_ao_servico(monkeypatch):
     chamadas = []
 
     class ServicoTarefaFalso:
-        def __init__(self, supabase, tarefas_fundo):
+        def __init__(self, supabase, tarefas_fundo, id_usuario_atual=None):
             assert supabase is banco
+            assert id_usuario_atual == usuario_id
 
         def concluir_tarefa(self, id_recebido, usuario_recebido):
             chamadas.append((id_recebido, usuario_recebido))
