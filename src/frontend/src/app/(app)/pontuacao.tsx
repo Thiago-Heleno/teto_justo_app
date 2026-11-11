@@ -387,10 +387,10 @@ const styles = StyleSheet.create({
   page: {
     flexGrow: 1,
     paddingHorizontal: Spacing.four,
-    paddingTop: Platform.OS === "web" ? 112 : Spacing.four,
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.six,
   },
-  pageSmallWeb: { paddingTop: 160, paddingHorizontal: Spacing.three },
+  pageSmallWeb: { paddingHorizontal: Spacing.three },
   content: {
     width: "100%",
     maxWidth: 1280,

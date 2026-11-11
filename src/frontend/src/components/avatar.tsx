@@ -8,7 +8,7 @@ import { uriFoto } from "@/utils/foto";
 type Props = {
   nome: string;
   foto?: string | null;
-  tamanho: 36 | 40 | 48 | 64;
+  tamanho: 36 | 40 | 48 | 64 | 96;
 };
 
 export function Avatar({ nome, foto, tamanho }: Props) {
@@ -42,6 +42,7 @@ export function Avatar({ nome, foto, tamanho }: Props) {
             tamanho === 36 && styles.textoLista,
             tamanho === 40 && styles.textoSelecao,
             tamanho === 64 && styles.textoPerfil,
+            tamanho === 96 && styles.textoPerfilGrande,
           ]}
         >
           {nome
@@ -71,4 +72,5 @@ const styles = StyleSheet.create({
   textoLista: { fontSize: 11 },
   textoSelecao: { lineHeight: 20 },
   textoPerfil: { fontSize: 24 },
+  textoPerfilGrande: { fontSize: 36 },
 });

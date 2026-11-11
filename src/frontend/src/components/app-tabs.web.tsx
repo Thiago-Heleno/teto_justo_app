@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import {
   Tabs,
   TabList,
@@ -10,11 +11,13 @@ import {
   CirclePlus,
   House,
   ListChecks,
+  Menu,
   Trophy,
   User,
+  X,
   type LucideIcon,
 } from "lucide-react-native";
-import { View, StyleSheet } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
@@ -23,28 +26,78 @@ import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, Spacing } from "@/constants/theme";
 
 export default function AppTabs() {
+  const { width } = useWindowDimensions();
+  const compacto = width < 600;
+  const [menuAberto, setMenuAberto] = useState(false);
+  const botaoMenu = useRef<View>(null);
+  const IconeMenu = menuAberto ? X : Menu;
+
+  function recolherMenu() {
+    setMenuAberto(false);
+    if (compacto) botaoMenu.current?.focus();
+  }
+
   return (
     <Tabs>
-      <TabSlot style={{ height: "100%" }} />
-      <TabList asChild>
+      {compacto && (
+        <View style={styles.menuHeader}>
+          <MotionPressable
+            ref={botaoMenu}
+            accessibilityRole="button"
+            accessibilityLabel={menuAberto ? "Fechar menu" : "Abrir menu"}
+            aria-controls="navegacao-da-casa"
+            aria-expanded={menuAberto}
+            onPress={() => setMenuAberto((aberto) => !aberto)}
+            style={styles.menuButton}
+          >
+            <IconeMenu color={Caldera.obsidian} size={24} />
+          </MotionPressable>
+        </View>
+      )}
+      <TabList
+        asChild
+        nativeID="navegacao-da-casa"
+        style={compacto && !menuAberto && styles.hidden}
+      >
         <CustomTabList>
-          <TabTrigger name="index" href="/" asChild>
+          <TabTrigger name="index" href="/" asChild onPress={recolherMenu}>
             <TabButton icon={House}>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="nova-tarefa" href="/nova-tarefa" asChild>
+          <TabTrigger
+            name="nova-tarefa"
+            href="/nova-tarefa"
+            asChild
+            onPress={recolherMenu}
+          >
             <TabButton icon={CirclePlus}>Criar</TabButton>
           </TabTrigger>
-          <TabTrigger name="tarefas" href="/tarefas" asChild>
+          <TabTrigger
+            name="tarefas"
+            href="/tarefas"
+            asChild
+            onPress={recolherMenu}
+          >
             <TabButton icon={ListChecks}>Tarefas</TabButton>
           </TabTrigger>
-          <TabTrigger name="pontuacao" href="/pontuacao" asChild>
+          <TabTrigger
+            name="pontuacao"
+            href="/pontuacao"
+            asChild
+            onPress={recolherMenu}
+          >
             <TabButton icon={Trophy}>Pontuação</TabButton>
           </TabTrigger>
-          <TabTrigger name="perfil" href="/perfil" asChild>
+          <TabTrigger
+            name="perfil"
+            href="/perfil"
+            asChild
+            onPress={recolherMenu}
+          >
             <TabButton icon={User}>Perfil</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
+      <TabSlot style={styles.tabContent} />
     </Tabs>
   );
 }
@@ -72,17 +125,32 @@ export function TabButton({
   );
 }
 
-export function CustomTabList(props: TabListProps) {
+export function CustomTabList({ style, children, ...props }: TabListProps) {
   return (
-    <View {...props} style={styles.tabListContainer}>
-      <ThemedView style={styles.innerContainer}>{props.children}</ThemedView>
+    <View {...props} style={[styles.tabListContainer, style]}>
+      <ThemedView style={styles.innerContainer}>{children}</ThemedView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  menuHeader: {
+    backgroundColor: Caldera.limestone,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  menuButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Caldera.pumice,
+  },
+  hidden: { display: "none" },
+  tabContent: { flex: 1, minHeight: 0 },
   tabListContainer: {
-    position: "absolute",
     width: "100%",
     padding: Spacing.three,
     justifyContent: "center",
