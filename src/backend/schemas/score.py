@@ -40,6 +40,7 @@ class ScoreEventResposta(BaseModel):
     fk_usuario_id: UUID
     fk_tarefa_id: UUID
     nome_tarefa: str | None = None
+    reclamacoes_count: int = Field(default=0, ge=0)
     concluida_em: datetime | None = Field(
         default=None, description="Instante da conclusão vigente, apenas no crédito correspondente."
     )

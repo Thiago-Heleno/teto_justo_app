@@ -89,6 +89,7 @@ def test_extrato_e_ranking_aplicam_periodo_informado_na_url(consulta_score):
                 **{k: v for k, v in credito.items() if k != "ciclo"},
                 "nome_tarefa": None,
                 "concluida_em": None,
+                "reclamacoes_count": 0,
             }
         ],
     }

@@ -201,6 +201,37 @@ def test_extrato_identifica_somente_a_conclusao_do_ciclo_atual():
     }
 
 
+def test_extrato_conta_votos_por_tarefa_e_ciclo():
+    servico, banco, casa_id, usuario_id = montar_servico()
+    banco.registros["casa"][0]["politica_reclamacao"] = "votacao"
+    com_votos, sem_votos = [
+        evento(casa_id, usuario_id, "2026-11-10T12:00:00Z", 25) for _ in range(2)
+    ]
+    com_votos["ciclo"] = 1
+    banco.registros["score_event"] = [com_votos, sem_votos]
+    banco.registros["tarefa"] = [
+        {
+            "id": credito["fk_tarefa_id"],
+            "nome": "Louça",
+            "estado_atual": "finalizado",
+            "concluida_em": credito["criado_em"],
+            "reaberturas": credito["ciclo"],
+        }
+        for credito in (com_votos, sem_votos)
+    ]
+    banco.registros["reclamacao_tarefa"] = [
+        {"fk_tarefa_id": com_votos["fk_tarefa_id"], "ciclo": ciclo, "fk_usuario_id": str(uuid4())}
+        for ciclo in (0, 1, 1)
+    ]
+
+    extrato = servico.obter_extrato(casa_id, FiltroExtratoScore())
+
+    assert {e["id"]: e["reclamacoes_count"] for e in extrato["eventos"]} == {
+        com_votos["id"]: 2,
+        sem_votos["id"]: 0,
+    }
+
+
 @pytest.mark.parametrize(
     "fuso,esperado,semanal,mensal",
     [("America/Sao_Paulo", "America/Sao_Paulo", 7, 15), ("America/Invalido", "UTC", 12, 17)],
