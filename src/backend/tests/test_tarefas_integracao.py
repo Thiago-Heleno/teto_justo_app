@@ -305,7 +305,7 @@ def test_criar_tarefa_rejeita_responsaveis_invalidos(
         )
         assert de_outra_casa.status_code == 422, de_outra_casa.text
 
-        # Responsável válido (o próprio dono da casa) passa normalmente
+        # Responsável válido (o próprio administrador da casa) passa normalmente
         valida = cliente_admin.post(
             "/tarefas/",
             json={

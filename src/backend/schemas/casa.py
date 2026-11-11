@@ -56,7 +56,7 @@ class CasaResposta(BaseModel):
     nome: str
     endereco: str
     foto: Optional[str] = None
-    fk_usuario_id: UUID
+    fk_usuario_id: UUID = Field(description="ID do administrador da casa.")
     timezone: str
     politica_reclamacao: PoliticaReclamacao
 

@@ -18,7 +18,7 @@ def ambiente_rotatividade(
 ):
     supabase = get_supabase()
     marcador = uuid4().hex
-    proprietario_id = autenticacao_temporaria["usuario_id"]
+    administrador_id = autenticacao_temporaria["usuario_id"]
     participante = criar_autenticacao_temporaria()
     casa_id = None
 
@@ -28,7 +28,7 @@ def ambiente_rotatividade(
             .insert(
                 {
                     "nome": f"Casa teste rotatividade {marcador}",
-                    "fk_usuario_id": proprietario_id,
+                    "fk_usuario_id": administrador_id,
                     "timezone": "UTC",
                 }
             )
@@ -42,7 +42,7 @@ def ambiente_rotatividade(
             .insert(
                 [
                     {
-                        "fk_usuario_id": proprietario_id,
+                        "fk_usuario_id": administrador_id,
                         "fk_casa_id": casa_id,
                         "score": 0,
                     },
@@ -61,7 +61,7 @@ def ambiente_rotatividade(
 
         yield {
             "casa_id": casa_id,
-            "proprietario_id": proprietario_id,
+            "administrador_id": administrador_id,
             "participante_id": participante["usuario_id"],
         }
     finally:
@@ -101,7 +101,7 @@ def test_criar_e_processar_rotatividade_no_supabase(
     monkeypatch,
 ):
     supabase = get_supabase()
-    proprietario_id = ambiente_rotatividade["proprietario_id"]
+    administrador_id = ambiente_rotatividade["administrador_id"]
     participante_id = ambiente_rotatividade["participante_id"]
     instante = datetime.now(timezone.utc)
 
@@ -125,7 +125,7 @@ def test_criar_e_processar_rotatividade_no_supabase(
                 "peso": 2,
                 "prazo_dias": 2,
                 "atraso_maximo": 2,
-                "participantes": [proprietario_id, participante_id],
+                "participantes": [administrador_id, participante_id],
                 "dias_semana": [instante.isoweekday()],
                 "intervalo_semanas": 1,
             },
@@ -142,7 +142,7 @@ def test_criar_e_processar_rotatividade_no_supabase(
             .data
         )
         assert [item["fk_usuario_id"] for item in participantes] == [
-            proprietario_id,
+            administrador_id,
             participante_id,
         ]
 
@@ -191,6 +191,6 @@ def test_criar_e_processar_rotatividade_no_supabase(
     )
     assert len(atribuicoes) == 1
     assert atribuicoes[0]["fk_usuario_id"] in {
-        proprietario_id,
+        administrador_id,
         participante_id,
     }

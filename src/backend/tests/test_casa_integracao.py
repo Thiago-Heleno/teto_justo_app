@@ -53,7 +53,7 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
         assert casa["timezone"] == "America/Sao_Paulo"
         assert casa["politica_reclamacao"] == "nenhuma"
 
-        vinculo_proprietario = (
+        vinculo_administrador = (
             get_supabase()
             .table("pertencer")
             .select("score")
@@ -61,10 +61,10 @@ def test_crud_casa_no_supabase(usuario_temporario, autenticacao_temporaria):
             .eq("fk_usuario_id", usuario_temporario)
             .execute()
         ).data
-        assert vinculo_proprietario == [{"score": 0}]
+        assert vinculo_administrador == [{"score": 0}]
 
-        remocao_proprietario = cliente.delete(f"/pertencer/{usuario_temporario}/{casa['id']}")
-        assert remocao_proprietario.status_code == 409, remocao_proprietario.text
+        remocao_administrador = cliente.delete(f"/pertencer/{usuario_temporario}/{casa['id']}")
+        assert remocao_administrador.status_code == 409, remocao_administrador.text
 
         encontrada = cliente.get(f"/casas/{casa['id']}")
 

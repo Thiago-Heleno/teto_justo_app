@@ -168,7 +168,7 @@ def test_criar_casa_sem_retorno_do_banco_gera_500(servico, consulta, id_usuario)
     assert erro.value.detail == "Erro ao criar casa no banco."
 
 
-def test_criar_casa_reverte_casa_se_vinculo_do_proprietario_falhar(
+def test_criar_casa_reverte_casa_se_vinculo_do_administrador_falhar(
     servico, consulta, id_usuario, registro_casa
 ):
     consulta.execute.side_effect = [
@@ -204,7 +204,7 @@ def test_rejeita_politica_de_reclamacao_invalida(schema):
         schema(**dados, politica_reclamacao="qualquer")
 
 
-def test_criar_casa_rejeita_proprietario_informado_pelo_cliente():
+def test_criar_casa_rejeita_administrador_informado_pelo_cliente():
     with pytest.raises(ValidationError):
         CasaCriar(
             nome="Casa Azul",

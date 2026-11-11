@@ -27,9 +27,9 @@ def consulta_com_respostas(respostas):
 @pytest.mark.parametrize("admin", [True, False])
 def test_lista_regras_para_admin_e_morador_ativo(admin):
     usuario, casa = uuid4(), uuid4()
-    dono = usuario if admin else uuid4()
+    administrador = usuario if admin else uuid4()
     regra = {"id": str(uuid4()), "fk_casa_id": str(casa)}
-    respostas = [[{"fk_usuario_id": str(dono)}]]
+    respostas = [[{"fk_usuario_id": str(administrador)}]]
     if not admin:
         respostas.append([{"fk_usuario_id": str(usuario)}])
     respostas.append([regra])
@@ -50,11 +50,11 @@ def test_nao_morador_nao_consegue_listar_regras():
 
 @pytest.mark.parametrize("acao", ["editar", "remover"])
 def test_morador_nao_consegue_alterar_regras(acao):
-    casa, dono, usuario, regra_id = uuid4(), uuid4(), uuid4(), uuid4()
+    casa, administrador, usuario, regra_id = uuid4(), uuid4(), uuid4(), uuid4()
     banco = consulta_com_respostas(
         [
             [{"id": str(regra_id), "fk_casa_id": str(casa)}],
-            [{"fk_usuario_id": str(dono)}],
+            [{"fk_usuario_id": str(administrador)}],
         ]
     )
     servico = ServicoAgendamentoRotatividade(banco)
@@ -72,25 +72,26 @@ def test_morador_nao_consegue_alterar_regras(acao):
     banco.table.return_value.delete.assert_not_called()
 
 
-def respostas_exclusao(regra_id, casa, dono):
+def respostas_exclusao(regra_id, casa, administrador):
     return [
         [{"id": str(regra_id), "fk_casa_id": str(casa)}],
-        [{"fk_usuario_id": str(dono)}],
+        [{"fk_usuario_id": str(administrador)}],
         [],
     ]
 
 
 def test_excluir_regra_apaga_tarefas_participantes_e_regra():
-    casa, dono, regra_id = uuid4(), uuid4(), uuid4()
+    casa, administrador, regra_id = uuid4(), uuid4(), uuid4()
     banco = consulta_com_respostas(
         [
-            *respostas_exclusao(regra_id, casa, dono),
+            *respostas_exclusao(regra_id, casa, administrador),
             [{"id": str(uuid4())}],
             [],
             [{"id": str(regra_id)}],
         ]
     )
-    assert ServicoAgendamentoRotatividade(banco).excluir_rotatividade(regra_id, dono) is True
+    servico = ServicoAgendamentoRotatividade(banco)
+    assert servico.excluir_rotatividade(regra_id, administrador) is True
     assert [c.args[0] for c in banco.table.call_args_list][-3:] == [
         "tarefa",
         "rotatividade_participante",
@@ -100,13 +101,13 @@ def test_excluir_regra_apaga_tarefas_participantes_e_regra():
 
 
 def test_excluir_regra_com_tarefa_pontuada_retorna_409():
-    casa, dono, regra_id = uuid4(), uuid4(), uuid4()
+    casa, administrador, regra_id = uuid4(), uuid4(), uuid4()
     banco = consulta_com_respostas(
         [
-            *respostas_exclusao(regra_id, casa, dono),
+            *respostas_exclusao(regra_id, casa, administrador),
             APIError({"code": "23503", "message": "violates foreign key"}),
         ]
     )
     with pytest.raises(HTTPException) as erro:
-        ServicoAgendamentoRotatividade(banco).excluir_rotatividade(regra_id, dono)
+        ServicoAgendamentoRotatividade(banco).excluir_rotatividade(regra_id, administrador)
     assert erro.value.status_code == 409

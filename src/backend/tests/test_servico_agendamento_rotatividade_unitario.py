@@ -183,17 +183,17 @@ class BancoFalso:
 
 
 @pytest.mark.parametrize("vinculo", ["ausente", "inativo"])
-def test_proprietario_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
+def test_administrador_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
     banco = BancoFalso()
-    id_proprietario, id_casa, id_rotatividade = str(uuid4()), str(uuid4()), str(uuid4())
-    configuracao = {"id": id_rotatividade, "fk_casa_id": id_casa, "fk_usuario_id": id_proprietario}
+    id_administrador, id_casa, id_rotatividade = str(uuid4()), str(uuid4()), str(uuid4())
+    configuracao = {"id": id_rotatividade, "fk_casa_id": id_casa, "fk_usuario_id": id_administrador}
     banco.registros.update(
         {
-            "casa": [{"id": id_casa, "fk_usuario_id": id_proprietario}],
+            "casa": [{"id": id_casa, "fk_usuario_id": id_administrador}],
             "rotatividade_participante": [
                 {
                     "fk_rotatividade_id": id_rotatividade,
-                    "fk_usuario_id": id_proprietario,
+                    "fk_usuario_id": id_administrador,
                     "ordem": 1,
                 }
             ],
@@ -202,7 +202,7 @@ def test_proprietario_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
             else [
                 {
                     "fk_casa_id": id_casa,
-                    "fk_usuario_id": id_proprietario,
+                    "fk_usuario_id": id_administrador,
                     "ativo": False,
                 }
             ],

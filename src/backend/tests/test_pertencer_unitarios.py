@@ -18,7 +18,7 @@ class BancoMemoria:
         self.vinculos = {}  # dict: (fk_usuario_id, fk_casa_id) -> dict com os campos do vínculo
         self.resultados_vazios = set()
         self.eventos = []
-        self.proprietario = None
+        self.administrador = None
         self.rotacao_versao = 0
         self.atribuidas = []  # lista de {"fk_usuario_id":..., "fk_tarefa_id":...}
         self.tarefas = {}  # dict: id (str) -> dict com os campos da tarefa
@@ -81,7 +81,7 @@ class Consulta:
             return SimpleNamespace(
                 data=[
                     {
-                        "fk_usuario_id": self.banco.proprietario,
+                        "fk_usuario_id": self.banco.administrador,
                         "rotacao_versao": self.banco.rotacao_versao,
                     }
                 ]
@@ -246,9 +246,9 @@ class TesteServicoPertencer(unittest.TestCase):
         self.assertEqual(reativado["score"], 25)
         self.assertEqual(len(self.banco.vinculos), 1)
 
-    def test_deletar_proprietario_gera_409(self):
+    def test_deletar_administrador_gera_409(self):
         self._criar_vinculo()
-        self.banco.proprietario = str(self.fk_usuario_id)
+        self.banco.administrador = str(self.fk_usuario_id)
 
         with self.assertRaises(HTTPException) as contexto:
             self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)

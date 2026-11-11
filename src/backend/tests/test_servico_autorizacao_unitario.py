@@ -11,7 +11,7 @@ from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
 
 
 @pytest.mark.parametrize(
-    "usuario_texto,proprietario_texto",
+    "usuario_texto,administrador_texto",
     [
         (False, False),
         (False, True),
@@ -20,7 +20,7 @@ from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
     ],
 )
 @pytest.mark.parametrize(
-    "proprietario,vinculo_ativo,esperado",
+    "administrador,vinculo_ativo,esperado",
     [
         (True, True, "administrador"),
         (True, False, "administrador"),
@@ -28,20 +28,20 @@ from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
         (False, False, "nenhum"),
     ],
 )
-def test_papel_depende_da_propriedade_e_do_vinculo_ativo(
+def test_papel_depende_do_administrador_e_do_vinculo_ativo(
     usuario_texto,
-    proprietario_texto,
-    proprietario,
+    administrador_texto,
+    administrador,
     vinculo_ativo,
     esperado,
 ):
     id_usuario = uuid4()
-    id_proprietario = id_usuario if proprietario else uuid4()
+    id_administrador = id_usuario if administrador else uuid4()
 
     assert (
         papel_na_casa(
             str(id_usuario) if usuario_texto else id_usuario,
-            str(id_proprietario) if proprietario_texto else id_proprietario,
+            str(id_administrador) if administrador_texto else id_administrador,
             vinculo_ativo,
         )
         == esperado
@@ -64,7 +64,7 @@ def servico(consulta):
     return ServicoAutorizacaoCasa(banco)
 
 
-def test_proprietario_e_administrador_da_casa(servico, consulta):
+def test_identifica_administrador_da_casa(servico, consulta):
     id_casa = uuid4()
     id_usuario = uuid4()
     consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}])
@@ -97,7 +97,7 @@ def test_casa_inexistente_recebe_404(servico, consulta, operacao):
     assert erro.value.detail == "Casa não encontrada."
 
 
-def test_proprietario_acessa_sem_consultar_vinculo(servico, consulta):
+def test_administrador_acessa_sem_consultar_vinculo(servico, consulta):
     id_usuario = uuid4()
     consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}])
 

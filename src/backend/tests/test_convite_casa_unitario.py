@@ -28,13 +28,13 @@ def test_emitir_e_verificar_preservam_ids_e_expiracao_utc(monkeypatch):
     monkeypatch.setenv("CASA_CONVITE_SECRET", _SEGREDO)
     agora = datetime(2026, 10, 4, 15, 30, tzinfo=timezone.utc)
     _fixar_relogio(monkeypatch, agora)
-    id_casa, id_proprietario = uuid4(), uuid4()
+    id_casa, id_administrador = uuid4(), uuid4()
     servico = ServicoConviteCasa()
 
-    resposta = servico.emitir(id_casa, id_proprietario)
+    resposta = servico.emitir(id_casa, id_administrador)
 
     assert resposta["expira_em"] == agora + timedelta(hours=24)
-    assert servico.verificar(resposta["convite"]) == (id_casa, id_proprietario)
+    assert servico.verificar(resposta["convite"]) == (id_casa, id_administrador)
     assert resposta["convite"].count(".") == 1
 
 

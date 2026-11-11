@@ -30,7 +30,9 @@ class TarefaCriar(BaseModel):
     modo_prazo: ModoPrazo = "intervalo"
     data_fixa: date | None = None
     fk_casa_id: UUID
-    usuarios_atribuidos: list[UUID] = Field(min_length=1, max_length=1)
+    usuarios_atribuidos: list[UUID] = Field(
+        min_length=1, max_length=1, description="Responsável (dono) pela tarefa."
+    )
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -51,7 +53,9 @@ class TarefaAtualizar(BaseModel):
     prazo_dias: PrazoDias | None = None
     atraso_maximo: AtrasoMaximo | None = None
     data_fixa: date | None = None
-    usuarios_atribuidos: list[UUID] | None = Field(default=None, min_length=1, max_length=1)
+    usuarios_atribuidos: list[UUID] | None = Field(
+        default=None, min_length=1, max_length=1, description="Responsável (dono) pela tarefa."
+    )
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -84,8 +88,10 @@ class TarefaResposta(BaseModel):
     proxima_ocorrencia: datetime | None
     data_fim: datetime
     fk_casa_id: UUID
-    usuarios_atribuidos: list[UUID] = Field(default_factory=list)
-    fk_usuario_id: UUID
+    usuarios_atribuidos: list[UUID] = Field(
+        default_factory=list, description="Responsáveis (donos) atribuídos à tarefa."
+    )
+    fk_usuario_id: UUID = Field(description="ID do criador da tarefa.")
     politica_reclamacao: PoliticaReclamacao
     reclamacoes_count: int = Field(ge=0)
     reclamacoes_limite: int = Field(ge=0)

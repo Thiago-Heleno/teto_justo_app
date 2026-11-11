@@ -128,13 +128,13 @@ class SupabaseEmMemoria:
         return ConsultaEmMemoria(self, tabela)
 
 
-def casa(numero, proprietario):
+def casa(numero, administrador):
     return {
         "id": str(UUID(int=numero)),
         "nome": f"Casa {numero}",
         "endereco": f"Rua {numero}",
         "foto": None,
-        "fk_usuario_id": str(proprietario),
+        "fk_usuario_id": str(administrador),
         "timezone": "America/Sao_Paulo",
         "politica_reclamacao": "nenhuma",
         "rotacao_versao": 0,
@@ -152,27 +152,27 @@ def vinculo(casa_id, usuario_id, score=0, ativo=True):
 
 @pytest.fixture
 def ambiente(monkeypatch):
-    proprietario = UUID(int=50)
-    outro_proprietario = UUID(int=51)
+    administrador = UUID(int=50)
+    outro_administrador = UUID(int=51)
     casas = {numero: UUID(int=numero) for numero in range(1, 6)}
     banco = SupabaseEmMemoria(
         {
             "casa": [
-                casa(5, outro_proprietario),
-                casa(3, outro_proprietario),
-                casa(4, proprietario),
-                casa(2, outro_proprietario),
-                casa(1, proprietario),
+                casa(5, outro_administrador),
+                casa(3, outro_administrador),
+                casa(4, administrador),
+                casa(2, outro_administrador),
+                casa(1, administrador),
             ],
             "pertencer": [
-                vinculo(casas[1], proprietario),  # Casa própria e vinculada não duplica.
-                vinculo(casas[2], proprietario, 37),
-                vinculo(casas[3], proprietario, 11, ativo=False),
-                vinculo(casas[5], proprietario),
+                vinculo(casas[1], administrador),  # Casa própria e vinculada não duplica.
+                vinculo(casas[2], administrador, 37),
+                vinculo(casas[3], administrador, 11, ativo=False),
+                vinculo(casas[5], administrador),
             ],
             "usuario": [
                 {
-                    "id": str(proprietario),
+                    "id": str(administrador),
                     "nome": "Ana",
                     "email": "ana@example.com",
                     "telefone": None,
@@ -189,10 +189,10 @@ def ambiente(monkeypatch):
     monkeypatch.setitem(
         app.dependency_overrides,
         obter_usuario_atual,
-        lambda: SimpleNamespace(id=proprietario),
+        lambda: SimpleNamespace(id=administrador),
     )
     with TestClient(app) as cliente:
-        yield cliente, banco, casas, proprietario, outro_proprietario
+        yield cliente, banco, casas, administrador, outro_administrador
 
 
 def trocar_usuario(monkeypatch, usuario_id):
@@ -359,15 +359,15 @@ def test_listagem_sem_casas_retorna_200_e_lista_vazia(ambiente, monkeypatch):
     assert resposta.json() == []
 
 
-def test_leitura_da_casa_exige_propriedade_ou_vinculo(ambiente, monkeypatch):
-    cliente, banco, casas, proprietario, _ = ambiente
+def test_leitura_da_casa_exige_administracao_ou_vinculo(ambiente, monkeypatch):
+    cliente, banco, casas, administrador, _ = ambiente
     banco.registros["pertencer"] = [
         registro
         for registro in banco.registros["pertencer"]
         if registro["fk_casa_id"] != str(casas[1])
     ]
     assert not any(
-        registro["fk_casa_id"] == str(casas[1]) and registro["fk_usuario_id"] == str(proprietario)
+        registro["fk_casa_id"] == str(casas[1]) and registro["fk_usuario_id"] == str(administrador)
         for registro in banco.registros["pertencer"]
     )
 
@@ -381,14 +381,14 @@ def test_leitura_da_casa_exige_propriedade_ou_vinculo(ambiente, monkeypatch):
 
 
 def test_moradores_mantem_score_e_requer_acesso(ambiente):
-    cliente, _, casas, proprietario, _ = ambiente
+    cliente, _, casas, administrador, _ = ambiente
 
     resposta = cliente.get(f"/casas/{casas[2]}/moradores")
 
     assert resposta.status_code == 200, resposta.text
     assert resposta.json() == [
         {
-            "id": str(proprietario),
+            "id": str(administrador),
             "nome": "Ana",
             "email": "ana@example.com",
             "telefone": None,
@@ -399,7 +399,7 @@ def test_moradores_mantem_score_e_requer_acesso(ambiente):
     assert cliente.get(f"/casas/{casas[3]}/moradores").status_code == 403
 
 
-def test_convite_so_pode_ser_emitido_pelo_proprietario(ambiente):
+def test_convite_so_pode_ser_emitido_pelo_administrador(ambiente):
     cliente, _, casas, _, _ = ambiente
 
     resposta = cliente.post(f"/casas/{casas[1]}/convites")
@@ -500,12 +500,14 @@ def test_convite_expirado_retorna_400(ambiente, monkeypatch):
     assert resposta.status_code == 400, resposta.text
 
 
-def test_convite_da_casa_removida_ou_com_novo_dono_nao_concede_acesso(ambiente, monkeypatch):
-    cliente, banco, casas, _, outro_proprietario = ambiente
+def test_convite_da_casa_removida_ou_com_novo_administrador_nao_concede_acesso(
+    ambiente, monkeypatch
+):
+    cliente, banco, casas, _, outro_administrador = ambiente
     convite = cliente.post(f"/casas/{casas[1]}/convites").json()["convite"]
     trocar_usuario(monkeypatch, UUID(int=70))
     registro = next(casa for casa in banco.registros["casa"] if casa["id"] == str(casas[1]))
-    registro["fk_usuario_id"] = str(outro_proprietario)
+    registro["fk_usuario_id"] = str(outro_administrador)
 
     assert cliente.post("/casas/entrar", json={"convite": convite}).status_code == 400
     banco.registros["casa"].remove(registro)
@@ -531,7 +533,7 @@ def test_segredo_ausente_ou_fraco_indisponibiliza_rotas_de_convite(ambiente, mon
 
 
 def test_saida_inativa_so_vinculo_da_sessao_e_retorna_204(ambiente):
-    cliente, banco, casas, proprietario, _ = ambiente
+    cliente, banco, casas, administrador, _ = ambiente
     vinculos_antes = deepcopy(banco.registros["pertencer"])
 
     resposta = cliente.delete(f"/casas/{casas[2]}/sair")
@@ -542,7 +544,7 @@ def test_saida_inativa_so_vinculo_da_sessao_e_retorna_204(ambiente):
     alterados = [
         item
         for item in banco.registros["pertencer"]
-        if item["fk_casa_id"] == str(casas[2]) and item["fk_usuario_id"] == str(proprietario)
+        if item["fk_casa_id"] == str(casas[2]) and item["fk_usuario_id"] == str(administrador)
     ]
     assert len(alterados) == 1
     assert alterados[0]["ativo"] is False
@@ -551,14 +553,14 @@ def test_saida_inativa_so_vinculo_da_sessao_e_retorna_204(ambiente):
     assert cliente.delete(f"/casas/{casas[2]}/sair").status_code == 404
 
 
-@pytest.mark.parametrize("bloqueio", ["proprietario", "tarefa_aberta"])
+@pytest.mark.parametrize("bloqueio", ["administrador", "tarefa_aberta"])
 def test_saida_bloqueada_preserva_vinculo(ambiente, bloqueio):
-    cliente, banco, casas, proprietario, _ = ambiente
-    alvo = casas[1] if bloqueio == "proprietario" else casas[2]
+    cliente, banco, casas, administrador, _ = ambiente
+    alvo = casas[1] if bloqueio == "administrador" else casas[2]
     if bloqueio == "tarefa_aberta":
         tarefa_id = str(UUID(int=100))
         banco.registros["atribuida"].append(
-            {"fk_tarefa_id": tarefa_id, "fk_usuario_id": str(proprietario)}
+            {"fk_tarefa_id": tarefa_id, "fk_usuario_id": str(administrador)}
         )
         banco.registros["tarefa"].append(
             {"id": tarefa_id, "fk_casa_id": str(alvo), "estado_atual": "pendente"}
@@ -572,8 +574,8 @@ def test_saida_bloqueada_preserva_vinculo(ambiente, bloqueio):
 
 
 def test_saida_com_historico_preserva_pontos_e_eventos(ambiente):
-    cliente, banco, casas, proprietario, _ = ambiente
-    evento = {"fk_casa_id": str(casas[2]), "fk_usuario_id": str(proprietario)}
+    cliente, banco, casas, administrador, _ = ambiente
+    evento = {"fk_casa_id": str(casas[2]), "fk_usuario_id": str(administrador)}
     banco.registros["score_event"].append(evento)
 
     resposta = cliente.delete(f"/casas/{casas[2]}/sair")
@@ -583,7 +585,7 @@ def test_saida_com_historico_preserva_pontos_e_eventos(ambiente):
     vinculado = next(
         item
         for item in banco.registros["pertencer"]
-        if item["fk_casa_id"] == str(casas[2]) and item["fk_usuario_id"] == str(proprietario)
+        if item["fk_casa_id"] == str(casas[2]) and item["fk_usuario_id"] == str(administrador)
     )
     assert vinculado["ativo"] is False
     assert vinculado["score"] == 37
@@ -627,13 +629,13 @@ def test_uuid_invalido_retorna_422(ambiente):
     assert cliente.delete("/casas/uuid-invalido/sair").status_code == 422
 
 
-def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
-    cliente, banco, _, proprietario, outro_proprietario = ambiente
+def test_crud_mantem_administrador_da_sessao_e_formato_de_resposta(ambiente):
+    cliente, banco, _, administrador, outro_administrador = ambiente
     dados = {"nome": "Casa Nova", "endereco": "Rua Nova"}
 
     assert (
         cliente.post(
-            "/casas/", json={**dados, "fk_usuario_id": str(outro_proprietario)}
+            "/casas/", json={**dados, "fk_usuario_id": str(outro_administrador)}
         ).status_code
         == 422
     )
@@ -650,11 +652,11 @@ def test_crud_mantem_proprietario_da_sessao_e_formato_de_resposta(ambiente):
         "timezone",
         "politica_reclamacao",
     }
-    assert criada["fk_usuario_id"] == str(proprietario)
+    assert criada["fk_usuario_id"] == str(administrador)
     assert criada["nome"] == dados["nome"]
     assert criada["endereco"] == dados["endereco"]
     assert any(
-        item["fk_casa_id"] == criada["id"] and item["fk_usuario_id"] == str(proprietario)
+        item["fk_casa_id"] == criada["id"] and item["fk_usuario_id"] == str(administrador)
         for item in banco.registros["pertencer"]
     )
 
