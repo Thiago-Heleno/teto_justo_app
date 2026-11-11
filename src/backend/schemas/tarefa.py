@@ -88,6 +88,7 @@ class TarefaResposta(BaseModel):
     fk_usuario_id: UUID
     politica_reclamacao: PoliticaReclamacao
     reclamacoes_count: int = Field(ge=0)
+    usuario_reclamou: bool = False
     reclamacoes_limite: int = Field(ge=0)
 
 

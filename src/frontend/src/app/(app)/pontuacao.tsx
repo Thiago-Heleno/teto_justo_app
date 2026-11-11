@@ -109,7 +109,11 @@ export default function PontuacaoScreen() {
           ...atual,
           eventos: atual.eventos.map((evento) =>
             evento.id === eventoId
-              ? { ...evento, reclamacoes_count: tarefa.reclamacoes_count }
+              ? {
+                  ...evento,
+                  reclamacoes_count: tarefa.reclamacoes_count,
+                  usuario_reclamou: tarefa.usuario_reclamou,
+                }
               : evento,
           ),
         },
@@ -335,6 +339,7 @@ export default function PontuacaoScreen() {
                               concluidaEm={evento.concluida_em}
                               politica={extrato.politica_reclamacao}
                               votosAtuais={evento.reclamacoes_count}
+                              usuarioReclamou={evento.usuario_reclamou ?? false}
                               votosPossiveis={
                                 placar.moradores.length - (responsavel ? 1 : 0)
                               }

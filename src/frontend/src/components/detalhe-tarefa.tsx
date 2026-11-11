@@ -281,6 +281,7 @@ export function DetalheTarefa({
                     concluidaEm={tarefa.concluida_em}
                     politica={tarefa.politica_reclamacao}
                     votosAtuais={tarefa.reclamacoes_count}
+                    usuarioReclamou={tarefa.usuario_reclamou}
                     votosPossiveis={moradores.length - responsaveis.length}
                     ehResponsavel={tarefa.usuarios_atribuidos.includes(
                       usuarioAtualId,

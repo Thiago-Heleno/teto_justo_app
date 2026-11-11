@@ -380,17 +380,38 @@ def test_rota_aceita_post_sem_corpo_e_devolve_tarefa_reaberta(cenario, informar_
     assert resposta.json()["reclamacoes_limite"] == 2
 
 
-def test_rota_exige_autenticacao(cenario):
+@pytest.mark.parametrize("metodo", ["post", "delete"])
+def test_rota_exige_autenticacao(cenario, metodo):
     banco, _, tarefa, _, _ = cenario
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_supabase] = lambda: banco
 
     with TestClient(app) as cliente:
-        resposta = cliente.post(f"/tarefas/{tarefa['id']}/reclamacoes")
+        resposta = getattr(cliente, metodo)(f"/tarefas/{tarefa['id']}/reclamacoes")
 
     assert resposta.status_code == 401
     assert banco.registros["reclamacao_tarefa"] == []
+
+
+def test_rota_retira_voto_e_consulta_restaura_estado_do_usuario(cenario):
+    banco, servico, tarefa, morador, _ = cenario
+    servico.reclamar_tarefa(UUID(tarefa["id"]), morador)
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_supabase] = lambda: banco
+    app.dependency_overrides[obter_usuario_atual] = lambda: SimpleNamespace(id=morador)
+
+    with TestClient(app) as cliente:
+        caminho = f"/tarefas/{tarefa['id']}"
+        assert cliente.get(caminho).json()["usuario_reclamou"] is True
+        resposta = cliente.delete(
+            f"{caminho}/reclamacoes", params={"concluida_em": tarefa["concluida_em"]}
+        )
+        assert resposta.status_code == 200, resposta.text
+        assert resposta.json()["usuario_reclamou"] is False
+        assert resposta.json()["reclamacoes_count"] == 0
+        assert cliente.get(caminho).json()["usuario_reclamou"] is False
 
 
 def test_resposta_traz_contagem_e_limite_do_ciclo_atual(cenario):
@@ -479,3 +500,99 @@ def test_listagem_entrega_metadados_das_tarefas(cenario):
     assert tarefas[0]["politica_reclamacao"] == "votacao"
     assert tarefas[0]["reclamacoes_count"] == 1
     assert tarefas[0]["reclamacoes_limite"] == 2
+
+
+def test_retirar_voto_preserva_outros_moradores_tarefas_e_ciclos(cenario):
+    banco, servico, tarefa, morador, _ = cenario
+    tarefa_id = UUID(tarefa["id"])
+    tarefa["reaberturas"] = 1
+    servico.reclamar_tarefa(tarefa_id, morador)
+    preservados = [
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(morador), "ciclo": 0},
+        {"fk_tarefa_id": str(uuid4()), "fk_usuario_id": str(morador), "ciclo": 1},
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(uuid4()), "ciclo": 1},
+    ]
+    banco.registros["reclamacao_tarefa"].extend(preservados)
+    antes = deepcopy(banco.registros["score_event"])
+
+    resultado = servico.retirar_reclamacao(tarefa_id, morador)
+
+    assert banco.registros["reclamacao_tarefa"] == preservados
+    assert resultado["reclamacoes_count"] == 1
+    assert resultado["usuario_reclamou"] is False
+    assert resultado["estado_atual"] == "finalizado"
+    assert banco.registros["score_event"] == antes
+    assert servico.tarefas.notificacoes.tarefas_fundo.tasks == []
+
+
+def test_pode_votar_novamente_apos_retirar_e_repetir_retirada(cenario):
+    banco, servico, tarefa, morador, _ = cenario
+    tarefa_id = UUID(tarefa["id"])
+    assert servico.reclamar_tarefa(tarefa_id, morador)["usuario_reclamou"] is True
+    servico.retirar_reclamacao(tarefa_id, morador)
+    assert servico.retirar_reclamacao(tarefa_id, morador)["reclamacoes_count"] == 0
+
+    resultado = servico.reclamar_tarefa(tarefa_id, morador)
+
+    assert resultado["usuario_reclamou"] is True
+    assert resultado["reclamacoes_count"] == 1
+    assert len(banco.registros["reclamacao_tarefa"]) == 1
+
+
+@pytest.mark.parametrize(
+    "restricao,codigo",
+    [
+        ("expirada", 409),
+        ("reaberta", 409),
+        ("conclusao_anterior", 409),
+        ("inativo", 403),
+        ("responsavel", 403),
+        ("politica", 409),
+    ],
+)
+def test_retirada_respeita_autorizacao_prazo_e_conclusao(cenario, restricao, codigo):
+    banco, servico, tarefa, morador, agora = cenario
+    tarefa_id = UUID(tarefa["id"])
+    servico.reclamar_tarefa(tarefa_id, morador)
+    conclusao = agora
+    if restricao == "expirada":
+        tarefa["concluida_em"] = (agora - timedelta(hours=24, microseconds=1)).isoformat()
+    elif restricao == "reaberta":
+        tarefa["estado_atual"] = "pendente"
+    elif restricao == "conclusao_anterior":
+        conclusao -= timedelta(minutes=1)
+    elif restricao == "inativo":
+        next(v for v in banco.registros["pertencer"] if v["fk_usuario_id"] == str(morador))[
+            "ativo"
+        ] = False
+    elif restricao == "responsavel":
+        morador = UUID(banco.registros["atribuida"][0]["fk_usuario_id"])
+    else:
+        banco.registros["casa"][0]["politica_reclamacao"] = "nenhuma"
+    antes = deepcopy(banco.registros["reclamacao_tarefa"])
+
+    with pytest.raises(HTTPException) as erro:
+        servico.retirar_reclamacao(tarefa_id, morador, conclusao)
+
+    assert erro.value.status_code == codigo
+    assert banco.registros["reclamacao_tarefa"] == antes
+
+
+def test_consulta_identifica_voto_apenas_do_usuario_e_ciclo_atual(cenario):
+    banco, servico, tarefa, morador, _ = cenario
+    tarefa_id = UUID(tarefa["id"])
+    servico.reclamar_tarefa(tarefa_id, morador)
+    consulta = ServicoTarefa(banco, id_usuario_atual=morador)
+    assert consulta.buscar_tarefa(tarefa_id)["usuario_reclamou"] is True
+    outro = ServicoTarefa(banco, id_usuario_atual=UUID(tarefa["fk_usuario_id"]))
+    assert outro.buscar_tarefa(tarefa_id)["usuario_reclamou"] is False
+    tarefa["reaberturas"] = 1
+    assert consulta.buscar_tarefa(tarefa_id)["usuario_reclamou"] is False
+
+
+def test_retirada_permitida_no_instante_exato_de_24h(cenario):
+    _, servico, tarefa, morador, agora = cenario
+    tarefa_id = UUID(tarefa["id"])
+    servico.reclamar_tarefa(tarefa_id, morador)
+    tarefa["concluida_em"] = (agora - timedelta(hours=24)).isoformat()
+    assert servico.retirar_reclamacao(tarefa_id, morador)["reclamacoes_count"] == 0

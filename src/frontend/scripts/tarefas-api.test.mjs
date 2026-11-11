@@ -37,6 +37,7 @@ const {
   carregarRanking,
   reabrirTarefa,
   reportarTarefa,
+  retirarReportTarefa,
   temConfiguracaoTarefas,
 } = await import("../src/services/tarefas-api.ts");
 
@@ -231,6 +232,32 @@ test("reporta a tarefa pelo endpoint autenticado", async () => {
     assert.equal(url.pathname, "/tarefas/tarefa-123/reclamacoes");
     assert.equal(url.searchParams.get("concluida_em"), concluidaEm);
     assert.equal(requisicao.opcoes.method, "POST");
+    assert.equal(requisicao.opcoes.body, undefined);
+    assert.ok(requisicao.opcoes.headers.Authorization);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("retira report autenticado da conclusão indicada", async () => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  sessao.setState({ token: "sessao-valida", pronta: true });
+  const original = globalThis.fetch;
+  let requisicao;
+
+  globalThis.fetch = async (url, opcoes) => {
+    requisicao = { url, opcoes };
+    return { ok: true, json: async () => ({ id: "tarefa-123" }) };
+  };
+
+  try {
+    const concluidaEm = "2026-11-10T14:00:00.123456+00:00";
+    await retirarReportTarefa("tarefa-123", concluidaEm);
+
+    const url = new URL(requisicao.url);
+    assert.equal(url.pathname, "/tarefas/tarefa-123/reclamacoes");
+    assert.equal(url.searchParams.get("concluida_em"), concluidaEm);
+    assert.equal(requisicao.opcoes.method, "DELETE");
     assert.equal(requisicao.opcoes.body, undefined);
     assert.ok(requisicao.opcoes.headers.Authorization);
   } finally {

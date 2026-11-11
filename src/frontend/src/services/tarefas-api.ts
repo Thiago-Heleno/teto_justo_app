@@ -34,6 +34,7 @@ export type Tarefa = {
   concluida_em?: string | null;
   politica_reclamacao: "nenhuma" | "uma_reclamacao" | "votacao";
   reclamacoes_count: number;
+  usuario_reclamou: boolean;
   reclamacoes_limite: number;
   resultado_pontuacao?: {
     pontos_possiveis: number;
@@ -87,6 +88,7 @@ export type EventoExtrato = {
   fk_tarefa_id: string;
   nome_tarefa?: string | null;
   reclamacoes_count?: number;
+  usuario_reclamou?: boolean;
   concluida_em?: string | null;
   pontuacao: number;
   tipo: "credito" | "reversal";
@@ -203,6 +205,19 @@ export function reportarTarefa(
     {
       method: "POST",
     },
+  );
+}
+
+export function retirarReportTarefa(
+  idTarefa: string,
+  concluidaEm: string,
+  signal?: AbortSignal,
+) {
+  const parametros = new URLSearchParams({ concluida_em: concluidaEm });
+  return requisitar<Tarefa>(
+    `/tarefas/${idTarefa}/reclamacoes?${parametros}`,
+    signal,
+    { method: "DELETE" },
   );
 }
 

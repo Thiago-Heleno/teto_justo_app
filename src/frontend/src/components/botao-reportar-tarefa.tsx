@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TriangleAlert } from "lucide-react-native";
 import { StyleSheet, Text, useWindowDimensions } from "react-native";
 
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, Spacing } from "@/constants/theme";
-import { reportarTarefa, type Tarefa } from "@/services/tarefas-api";
+import {
+  reportarTarefa,
+  retirarReportTarefa,
+  type Tarefa,
+} from "@/services/tarefas-api";
 import {
   JANELA_REPORTAGEM_MS,
   podeReportarTarefa,
@@ -15,6 +19,7 @@ type Props = {
   concluidaEm: string;
   politica: Tarefa["politica_reclamacao"];
   ehResponsavel: boolean;
+  usuarioReclamou: boolean;
   votosAtuais?: number;
   votosPossiveis: number;
   onReportada: (tarefa: Tarefa) => void;
@@ -25,15 +30,15 @@ export function BotaoReportarTarefa({
   concluidaEm,
   politica,
   ehResponsavel,
+  usuarioReclamou,
   votosAtuais,
   votosPossiveis,
   onReportada,
 }: Props) {
   const { width } = useWindowDimensions();
   const [agora, setAgora] = useState(Date.now);
-  const [estado, setEstado] = useState<"pronto" | "enviando" | "reportado">(
-    "pronto",
-  );
+  const [enviando, setEnviando] = useState(false);
+  const requisicaoEmAndamento = useRef(false);
   const [erro, setErro] = useState<string>();
   const permitido = podeReportarTarefa(
     concluidaEm,
@@ -53,32 +58,37 @@ export function BotaoReportarTarefa({
 
   if (!permitido) return null;
   async function enviar() {
-    if (estado !== "pronto") return;
+    if (requisicaoEmAndamento.current) return;
     if (!podeReportarTarefa(concluidaEm, politica, ehResponsavel)) {
       setAgora(Date.now());
       return;
     }
-    setEstado("enviando");
+    requisicaoEmAndamento.current = true;
+    setEnviando(true);
     setErro(undefined);
     try {
-      const tarefa = await reportarTarefa(tarefaId, concluidaEm);
-      setEstado("reportado");
+      const acao = usuarioReclamou ? retirarReportTarefa : reportarTarefa;
+      const tarefa = await acao(tarefaId, concluidaEm);
       onReportada(tarefa);
     } catch (falha: unknown) {
-      setEstado("pronto");
       setErro(
         falha instanceof Error
           ? falha.message
-          : "Não foi possível reportar a tarefa.",
+          : "Não foi possível atualizar seu voto.",
       );
+    } finally {
+      requisicaoEmAndamento.current = false;
+      setEnviando(false);
     }
   }
 
-  const rotulo = {
-    pronto: "Reportar",
-    enviando: "Reportando...",
-    reportado: "Reportado",
-  }[estado];
+  const rotulo = enviando
+    ? usuarioReclamou
+      ? "Retirando..."
+      : "Reportando..."
+    : usuarioReclamou
+      ? "Reportado"
+      : "Reportar";
   return (
     <>
       <MotionPressable
@@ -89,19 +99,28 @@ export function BotaoReportarTarefa({
             : `${rotulo}, ${votosAtuais} de ${votosPossiveis} votos possíveis`
         }
         accessibilityState={{
-          busy: estado === "enviando",
-          disabled: estado !== "pronto",
+          busy: enviando,
+          disabled: enviando,
+          selected: usuarioReclamou,
         }}
-        disabled={estado !== "pronto"}
+        accessibilityHint={
+          usuarioReclamou ? "Retirar meu voto" : "Reportar tarefa"
+        }
+        disabled={enviando}
         onPress={enviar}
         style={[
           styles.button,
           width < 600 && styles.small,
-          estado !== "pronto" && styles.disabled,
+          usuarioReclamou && styles.selected,
+          enviando && styles.disabled,
         ]}
       >
-        <TriangleAlert color={Caldera.ember} size={18} strokeWidth={2.2} />
-        <Text style={styles.label}>
+        <TriangleAlert
+          color={usuarioReclamou ? Caldera.chalk : Caldera.obsidian}
+          size={18}
+          strokeWidth={2.2}
+        />
+        <Text style={[styles.label, usuarioReclamou && styles.selectedLabel]}>
           {rotulo}
           {votosAtuais !== undefined && ` · ${votosAtuais}/${votosPossiveis}`}
         </Text>
@@ -124,13 +143,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.two,
     borderWidth: 1.5,
-    borderColor: Caldera.ember,
+    borderColor: Caldera.obsidian,
     borderRadius: 800,
     paddingHorizontal: Spacing.four,
     paddingVertical: 12,
   },
   small: { alignSelf: "stretch" },
+  selected: { backgroundColor: Caldera.ember, borderColor: Caldera.ember },
+  selectedLabel: { color: Caldera.chalk },
   disabled: { opacity: 0.6 },
-  label: { color: Caldera.ember, fontSize: 16, fontWeight: "500" },
+  label: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   error: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
 });
