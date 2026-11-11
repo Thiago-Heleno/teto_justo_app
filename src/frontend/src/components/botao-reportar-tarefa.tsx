@@ -15,6 +15,8 @@ type Props = {
   concluidaEm: string;
   politica: Tarefa["politica_reclamacao"];
   ehResponsavel: boolean;
+  votosAtuais?: number;
+  votosPossiveis: number;
   onReportada: (tarefa: Tarefa) => void;
 };
 
@@ -23,6 +25,8 @@ export function BotaoReportarTarefa({
   concluidaEm,
   politica,
   ehResponsavel,
+  votosAtuais,
+  votosPossiveis,
   onReportada,
 }: Props) {
   const { width } = useWindowDimensions();
@@ -70,10 +74,20 @@ export function BotaoReportarTarefa({
     }
   }
 
+  const rotulo = {
+    pronto: "Reportar",
+    enviando: "Reportando...",
+    reportado: "Reportado",
+  }[estado];
   return (
     <>
       <MotionPressable
         accessibilityRole="button"
+        accessibilityLabel={
+          votosAtuais === undefined
+            ? rotulo
+            : `${rotulo}, ${votosAtuais} de ${votosPossiveis} votos possíveis`
+        }
         accessibilityState={{
           busy: estado === "enviando",
           disabled: estado !== "pronto",
@@ -88,11 +102,8 @@ export function BotaoReportarTarefa({
       >
         <TriangleAlert color={Caldera.ember} size={18} strokeWidth={2.2} />
         <Text style={styles.label}>
-          {estado === "enviando"
-            ? "Reportando..."
-            : estado === "reportado"
-              ? "Reportado"
-              : "Reportar"}
+          {rotulo}
+          {votosAtuais !== undefined && ` · ${votosAtuais}/${votosPossiveis}`}
         </Text>
       </MotionPressable>
       {erro && (

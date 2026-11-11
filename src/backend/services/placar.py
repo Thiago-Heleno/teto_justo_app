@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -6,6 +7,7 @@ from fastapi import HTTPException
 
 from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
+from services.autorizacao import ServicoAutorizacaoCasa
 from services.ciclo_vida_tarefa import instante_utc
 
 
@@ -221,6 +223,18 @@ class ServicoPlacar:
                     and tarefa["concluida_em"]
                 ):
                     evento["concluida_em"] = instante_utc(tarefa["concluida_em"])
+            if politica != "nenhuma":
+                conclusoes = [evento for evento in eventos if evento["concluida_em"]]
+                votos = ServicoAutorizacaoCasa(self.supabase).registros_por_ids(
+                    "reclamacao_tarefa",
+                    "fk_tarefa_id",
+                    [evento["fk_tarefa_id"] for evento in conclusoes],
+                    "fk_tarefa_id,ciclo",
+                    ("fk_tarefa_id", "ciclo", "fk_usuario_id"),
+                )
+                por_ciclo = Counter((voto["fk_tarefa_id"], voto["ciclo"]) for voto in votos)
+                for evento in conclusoes:
+                    evento["reclamacoes_count"] = por_ciclo[evento["fk_tarefa_id"], evento["ciclo"]]
         return {
             "casa_id": str(id_casa),
             "fuso_horario": fuso.key,

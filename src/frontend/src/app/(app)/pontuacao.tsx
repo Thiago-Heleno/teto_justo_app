@@ -23,6 +23,7 @@ import {
   carregarUsuarioAtual,
   type Extrato,
   type Placar,
+  type Tarefa,
 } from "@/services/tarefas-api";
 import {
   periodosPlacar,
@@ -96,6 +97,24 @@ export default function PontuacaoScreen() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tentativa]),
   );
+
+  function atualizarAposReport(eventoId: string, tarefa: Tarefa) {
+    if (tarefa.estado_atual !== "finalizado") {
+      setTentativa((valor) => valor + 1);
+      return;
+    }
+    setExtrato(
+      (atual) =>
+        atual && {
+          ...atual,
+          eventos: atual.eventos.map((evento) =>
+            evento.id === eventoId
+              ? { ...evento, reclamacoes_count: tarefa.reclamacoes_count }
+              : evento,
+          ),
+        },
+    );
+  }
 
   const resumo = placar ? resumirPlacar(placar, periodo) : undefined;
   const moradorAtivo = placar?.moradores.some(
@@ -263,9 +282,10 @@ export default function PontuacaoScreen() {
                 extrato.eventos
                   .slice(0, movimentacoesVisiveis)
                   .map((evento) => {
-                    const nome = placar?.moradores.find(
+                    const responsavel = placar?.moradores.find(
                       (morador) => morador.usuario_id === evento.fk_usuario_id,
-                    )?.nome;
+                    );
+                    const nome = responsavel?.nome;
                     return (
                       <View key={evento.id} style={styles.eventCard}>
                         <MotionPressable
@@ -306,19 +326,22 @@ export default function PontuacaoScreen() {
                             {numero.format(evento.pontuacao)} pts
                           </Text>
                         </MotionPressable>
-                        {moradorAtivo &&
+                        {placar &&
+                          moradorAtivo &&
                           evento.tipo === "credito" &&
                           evento.concluida_em && (
                             <BotaoReportarTarefa
                               tarefaId={evento.fk_tarefa_id}
                               concluidaEm={evento.concluida_em}
                               politica={extrato.politica_reclamacao}
+                              votosAtuais={evento.reclamacoes_count}
+                              votosPossiveis={
+                                placar.moradores.length - (responsavel ? 1 : 0)
+                              }
                               ehResponsavel={evento.fk_usuario_id === usuarioId}
-                              onReportada={(tarefa) => {
-                                if (tarefa.estado_atual !== "finalizado") {
-                                  setTentativa((valor) => valor + 1);
-                                }
-                              }}
+                              onReportada={(tarefa) =>
+                                atualizarAposReport(evento.id, tarefa)
+                              }
                             />
                           )}
                       </View>
