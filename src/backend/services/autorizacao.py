@@ -147,6 +147,22 @@ class ServicoAutorizacaoCasa:
             )
         return id_administrador
 
+    def listar_responsaveis_elegiveis(
+        self, id_casa: UUID | str, id_administrador: UUID | str
+    ) -> list[str]:
+        moradores = self.registros_por_ids(
+            "pertencer",
+            "fk_casa_id",
+            [str(id_casa)],
+            "fk_usuario_id",
+            ("fk_usuario_id",),
+            ativo=True,
+        )
+        return sorted(
+            {str(id_administrador)}
+            | {str(morador["fk_usuario_id"]) for morador in moradores}
+        )
+
     def garantir_responsaveis_da_casa(
         self,
         id_casa: UUID | str,

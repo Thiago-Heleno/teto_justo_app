@@ -16,6 +16,7 @@ ReferenciaInicio = Literal["criacao", "ocorrencia"]
 EstrategiaPenalidade = Literal["proporcional"]
 TipoTarefa = Literal["unitaria", "rotativa"]
 ModoPrazo = Literal["dia_fixo", "intervalo"]
+ModoAtribuicao = Literal["manual", "aleatorio"]
 
 
 class TarefaCriar(BaseModel):
@@ -30,8 +31,9 @@ class TarefaCriar(BaseModel):
     modo_prazo: ModoPrazo = "intervalo"
     data_fixa: date | None = None
     fk_casa_id: UUID
-    usuarios_atribuidos: list[UUID] = Field(
-        min_length=1, max_length=1, description="Responsável (dono) pela tarefa."
+    modo_atribuicao: ModoAtribuicao = "manual"
+    usuarios_atribuidos: list[UUID] | None = Field(
+        default=None, min_length=1, max_length=1, description="Responsável definido manualmente."
     )
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -42,6 +44,10 @@ class TarefaCriar(BaseModel):
             raise ValueError("Informe data_fixa para a tarefa de dia fixo.")
         if self.modo_prazo == "intervalo" and self.data_fixa is not None:
             raise ValueError("data_fixa só é permitida no modo dia_fixo.")
+        if self.modo_atribuicao == "manual" and self.usuarios_atribuidos is None:
+            raise ValueError("Informe usuarios_atribuidos no modo manual.")
+        if self.modo_atribuicao == "aleatorio" and self.usuarios_atribuidos is not None:
+            raise ValueError("Não informe usuarios_atribuidos no modo aleatorio.")
         return self
 
 
@@ -53,8 +59,9 @@ class TarefaAtualizar(BaseModel):
     prazo_dias: PrazoDias | None = None
     atraso_maximo: AtrasoMaximo | None = None
     data_fixa: date | None = None
+    modo_atribuicao: ModoAtribuicao | None = None
     usuarios_atribuidos: list[UUID] | None = Field(
-        default=None, min_length=1, max_length=1, description="Responsável (dono) pela tarefa."
+        default=None, min_length=1, max_length=1, description="Responsável definido manualmente."
     )
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -64,6 +71,10 @@ class TarefaAtualizar(BaseModel):
         for campo in self.model_fields_set - {"descricao"}:
             if getattr(self, campo) is None:
                 raise ValueError(f"{campo} não pode ser nulo.")
+        if self.modo_atribuicao == "aleatorio" and "usuarios_atribuidos" in self.model_fields_set:
+            raise ValueError("Não informe usuarios_atribuidos no modo aleatorio.")
+        if self.modo_atribuicao == "manual" and "usuarios_atribuidos" not in self.model_fields_set:
+            raise ValueError("Informe usuarios_atribuidos no modo manual.")
         return self
 
 
