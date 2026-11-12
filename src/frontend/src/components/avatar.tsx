@@ -28,13 +28,7 @@ export function Avatar({ nome, foto, tamanho }: Props) {
       ]}
     >
       {uri && uri !== fotoComErro ? (
-        <Image
-          key={uri}
-          source={{ uri }}
-          contentFit="cover"
-          onError={() => setFotoComErro(uri)}
-          style={StyleSheet.absoluteFill}
-        />
+       <></>
       ) : (
         <Text
           style={[
