@@ -136,3 +136,21 @@ def test_usuario_sem_vinculo_ativo_recebe_403(servico, consulta):
 
     assert erro.value.status_code == 403
     assert erro.value.detail == "Acesso restrito aos moradores da casa."
+
+
+def test_sorteio_considera_administrador_e_apenas_vinculos_ativos(servico, consulta):
+    casa = uuid4()
+    administrador = str(uuid4())
+    morador_ativo = str(uuid4())
+    consulta.in_.return_value = consulta
+    consulta.order.return_value = consulta
+    consulta.range.return_value = consulta
+    consulta.execute.return_value = SimpleNamespace(
+        data=[{"fk_usuario_id": morador_ativo}, {"fk_usuario_id": administrador}]
+    )
+
+    resultado = servico.listar_responsaveis_elegiveis(casa, administrador)
+
+    assert resultado == sorted([administrador, morador_ativo])
+    consulta.in_.assert_called_once_with("fk_casa_id", [str(casa)])
+    consulta.eq.assert_called_once_with("ativo", True)

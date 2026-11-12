@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
@@ -21,6 +22,12 @@ from services.score import ServicoScore
 from services.notificacao import ServicoNotificacao
 
 _FILTROS_PRAZO = ("todos", "hoje", "sete_dias", "antigas", "atrasadas")
+
+
+def sortear_responsavel(ids_elegiveis: list[str]) -> str:
+    if not ids_elegiveis:
+        raise HTTPException(status_code=422, detail="Não há responsáveis elegíveis para o sorteio.")
+    return secrets.choice(ids_elegiveis)
 
 
 class ServicoTarefa:
@@ -191,16 +198,23 @@ class ServicoTarefa:
         id_usuario_atual: UUID,
     ):
         autorizacao = ServicoAutorizacaoCasa(self.supabase)
-        autorizacao.garantir_administrador_da_casa(
+        id_administrador = autorizacao.garantir_administrador_da_casa(
             dados_tarefa.fk_casa_id,
             id_usuario_atual,
         )
-        autorizacao.garantir_responsaveis_da_casa(
-            dados_tarefa.fk_casa_id,
-            dados_tarefa.usuarios_atribuidos,
-        )
+        if dados_tarefa.modo_atribuicao == "aleatorio":
+            elegiveis = autorizacao.listar_responsaveis_elegiveis(
+                dados_tarefa.fk_casa_id, id_administrador
+            )
+            usuarios_atribuidos = [sortear_responsavel(elegiveis)]
+        else:
+            usuarios_atribuidos = dados_tarefa.usuarios_atribuidos
+            autorizacao.garantir_responsaveis_da_casa(
+                dados_tarefa.fk_casa_id, usuarios_atribuidos
+            )
         dados = dados_tarefa.model_dump(mode="json")
-        usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
+        dados.pop("usuarios_atribuidos", None)
+        dados.pop("modo_atribuicao")
         dados["dificuldade"] = dados.pop("peso")
         dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
         dados["fk_usuario_id"] = str(id_usuario_atual)
@@ -330,7 +344,8 @@ class ServicoTarefa:
                 )
             return self._concluir_tarefa(tarefa_atual, id_usuario_atual)
         else:
-            ServicoAutorizacaoCasa(self.supabase).garantir_administrador_da_casa(
+            autorizacao = ServicoAutorizacaoCasa(self.supabase)
+            id_administrador = autorizacao.garantir_administrador_da_casa(
                 tarefa_atual["fk_casa_id"],
                 id_usuario_atual,
             )
@@ -339,12 +354,16 @@ class ServicoTarefa:
                 status_code=409,
                 detail="Uma tarefa encerrada não pode ser alterada ou finalizada novamente.",
             )
-        usuarios_foram_informados = "usuarios_atribuidos" in dados_tarefa.model_fields_set
+        usuarios_foram_informados = (
+            "usuarios_atribuidos" in dados_tarefa.model_fields_set
+            or dados_tarefa.modo_atribuicao == "aleatorio"
+        )
         dados = dados_tarefa.model_dump(
             mode="json",
             exclude_unset=True,
             exclude_none=True,
         )
+        dados.pop("modo_atribuicao", None)
         if "peso" in dados:
             dados["dificuldade"] = dados.pop("peso")
             dados["pontuacao"] = ServicoScore.pontos_por_peso(dados["dificuldade"])
@@ -354,14 +373,19 @@ class ServicoTarefa:
         fuso = self._fuso_tarefa(tarefa_atual) if editar_dia_fixo else None
         dados = atualizar_prazo(tarefa_atual, dados, fuso, datetime.now(timezone.utc))
         usuarios_atribuidos = dados.pop("usuarios_atribuidos", None)
+        if dados_tarefa.modo_atribuicao == "aleatorio":
+            elegiveis = autorizacao.listar_responsaveis_elegiveis(
+                tarefa_atual["fk_casa_id"], id_administrador
+            )
+            usuarios_atribuidos = [sortear_responsavel(elegiveis)]
         if not dados and not usuarios_foram_informados:
             raise HTTPException(
                 status_code=400,
                 detail="Nenhum dado para atualização.",
             )
 
-        if usuarios_foram_informados:
-            ServicoAutorizacaoCasa(self.supabase).garantir_responsaveis_da_casa(
+        if usuarios_foram_informados and dados_tarefa.modo_atribuicao != "aleatorio":
+            autorizacao.garantir_responsaveis_da_casa(
                 tarefa_atual["fk_casa_id"], usuarios_atribuidos
             )
 

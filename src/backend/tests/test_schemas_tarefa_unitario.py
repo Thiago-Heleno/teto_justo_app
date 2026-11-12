@@ -179,3 +179,38 @@ def test_resposta_da_tarefa_exige_metadados_de_reclamacao():
                 "reclamacoes_limite": 2,
             }
         )
+
+
+def test_criacao_aleatoria_aceita_omitir_responsavel(cliente, payload):
+    dados = {chave: valor for chave, valor in payload.items() if chave != "usuarios_atribuidos"}
+    resposta = cliente.post("/tarefas/", json={**dados, "modo_atribuicao": "aleatorio"})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["modo_atribuicao"] == "aleatorio"
+    assert resposta.json()["usuarios_atribuidos"] is None
+
+
+@pytest.mark.parametrize("modo", ["manual", "aleatorio"])
+def test_criacao_rejeita_combinacao_invalida_de_modo_e_responsaveis(cliente, payload, modo):
+    dados = {**payload, "modo_atribuicao": modo}
+    if modo == "manual":
+        dados.pop("usuarios_atribuidos")
+    assert cliente.post("/tarefas/", json=dados).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "alteracao",
+    [
+        {"modo_atribuicao": "manual"},
+        {"modo_atribuicao": "aleatorio", "usuarios_atribuidos": [str(uuid4())]},
+        {"modo_atribuicao": None},
+    ],
+)
+def test_edicao_rejeita_modo_sem_responsaveis_compativeis(cliente, alteracao):
+    assert cliente.patch("/tarefas/id", json=alteracao).status_code == 422
+
+
+def test_edicao_aceita_modo_aleatorio_sem_responsaveis(cliente):
+    resposta = cliente.patch("/tarefas/id", json={"modo_atribuicao": "aleatorio"})
+    assert resposta.status_code == 200
+    assert resposta.json()["modo_atribuicao"] == "aleatorio"
