@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { CriarCasa } from "@/components/criar-casa";
 import { EntrarCasa } from "@/components/entrar-casa";
 import { PerfilUsuario } from "@/components/perfil";

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";

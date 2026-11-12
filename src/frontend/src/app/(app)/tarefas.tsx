@@ -28,7 +28,7 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { CalendarioTarefas } from "@/components/calendario-tarefas";
 import {
   DetalheTarefa,

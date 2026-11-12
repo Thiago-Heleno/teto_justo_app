@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react-native";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";

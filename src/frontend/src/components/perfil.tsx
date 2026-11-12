@@ -24,7 +24,7 @@ import {
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { Caldera } from "@/constants/theme";
 import { ErroApi } from "@/services/api";
 import { sair } from "@/services/autenticacao-api";

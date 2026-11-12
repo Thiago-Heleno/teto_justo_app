@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
 import { RefreshCw, UserMinus, X } from "lucide-react-native";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { ErroApi } from "@/services/api";

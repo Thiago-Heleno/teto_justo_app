@@ -14,7 +14,7 @@ import {
 import { Plus, RefreshCw, Repeat } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import {
   diasSemanaTarefa,

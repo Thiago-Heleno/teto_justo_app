@@ -107,14 +107,7 @@ export function DetalhesCasa({
           {casa.foto === null ? (
             <Text style={styles.notice}>Foto não cadastrada</Text>
           ) : foto && foto !== fotoComErro ? (
-            <Image
-              accessibilityLabel={`Foto da casa ${casa.nome}`}
-              contentFit="cover"
-              key={foto}
-              onError={() => setFotoComErro(foto)}
-              source={{ uri: foto }}
-              style={styles.photo}
-            />
+            <></>
           ) : (
             <Text accessibilityRole="alert" style={styles.notice}>
               O formato da foto não pode ser exibido.

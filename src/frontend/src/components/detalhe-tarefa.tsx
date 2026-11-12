@@ -18,7 +18,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CircleCheck, Pencil, RotateCcw } from "lucide-react-native";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { rotulosEstado } from "@/constants/tarefa";

@@ -20,7 +20,7 @@ import {
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { MoradoresCasa } from "@/components/moradores-casa";
 import { DetalhesCasa } from "@/components/detalhes-casa";
 import { SeletorPoliticaReclamacao } from "@/components/seletor-politica-reclamacao";

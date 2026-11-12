@@ -3,7 +3,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Save, X } from "lucide-react-native";
 import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
 
-import { Avatar } from "@/components/avatar";
+import { Avatar } from "@/app/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import {
   pesosTarefa,
