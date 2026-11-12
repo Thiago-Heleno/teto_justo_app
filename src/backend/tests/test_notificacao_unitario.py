@@ -11,6 +11,7 @@ import httpx
 import pytest
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from postgrest.exceptions import APIError
 
 os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
 os.environ.setdefault("SUPABASE_KEY", "unit-test-placeholder")
@@ -1005,6 +1006,80 @@ def test_job_pode_repetir_aviso_depois_de_falha_na_consulta_do_fuso(monkeypatch)
     assert tarefa["aviso_enviado_em"] == agora.isoformat()
 
 
+@pytest.mark.parametrize(
+    "prazo,coluna",
+    [
+        (timedelta(hours=1), "aviso_enviado_em"),
+        (timedelta(days=-1), "aviso_atraso_enviado_em"),
+    ],
+    ids=["vencimento", "atraso"],
+)
+def test_job_libera_aviso_quando_consulta_de_dispositivos_falha_e_continua_lote(
+    monkeypatch, banco, dispositivo, expo, prazo, coluna
+):
+    agora = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+    casa = str(uuid4())
+    tarefas = [
+        {
+            "id": str(uuid4()),
+            "fk_casa_id": casa,
+            "data_fim": (agora + prazo).isoformat(),
+            "estado_atual": "pendente",
+            "atraso_maximo": 2,
+            coluna: None,
+        }
+        for _ in range(2)
+    ]
+    responsaveis = [uuid4(), uuid4()]
+    for responsavel in responsaveis:
+        dispositivo(responsavel)
+    banco_avisos = BancoAvisos(
+        tarefas,
+        [
+            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)}
+            for tarefa, responsavel in zip(tarefas, responsaveis)
+        ],
+    )
+    consulta_indisponivel = banco.table("dispositivo_push")
+    monkeypatch.setattr(
+        consulta_indisponivel, "execute", Mock(side_effect=APIError({"message": "Falha simulada"}))
+    )
+    consultas = iter(
+        [consulta_indisponivel, banco.table("dispositivo_push"), banco.table("dispositivo_push")]
+    )
+    consulta_original = banco_avisos.table
+
+    def consultar(nome):
+        if nome == "dispositivo_push":
+            return next(consultas)
+        return consulta_original(nome)
+
+    monkeypatch.setattr(banco_avisos, "table", consultar)
+    expo.side_effect = None
+    expo.return_value = resposta_expo({"data": [{"status": "ok", "id": str(uuid4())}]})
+    servico = ServicoNotificacao(banco_avisos)
+
+    assert servico.avisar_vencimentos(agora) == {
+        "tarefas_elegiveis": 2,
+        "avisos_enviados": 1,
+        "falhas": 1,
+    }
+    assert tarefas[0][coluna] is None
+    assert tarefas[1][coluna] == agora.isoformat()
+
+    proxima_execucao = agora + timedelta(minutes=1)
+    assert servico.avisar_vencimentos(proxima_execucao) == {
+        "tarefas_elegiveis": 1,
+        "avisos_enviados": 1,
+        "falhas": 0,
+    }
+    assert tarefas[0][coluna] == proxima_execucao.isoformat()
+    assert [chamada.kwargs["json"][0]["data"]["tarefa_id"] for chamada in expo.call_args_list] == [
+        tarefas[1]["id"],
+        tarefas[0]["id"],
+    ]
+
+
 def test_job_avisa_so_tarefas_abertas_no_horizonte_e_nao_repete(monkeypatch):
     agora = datetime(2026, 10, 19, 3, 5, tzinfo=timezone.utc)
     responsavel = uuid4()
@@ -1083,6 +1158,50 @@ def test_job_marca_tentativa_sem_reenviar_quando_expo_falha(monkeypatch):
     assert servico.avisar_vencimentos(agora)["falhas"] == 1
     assert servico.avisar_vencimentos(agora)["tarefas_elegiveis"] == 0
     assert chamadas == [True]
+
+
+def test_job_preserva_reserva_quando_limpeza_falha_apos_envio(
+    monkeypatch, banco, dispositivo, expo
+):
+    agora = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+    tarefa = {
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
+        "data_fim": (agora + timedelta(hours=1)).isoformat(),
+        "estado_atual": "pendente",
+    }
+    responsavel = uuid4()
+    dispositivo(responsavel)
+    dispositivo(responsavel)
+    banco_avisos = BancoAvisos(
+        [tarefa], [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(responsavel)}]
+    )
+    consulta_original = banco_avisos.table
+
+    def consultar(nome):
+        if nome == "dispositivo_push":
+            return banco.table(nome)
+        return consulta_original(nome)
+
+    monkeypatch.setattr(banco_avisos, "table", consultar)
+    expo.side_effect = None
+    expo.return_value = resposta_expo(
+        {
+            "data": [
+                {"status": "ok", "id": str(uuid4())},
+                {"status": "error", "details": {"error": "DeviceNotRegistered"}},
+            ]
+        }
+    )
+    servico = ServicoNotificacao(banco_avisos)
+    limpar = Mock(side_effect=APIError({"message": "Falha simulada"}))
+    monkeypatch.setattr(servico, "remover_dispositivo", limpar)
+
+    assert servico.avisar_vencimentos(agora)["falhas"] == 1
+    limpar.assert_called_once()
+    assert tarefa["aviso_enviado_em"] == agora.isoformat()
+    assert servico.avisar_vencimentos(agora + timedelta(minutes=1))["tarefas_elegiveis"] == 0
+    expo.assert_called_once()
 
 
 def test_job_avisa_tarefa_atrasada_apenas_dentro_da_tolerancia(monkeypatch):
