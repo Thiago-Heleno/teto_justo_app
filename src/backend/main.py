@@ -13,6 +13,7 @@ origens_frontend = os.getenv(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origens_frontend,
+    allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX") or None,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
