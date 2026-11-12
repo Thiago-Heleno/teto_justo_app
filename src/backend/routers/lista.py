@@ -44,9 +44,7 @@ def listar_itens(id_lista: UUID, usuario_atual: UsuarioAtual, supabase=Depends(g
 
 
 @router.post("/itens", response_model=ItemCompraResposta, status_code=status.HTTP_201_CREATED)
-def criar_item(
-    dados: ItemCompraCriar, usuario_atual: UsuarioAtual, supabase=Depends(get_supabase)
-):
+def criar_item(dados: ItemCompraCriar, usuario_atual: UsuarioAtual, supabase=Depends(get_supabase)):
     return ServicoLista(supabase).criar_item(dados, usuario_atual.id)
 
 

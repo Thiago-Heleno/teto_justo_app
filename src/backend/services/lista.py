@@ -108,7 +108,9 @@ class ServicoLista:
         return self._atualizar_item_bruto(id_item, campos)
 
     def _atualizar_item_bruto(self, id_item: UUID, campos: dict) -> dict:
-        resposta = self.supabase.table("item_compra").update(campos).eq("id", str(id_item)).execute()
+        resposta = (
+            self.supabase.table("item_compra").update(campos).eq("id", str(id_item)).execute()
+        )
         if not resposta.data:
             raise HTTPException(status_code=404, detail="Item não encontrado.")
         return resposta.data[0]
