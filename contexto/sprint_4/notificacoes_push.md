@@ -157,9 +157,18 @@ ainda está no futuro. Para as vencidas, avisa quando os dias de atraso calculad
 pelo serviço de score estão entre 1 e `atraso_maximo`, inclusive. Busca os
 responsáveis em `atribuida` e reserva separadamente `aviso_enviado_em` ou
 `aviso_atraso_enviado_em`, comparando estado, prazo e marcação nula antes do envio.
-Repetir o job não duplica o mesmo aviso. A marcação registra tentativa: uma falha
-posterior pode perder o aviso. Os payloads usam `tarefa_vence_hoje` ou
-`tarefa_atrasada`, com `tarefa_id`, `casa_id` e categoria `tarefa_pendente`.
+Se a consulta a `dispositivo_push` falhar antes do envio, o serviço conta uma
+falha, libera a reserva pelo ID da tarefa, prazo e timestamp da marcação e segue
+com o lote. A próxima execução pode tentar de novo se a tarefa continuar
+elegível. Depois de uma tentativa de envio ao provedor, a marcação é mantida
+para evitar duplicatas. Os payloads usam `tarefa_vence_hoje` ou `tarefa_atrasada`,
+com `tarefa_id`, `casa_id` e categoria `tarefa_pendente`.
+
+Os testes unitários em `src/backend/tests/test_notificacao_unitario.py`
+cobrem a continuidade do lote e a nova tentativa para os dois avisos após
+falha na consulta de dispositivos, além da preservação da reserva quando
+a remoção de um token falha após o envio. A suíte unitária do backend passou
+com 757 testes e dois avisos de depreciação do TestClient/AnyIO.
 
 O layout do app registra os botões Concluir e Ver tarefa para essa categoria.
 As duas ações abrem o app e verificam sessão, casa e tarefa. Concluir chama
@@ -475,9 +484,10 @@ configurado no projeto.
   uma hora. A janela de início é de 24 horas: tarefas criadas depois da
   execução ou com início entre duas execuções podem ficar sem esse lembrete.
   O aviso não é garantido exatamente 24 horas antes do início.
-- As marcações registram tentativas, não entrega confirmada. Falhas depois
-  da reserva podem perder o aviso; não há retry automático nem fila persistente.
-  Eventos em segundo plano também podem ser perdidos se o processo encerrar.
+- As marcações registram tentativas. Se a liberação da reserva também falhar,
+  o aviso de vencimento ou atraso pode continuar marcado. Uma nova tentativa
+  depende de outra execução do cron dentro da janela de elegibilidade. Eventos
+  em segundo plano também podem ser perdidos se o processo encerrar.
 - `DeviceNotRegistered` é tratado nos tickets imediatos e na consulta posterior
   sob demanda. Não existe armazenamento ou consulta automática dos tickets dos
   envios normais. Tickets aceitos e recibos `ok` não comprovam exibição no

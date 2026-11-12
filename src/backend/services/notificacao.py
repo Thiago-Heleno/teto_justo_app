@@ -80,6 +80,10 @@ def _link_web(dados: dict | None) -> str | None:
     return f"{base}/tarefas" + (f"?abrir={quote(str(tarefa_id))}" if tarefa_id else "")
 
 
+class _ConsultaDispositivosFalhou(RuntimeError):
+    pass
+
+
 class ServicoNotificacao:
     def __init__(self, supabase_client, tarefas_fundo: BackgroundTasks | None = None):
         self.supabase = supabase_client
@@ -275,6 +279,66 @@ class ServicoNotificacao:
         nome_fuso = (resposta.data or [{}])[0].get("timezone")
         return fuso_armazenado(nome_fuso) or FUSO_UTC
 
+    def _processar_aviso_vencimento(
+        self,
+        tarefa: dict,
+        coluna: str,
+        marca: str,
+        tipo: str,
+        titulo: str,
+        mensagem: str,
+        resultado: dict[str, int],
+    ) -> None:
+        try:
+            usuarios = [UUID(usuario) for usuario in self._responsaveis(tarefa["id"])]
+            if not usuarios:
+                return
+
+            reserva = (
+                self.supabase.table("tarefa")
+                .update({coluna: marca})
+                .eq("id", tarefa["id"])
+                .eq("data_fim", tarefa["data_fim"])
+                .in_("estado_atual", ["pendente", "atrasada"])
+                .is_(coluna, "null")
+                .execute()
+            )
+            if not reserva.data:
+                return
+        except (APIError, httpx.RequestError):
+            _LOGGER.warning("Não foi possível preparar o aviso de vencimento da tarefa.")
+            resultado["falhas"] += 1
+            return
+
+        resultado["tarefas_elegiveis"] += 1
+        try:
+            envio = self.enviar_push(
+                usuarios,
+                titulo,
+                mensagem,
+                {"tipo": tipo, "tarefa_id": tarefa["id"], "casa_id": tarefa["fk_casa_id"]},
+            )
+        except _ConsultaDispositivosFalhou:
+            _LOGGER.warning("Não foi possível consultar os dispositivos para o aviso da tarefa.")
+            resultado["falhas"] += 1
+            try:
+                (
+                    self.supabase.table("tarefa")
+                    .update({coluna: None})
+                    .eq("id", tarefa["id"])
+                    .eq("data_fim", tarefa["data_fim"])
+                    .eq(coluna, marca)
+                    .execute()
+                )
+            except (APIError, httpx.RequestError):
+                _LOGGER.warning("Não foi possível liberar a reserva do aviso de vencimento.")
+        except Exception:
+            _LOGGER.warning("Não foi possível concluir o envio do aviso de vencimento.")
+            resultado["falhas"] += 1
+        else:
+            resultado["avisos_enviados"] += len(envio["aceitos"])
+            resultado["falhas"] += len(envio["falhas"])
+
     def avisar_vencimentos(self, agora: datetime | None = None) -> dict[str, int]:
         instante = agora or datetime.now(timezone.utc)
         if instante.tzinfo is None or instante.utcoffset() is None:
@@ -333,40 +397,15 @@ class ServicoNotificacao:
             if data_inicio and instante_utc(data_inicio) > instante:
                 continue
 
-            atribuicoes = (
-                self.supabase.table("atribuida")
-                .select("fk_usuario_id")
-                .eq("fk_tarefa_id", tarefa["id"])
-                .execute()
-            ).data or []
-            if not atribuicoes:
-                continue
-
-            reserva = (
-                self.supabase.table("tarefa")
-                .update({"aviso_enviado_em": instante.isoformat()})
-                .eq("id", tarefa["id"])
-                .eq("data_fim", tarefa["data_fim"])
-                .in_("estado_atual", ["pendente", "atrasada"])
-                .is_("aviso_enviado_em", "null")
-                .execute()
-            )
-            if not reserva.data:
-                continue
-
-            resultado["tarefas_elegiveis"] += 1
-            envio = self.enviar_push(
-                [UUID(item["fk_usuario_id"]) for item in atribuicoes],
+            self._processar_aviso_vencimento(
+                tarefa,
+                "aviso_enviado_em",
+                instante.isoformat(),
+                "tarefa_vence_hoje",
                 "Sua tarefa vence hoje",
                 "A tarefa vence hoje e já pode ser concluída.",
-                {
-                    "tipo": "tarefa_vence_hoje",
-                    "tarefa_id": tarefa["id"],
-                    "casa_id": tarefa["fk_casa_id"],
-                },
+                resultado,
             )
-            resultado["avisos_enviados"] += len(envio["aceitos"])
-            resultado["falhas"] += len(envio["falhas"])
 
         for tarefa in tarefas_atrasadas:
             data_fim = instante_utc(tarefa["data_fim"])
@@ -374,40 +413,15 @@ class ServicoNotificacao:
             if dias_atraso <= 0 or dias_atraso > tarefa["atraso_maximo"]:
                 continue
 
-            atribuicoes = (
-                self.supabase.table("atribuida")
-                .select("fk_usuario_id")
-                .eq("fk_tarefa_id", tarefa["id"])
-                .execute()
-            ).data or []
-            if not atribuicoes:
-                continue
-
-            reserva = (
-                self.supabase.table("tarefa")
-                .update({"aviso_atraso_enviado_em": instante.isoformat()})
-                .eq("id", tarefa["id"])
-                .eq("data_fim", tarefa["data_fim"])
-                .in_("estado_atual", ["pendente", "atrasada"])
-                .is_("aviso_atraso_enviado_em", "null")
-                .execute()
-            )
-            if not reserva.data:
-                continue
-
-            resultado["tarefas_elegiveis"] += 1
-            envio = self.enviar_push(
-                [UUID(item["fk_usuario_id"]) for item in atribuicoes],
+            self._processar_aviso_vencimento(
+                tarefa,
+                "aviso_atraso_enviado_em",
+                instante.isoformat(),
+                "tarefa_atrasada",
                 "Sua tarefa está atrasada",
                 "A tarefa está atrasada, mas ainda pode ser concluída.",
-                {
-                    "tipo": "tarefa_atrasada",
-                    "tarefa_id": tarefa["id"],
-                    "casa_id": tarefa["fk_casa_id"],
-                },
+                resultado,
             )
-            resultado["avisos_enviados"] += len(envio["aceitos"])
-            resultado["falhas"] += len(envio["falhas"])
         return resultado
 
     def enviar_push(
@@ -424,14 +438,17 @@ class ServicoNotificacao:
         ids = list(dict.fromkeys(str(id_usuario) for id_usuario in ids_usuarios))
         dispositivos = []
         while True:
-            pagina = (
-                self.supabase.table("dispositivo_push")
-                .select("id,token,fk_usuario_id,plataforma")
-                .in_("fk_usuario_id", ids)
-                .order("id")
-                .range(len(dispositivos), len(dispositivos) + _LIMITE_LOTE - 1)
-                .execute()
-            ).data or []
+            try:
+                pagina = (
+                    self.supabase.table("dispositivo_push")
+                    .select("id,token,fk_usuario_id,plataforma")
+                    .in_("fk_usuario_id", ids)
+                    .order("id")
+                    .range(len(dispositivos), len(dispositivos) + _LIMITE_LOTE - 1)
+                    .execute()
+                ).data or []
+            except (APIError, httpx.RequestError) as erro:
+                raise _ConsultaDispositivosFalhou from erro
             dispositivos.extend(pagina)
             if len(pagina) < _LIMITE_LOTE:
                 break
