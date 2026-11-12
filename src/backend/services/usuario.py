@@ -207,4 +207,4 @@ class ServicoUsuario:
         # Quem recupera a senha pode estar com a conta comprometida.
         self.supabase.table("sessao").delete().eq(
             "fk_usuario_id", str(atualizado.data[0]["id"])
-        ).execute()
+        ).execute() #coment
