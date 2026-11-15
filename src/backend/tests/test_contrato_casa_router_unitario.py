@@ -563,7 +563,12 @@ def test_saida_bloqueada_preserva_vinculo(ambiente, bloqueio):
             {"fk_tarefa_id": tarefa_id, "fk_usuario_id": str(administrador)}
         )
         banco.registros["tarefa"].append(
-            {"id": tarefa_id, "fk_casa_id": str(alvo), "estado_atual": "pendente"}
+            {
+                "id": tarefa_id,
+                "fk_casa_id": str(alvo),
+                "estado_atual": "pendente",
+                "rotatividade_id": None,
+            }
         )
     antes = deepcopy(banco.registros["pertencer"])
 

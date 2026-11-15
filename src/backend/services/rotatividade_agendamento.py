@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 from threading import Lock
 from uuid import UUID
@@ -14,6 +15,7 @@ from services.ciclo_vida_tarefa import instante_utc, janela_dia_fixo
 from services.rotatividade import TarefaDistribuicao, distribuir_tarefas
 from services.score import ServicoScore
 
+_LOGGER = logging.getLogger(__name__)
 _TAMANHO_PAGINA = 500
 _LOCK_PROCESSAMENTO = Lock()
 _HORIZONTE_DIAS = 60
@@ -171,6 +173,9 @@ class ServicoAgendamentoRotatividade:
             configuracao["fk_casa_id"],
             id_usuario_atual,
         )
+        return self._apagar_rotatividade(id_rotatividade)
+
+    def _apagar_rotatividade(self, id_rotatividade: UUID | str) -> bool:
         conflito = HTTPException(
             status_code=409,
             detail="Rodízio com tarefas já pontuadas não pode ser excluído. Pause-o.",
@@ -444,7 +449,15 @@ class ServicoAgendamentoRotatividade:
             data_local_ocorrencia(str(tarefa["ocorrencia_em"]), fuso)
             for tarefa in tarefas_existentes
         }
-        membros = self._membros_elegiveis(configuracao)
+        try:
+            membros = self._membros_elegiveis(configuracao)
+        except HTTPException:
+            try:
+                self._apagar_rotatividade(configuracao["id"])
+            except HTTPException:
+                # Tem tarefas já pontuadas: _apagar_rotatividade já a deixou pausada.
+                pass
+            return 0
 
         processadas = 0
         for dia in datas_previstas:
@@ -463,9 +476,12 @@ class ServicoAgendamentoRotatividade:
             "*",
             (("eq", "ativa", True),),
         )
-        processadas = sum(
-            self._processar_configuracao(configuracao, instante) for configuracao in configuracoes
-        )
+        processadas = 0
+        for configuracao in configuracoes:
+            try:
+                processadas += self._processar_configuracao(configuracao, instante)
+            except Exception:
+                _LOGGER.exception("Falha ao processar o rodízio %s", configuracao["id"])
         return {
             "rotatividades_analisadas": len(configuracoes),
             "ocorrencias_processadas": processadas,

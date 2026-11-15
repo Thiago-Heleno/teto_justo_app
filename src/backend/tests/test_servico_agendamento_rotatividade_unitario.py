@@ -333,6 +333,60 @@ def test_processamento_respeita_escopo_e_nao_duplica_ocorrencias(processamento_g
     assert banco.registros == registros_antes
 
 
+def test_falha_em_um_rodizio_nao_impede_o_processamento_dos_demais(monkeypatch):
+    servico = ServicoAgendamentoRotatividade(MagicMock())
+    configuracoes = [{"id": "com-erro"}, {"id": "ok"}]
+    monkeypatch.setattr(servico, "_listar", lambda *_args: configuracoes)
+
+    def processar(configuracao, _instante):
+        if configuracao["id"] == "com-erro":
+            raise HTTPException(status_code=409, detail="sem participantes")
+        return 5
+
+    monkeypatch.setattr(servico, "_processar_configuracao", processar)
+
+    assert servico.processar_ocorrencias(datetime(2026, 10, 1, tzinfo=timezone.utc)) == {
+        "rotatividades_analisadas": 2,
+        "ocorrencias_processadas": 5,
+    }
+
+
+@pytest.mark.parametrize("com_tarefas_pontuadas", [False, True])
+def test_rodizio_sem_participantes_elegiveis_e_apagado_sem_abortar_o_job(
+    monkeypatch, com_tarefas_pontuadas
+):
+    servico = ServicoAgendamentoRotatividade(MagicMock())
+    configuracao = {
+        "id": str(uuid4()),
+        "timezone": "UTC",
+        "semana_ancora": "2026-10-01",
+        "dias_semana": [4],
+        "intervalo_semanas": 1,
+    }
+    apagados = []
+
+    def apagar(id_rotatividade):
+        apagados.append(id_rotatividade)
+        if com_tarefas_pontuadas:
+            raise HTTPException(status_code=409, detail="Pause-o.")
+        return True
+
+    monkeypatch.setattr(servico, "_listar", lambda *_args: [])
+    monkeypatch.setattr(
+        servico,
+        "_membros_elegiveis",
+        MagicMock(side_effect=HTTPException(status_code=409, detail="sem participantes")),
+    )
+    monkeypatch.setattr(servico, "_apagar_rotatividade", apagar)
+
+    resultado = servico._processar_configuracao(
+        configuracao, datetime(2026, 10, 1, tzinfo=timezone.utc)
+    )
+
+    assert resultado == 0
+    assert apagados == [configuracao["id"]]
+
+
 def test_processamento_gera_ocorrencias_ate_o_horizonte():
     banco = BancoFalso()
     id_usuario = str(uuid4())
