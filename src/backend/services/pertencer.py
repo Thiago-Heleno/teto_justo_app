@@ -126,20 +126,46 @@ class ServicoPertencer:
                 .execute()
             ).data
         ]
+        tarefas_abertas = []
         if ids_tarefas:
             tarefas_abertas = (
                 self.supabase.table("tarefa")
-                .select("id")
+                .select("id,rotatividade_id")
                 .in_("id", ids_tarefas)
                 .eq("fk_casa_id", str(fk_casa_id))
                 .in_("estado_atual", ["pendente", "atrasada"])
                 .execute()
+            ).data
+        if any(tarefa.get("rotatividade_id") is None for tarefa in tarefas_abertas):
+            raise HTTPException(
+                status_code=409,
+                detail="O morador possui tarefas abertas nesta casa.",
             )
-            if tarefas_abertas.data:
-                raise HTTPException(
-                    status_code=409,
-                    detail="O morador possui tarefas abertas nesta casa.",
-                )
+        # Tarefas abertas de rodízio saem junto; o job recria as futuras sem o morador.
+        ids_rotatividades = [
+            registro["id"]
+            for registro in (
+                self.supabase.table("rotatividade")
+                .select("id")
+                .eq("fk_casa_id", str(fk_casa_id))
+                .execute()
+            ).data
+        ]
+        if ids_rotatividades:
+            (
+                self.supabase.table("rotatividade_participante")
+                .delete()
+                .eq("fk_usuario_id", str(fk_usuario_id))
+                .in_("fk_rotatividade_id", ids_rotatividades)
+                .execute()
+            )
+        if tarefas_abertas:
+            (
+                self.supabase.table("tarefa")
+                .delete()
+                .in_("id", [tarefa["id"] for tarefa in tarefas_abertas])
+                .execute()
+            )
         resposta = (
             self.supabase.table("pertencer")
             .update({"ativo": False})
