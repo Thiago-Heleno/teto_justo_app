@@ -12,7 +12,11 @@ export default function Document({ children }: PropsWithChildren) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
         <ScrollViewStyleReset />
-        <link rel="manifest" href="/manifest.json" />
+        <link
+          rel="manifest"
+          href="/manifest.json"
+          crossOrigin="use-credentials"
+        />
         <meta name="theme-color" content="#f4f0e8" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
