@@ -365,6 +365,12 @@ export default function TarefasScreen() {
     if (!tarefaSelecionada) throw new Error("Tarefa não encontrada.");
     const tarefaAtualizada = await editarTarefa(tarefaSelecionada.id, dados);
     atualizarTarefaLocal(tarefaAtualizada);
+    if (dados.modo_atribuicao === "aleatorio")
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    return tarefaAtualizada;
+  }
+
+  function concluirEdicao() {
     setEditando(false);
     setTentativa((atual) => atual + 1);
   }
@@ -395,6 +401,8 @@ export default function TarefasScreen() {
     );
   }
 
+  const administrador =
+    casa.fk_usuario_id === usuarioAtual.id ? usuarioAtual : undefined;
   const chaveCalendario = `${casa.id}-${casa.timezone}-${usuarioAtual.id}`;
   const tarefasFiltradas =
     estado === "finalizado"
@@ -469,9 +477,12 @@ export default function TarefasScreen() {
         )}
         {tarefaSelecionada && editando ? (
           <EditarTarefa
+            key={tarefaSelecionada.id}
             tarefa={tarefaSelecionada}
             moradores={moradores}
+            administrador={administrador}
             onCancelar={() => setEditando(false)}
+            onConcluir={concluirEdicao}
             onSalvar={salvarEdicao}
           />
         ) : tarefaSelecionada ? (
@@ -480,6 +491,7 @@ export default function TarefasScreen() {
             fusoDaCasa={casa.timezone}
             moradores={moradores}
             usuarioAtualId={usuarioAtual.id}
+            administrador={administrador}
             onVoltar={() => {
               setEditando(false);
               setTarefaSelecionadaId(undefined);

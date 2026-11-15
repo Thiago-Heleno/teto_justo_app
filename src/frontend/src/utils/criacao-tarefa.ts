@@ -1,11 +1,13 @@
 import type {
   DiaSemana,
   IntervaloSemanas,
+  ModoAtribuicao,
   ModoPrazo,
   PesoTarefa,
   PrazoDias,
   TarefaDemonstracao,
 } from "@/constants/tarefa";
+import type { AtribuicaoTarefa } from "@/services/tarefas-api";
 import { dataFixaParaIso } from "./data-fixa.ts";
 
 export type FormularioTarefa = {
@@ -17,6 +19,7 @@ export type FormularioTarefa = {
   modoPrazo: ModoPrazo;
   dataFixa: string;
   responsavel: string | null;
+  modoAtribuicao?: ModoAtribuicao;
   rotativa: boolean;
   participantes: string[];
   diasSemana: DiaSemana[];
@@ -41,7 +44,10 @@ export type ErrosCriacao = Partial<
 export function prepararTarefa(
   formulario: FormularioTarefa,
   moradores: { id: string }[],
-): { erros: ErrosCriacao; tarefa?: TarefaDemonstracao } {
+): {
+  erros: ErrosCriacao;
+  tarefa?: Omit<TarefaDemonstracao, "usuarios_atribuidos"> & AtribuicaoTarefa;
+} {
   const {
     nome,
     descricao,
@@ -51,12 +57,14 @@ export function prepararTarefa(
     modoPrazo,
     dataFixa,
     responsavel,
+    modoAtribuicao,
     rotativa,
     participantes,
     diasSemana,
     semanas,
   } = formulario;
   const erros: ErrosCriacao = {};
+  const sortear = !rotativa && modoAtribuicao === "aleatorio";
   const idsValidos = new Set(moradores.map(({ id }) => id));
 
   if (!nome.trim()) erros.nome = "Informe o nome da tarefa.";
@@ -93,7 +101,7 @@ export function prepararTarefa(
     ) {
       erros.diasSemana = "Selecione dias válidos, sem repetições.";
     }
-  } else if (!responsavel || !idsValidos.has(responsavel)) {
+  } else if (!sortear && (!responsavel || !idsValidos.has(responsavel))) {
     erros.responsavel = "Selecione um responsável.";
   }
 
@@ -115,7 +123,11 @@ export function prepararTarefa(
       atraso_maximo: atrasoMaximo,
       modo_prazo: modoPrazo,
       ...(dataFixaIso ? { data_fixa: dataFixaIso } : {}),
-      usuarios_atribuidos: [rotativa ? participantes[0] : responsavel!],
+      ...(sortear
+        ? { modo_atribuicao: "aleatorio" }
+        : {
+            usuarios_atribuidos: [rotativa ? participantes[0] : responsavel!],
+          }),
       rotatividade: rotativa
         ? {
             participantes: [...participantes],

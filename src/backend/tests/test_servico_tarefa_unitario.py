@@ -38,6 +38,7 @@ def banco(consulta):
 @pytest.fixture
 def servico(banco):
     servico = ServicoTarefa(banco, BackgroundTasks())
+    servico._relacoes_da_listagem = MagicMock(return_value=({}, {}))
     servico._metadados_reclamacoes = MagicMock(
         return_value={
             "politica_reclamacao": "nenhuma",
@@ -253,7 +254,7 @@ def test_listagem_ordena_por_prazo_decrescente_apenas_no_filtro_finalizado(
         for tarefa in registros
     ]
     consulta.execute.return_value = SimpleNamespace(data=registros)
-    servico._montar_resposta = MagicMock(side_effect=lambda tarefa, agora: tarefa)
+    servico._montar_resposta = MagicMock(side_effect=lambda tarefa, agora, **kwargs: tarefa)
 
     resultado = servico.listar_tarefas_por_casa(
         ids_relacionados["fk_casa_id"], estado=estado
@@ -398,7 +399,7 @@ def test_listar_combina_filtros_e_consulta_fuso_uma_vez_para_filtros_por_dia(
         SimpleNamespace(data=tarefas),
         SimpleNamespace(data=[{"timezone": "America/Sao_Paulo"}]),
     ]
-    servico._montar_resposta = lambda registro, agora: registro
+    servico._montar_resposta = lambda registro, agora, **kwargs: registro
 
     resultado = servico.listar_tarefas_por_casa(
         ids_relacionados["fk_casa_id"], estado="atrasada", responsavel=responsavel, prazo=prazo
@@ -1502,7 +1503,7 @@ def test_listar_prazos_por_dias_completos_no_fuso_da_casa(
         SimpleNamespace(data=tarefas),
         SimpleNamespace(data=[{"timezone": fuso}]),
     ]
-    servico._montar_resposta = lambda registro, agora: registro
+    servico._montar_resposta = lambda registro, agora, **kwargs: registro
 
     resultado = servico.listar_tarefas_por_casa(ids_relacionados["fk_casa_id"], prazo=prazo)
 
