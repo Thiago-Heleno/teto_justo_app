@@ -22,7 +22,10 @@ exibirem a barra, como as demais telas.
 - `innerContainer` passou de `flexWrap: "wrap"` para `"nowrap"`, evitando a
   quebra de linha. Novo estilo `tabButtonViewCompacto` dá `flex: 1`,
   centralização e padding horizontal menor, para os cinco ícones caberem na
-  linha em telas estreitas.
+  linha em telas estreitas. Em compacto, o `MotionPressable` (filho direto do
+  container flex) também recebe `flex: 1` (`pressableCompacto`), para cada botão
+  ocupar fração igual da largura e os ícones se distribuírem pela barra em vez
+  de se agruparem à esquerda.
 - `tabListContainer` (View externo) recebeu `backgroundColor: Caldera.limestone`.
   Antes era um View sem fundo, então no tema escuro o `background` preto da
   página aparecia como moldura em volta da pílula clara.

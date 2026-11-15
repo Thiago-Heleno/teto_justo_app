@@ -78,7 +78,7 @@ export function TabButton({
     <MotionPressable
       {...props}
       accessibilityLabel={compacto ? String(children) : undefined}
-      style={undefined}
+      style={compacto ? styles.pressableCompacto : undefined}
     >
       <ThemedView
         style={[
@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: Spacing.two,
   },
+  pressableCompacto: { flex: 1 },
   tabButtonViewSelected: { backgroundColor: Caldera.ember },
   tabButtonText: { color: Caldera.obsidian },
 });
