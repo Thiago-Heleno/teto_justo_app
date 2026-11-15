@@ -7,6 +7,13 @@ export const prazosTarefa = [1, 2, 3, 4, 5] as const;
 export type PrazoDias = (typeof prazosTarefa)[number];
 export type ModoPrazo = "intervalo" | "dia_fixo";
 
+export const modosAtribuicaoTarefa = [
+  { valor: "manual", rotulo: "Manual" },
+  { valor: "aleatorio", rotulo: "Sortear na roleta" },
+] as const;
+
+export type ModoAtribuicao = (typeof modosAtribuicaoTarefa)[number]["valor"];
+
 export const diasSemanaTarefa = [
   { valor: 1, rotulo: "Segunda-feira", abreviacao: "Seg" },
   { valor: 2, rotulo: "Terça-feira", abreviacao: "Ter" },
@@ -37,7 +44,7 @@ export type TarefaDemonstracao = {
   atraso_maximo: PrazoDias;
   modo_prazo: ModoPrazo;
   data_fixa?: string;
-  usuarios_atribuidos: [string];
+  usuarios_atribuidos: string[];
   rotatividade: RotatividadeTarefa | null;
 };
 

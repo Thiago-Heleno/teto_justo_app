@@ -504,6 +504,45 @@ def test_listagem_entrega_metadados_das_tarefas(cenario):
     assert tarefas[0]["reclamacoes_limite"] == 2
 
 
+def test_listagem_busca_responsaveis_e_votos_em_lote_sem_misturar_ciclos(cenario, monkeypatch):
+    banco, _, tarefa, morador, _ = cenario
+    outra_tarefa_id = str(uuid4())
+    outro_responsavel = tarefa["fk_usuario_id"]
+    responsavel = banco.registros["atribuida"][0]["fk_usuario_id"]
+    tarefa["reaberturas"] = 1
+    banco.registros["tarefa"].append({**tarefa, "id": outra_tarefa_id, "reaberturas": 0})
+    banco.registros["atribuida"].append(
+        {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": outro_responsavel}
+    )
+    banco.registros["reclamacao_tarefa"].extend([
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(morador), "ciclo": 1},
+        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": outro_responsavel, "ciclo": 0},
+        {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": responsavel, "ciclo": 0},
+        {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": str(morador), "ciclo": 1},
+    ])
+    consultas = []
+    executar = ConsultaEmMemoria.execute
+
+    def registrar_consulta(consulta):
+        consultas.append(consulta.tabela)
+        return executar(consulta)
+
+    monkeypatch.setattr(ConsultaEmMemoria, "execute", registrar_consulta)
+    servico = ServicoTarefa(banco, id_usuario_atual=morador)
+    tarefas = {
+        item["id"]: item for item in servico.listar_tarefas_por_casa(UUID(tarefa["fk_casa_id"]))
+    }
+
+    assert tarefas[tarefa["id"]]["usuarios_atribuidos"] == [responsavel]
+    assert tarefas[outra_tarefa_id]["usuarios_atribuidos"] == [outro_responsavel]
+    assert tarefas[tarefa["id"]]["reclamacoes_count"] == 1
+    assert tarefas[outra_tarefa_id]["reclamacoes_count"] == 1
+    assert tarefas[tarefa["id"]]["usuario_reclamou"] is True
+    assert tarefas[outra_tarefa_id]["usuario_reclamou"] is False
+    assert consultas.count("atribuida") == 1
+    assert consultas.count("reclamacao_tarefa") == 1
+
+
 def test_retirar_voto_preserva_outros_moradores_tarefas_e_ciclos(cenario):
     banco, servico, tarefa, morador, _ = cenario
     tarefa_id = UUID(tarefa["id"])

@@ -31,6 +31,7 @@ type Props = {
   fusoDaCasa: string;
   moradores: Morador[];
   usuarioAtualId: string;
+  administrador?: Pick<Morador, "id" | "nome" | "foto">;
   onVoltar: () => void;
   onEditar?: () => void;
   onFinalizar: () => Promise<ResultadoFinalizacao>;
@@ -50,6 +51,7 @@ export function DetalheTarefa({
   fusoDaCasa,
   moradores,
   usuarioAtualId,
+  administrador,
   onVoltar,
   onEditar,
   onFinalizar,
@@ -78,6 +80,12 @@ export function DetalheTarefa({
   const responsaveis = moradores.filter((morador) =>
     tarefa.usuarios_atribuidos.includes(morador.id),
   );
+  const responsaveisExibidos =
+    administrador &&
+    tarefa.usuarios_atribuidos.includes(administrador.id) &&
+    !responsaveis.some(({ id }) => id === administrador.id)
+      ? [...responsaveis, administrador]
+      : responsaveis;
   const finalizada = tarefa.estado_atual === "finalizado";
   const podeFinalizar =
     !finalizada &&
@@ -205,7 +213,7 @@ export function DetalheTarefa({
           <View style={styles.responsiblesSection}>
             <Text style={styles.sectionTitle}>RESPONSÁVEL</Text>
             <View style={styles.responsibles}>
-              {responsaveis.map((morador) => (
+              {responsaveisExibidos.map((morador) => (
                 <View key={morador.id} style={styles.responsible}>
                   <Avatar
                     nome={morador.nome}

@@ -17,8 +17,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import {
+  RoletaResponsavel,
+  type ResultadoRoleta,
+} from "@/components/roleta-responsavel";
+import {
   diasSemanaTarefa,
   intervalosSemanasTarefa,
+  modosAtribuicaoTarefa,
   type IntervaloSemanas,
   type DiaSemana,
   pesosTarefa,
@@ -26,18 +31,27 @@ import {
   type PesoTarefa,
   type PrazoDias,
   type ModoPrazo,
+  type ModoAtribuicao,
   type TarefaDemonstracao,
 } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
   carregarContextoTarefas,
+  carregarUsuarioAtual,
   criarRotatividade as salvarRotatividade,
   criarTarefa as salvarTarefa,
+  mensagemErroAoSalvarTarefa,
   type Casa,
   type Morador,
+  type UsuarioAtual,
 } from "@/services/tarefas-api";
 import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
 import { formatarDataDigitada } from "@/utils/data-fixa";
+
+type TarefaPreparada = NonNullable<ReturnType<typeof prepararTarefa>["tarefa"]>;
+type ResumoTarefa =
+  | { pendente: TarefaPreparada; sorteio: ResultadoRoleta; salva?: never }
+  | { salva: TarefaDemonstracao; sorteio?: ResultadoRoleta; pendente?: never };
 
 function ErroCampo({ mensagem }: { mensagem?: string }) {
   if (!mensagem) return null;
@@ -58,11 +72,16 @@ function IndicadorSelecao({ selecionado }: { selecionado: boolean }) {
 
 export default function NovaTarefaScreen() {
   const { width } = useWindowDimensions();
-  const [contexto, setContexto] = useState<[Casa, Morador[]] | null>(null);
+  const [contexto, setContexto] = useState<
+    [Casa, Morador[], UsuarioAtual?] | null
+  >(null);
   const [erroContexto, setErroContexto] = useState<string>();
   const [tentativa, setTentativa] = useState(0);
   const casa = contexto?.[0];
   const moradores = contexto?.[1] ?? [];
+  const usuario = contexto?.[2];
+  const administrador =
+    usuario && usuario.id === casa?.fk_usuario_id ? usuario : undefined;
 
   const scrollRef = useRef<ScrollView>(null);
   const envioEmAndamento = useRef(false);
@@ -76,15 +95,20 @@ export default function NovaTarefaScreen() {
   const [modoPrazo, setModoPrazo] = useState<ModoPrazo>("intervalo");
   const [dataFixa, setDataFixa] = useState("");
   const [responsavel, setResponsavel] = useState<string | null>(null);
+  const [modoAtribuicao, setModoAtribuicao] =
+    useState<ModoAtribuicao>("manual");
   const [rotativa, setRotativa] = useState(false);
   const [participantes, setParticipantes] = useState<string[]>([]);
   const [diasSemana, setDiasSemana] = useState<DiaSemana[]>([]);
   const [semanas, setSemanas] = useState<IntervaloSemanas>(1);
   const [erros, setErros] = useState<ErrosCriacao>({});
-  const [tarefa, setTarefa] = useState<TarefaDemonstracao | null>(null);
+  const [resumo, setResumo] = useState<ResumoTarefa | null>(null);
+  const tarefa = resumo?.salva ?? resumo?.pendente;
   const [salvando, setSalvando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string>();
   const cardStyle = [styles.card, width < 600 && styles.compactCard];
+  const sortear =
+    !rotativa && !!administrador && modoAtribuicao === "aleatorio";
 
   useFocusEffect(
     useCallback(() => {
@@ -93,10 +117,14 @@ export default function NovaTarefaScreen() {
       setErroContexto(undefined);
       async function carregar() {
         try {
-          const dados = await carregarContextoTarefas(controlador.signal);
+          const [[casaAtual, moradoresAtuais], usuarioAtual] =
+            await Promise.all([
+              carregarContextoTarefas(controlador.signal),
+              carregarUsuarioAtual(controlador.signal).catch(() => undefined),
+            ]);
           if (!controlador.signal.aborted) {
-            setContexto(dados);
-            const ids = new Set(dados[1].map((morador) => morador.id));
+            setContexto([casaAtual, moradoresAtuais, usuarioAtual]);
+            const ids = new Set(moradoresAtuais.map((morador) => morador.id));
             setResponsavel((atual) => (atual && ids.has(atual) ? atual : null));
             setParticipantes((atuais) => atuais.filter((id) => ids.has(id)));
           }
@@ -124,7 +152,8 @@ export default function NovaTarefaScreen() {
     campo.style.height = `${Math.max(56, campo.scrollHeight)}px`;
   }, [descricao, width, contexto, tarefa]);
 
-  async function criarTarefa() {
+  function prepararCriacao() {
+    if (!casa || tarefa || envioEmAndamento.current) return;
     const resultado = prepararTarefa(
       {
         nome,
@@ -135,6 +164,7 @@ export default function NovaTarefaScreen() {
         modoPrazo,
         dataFixa,
         responsavel,
+        modoAtribuicao: sortear ? "aleatorio" : "manual",
         rotativa,
         participantes,
         diasSemana,
@@ -144,55 +174,79 @@ export default function NovaTarefaScreen() {
     );
     setErros(resultado.erros);
     Keyboard.dismiss();
-    if (resultado.tarefa) {
-      if (casa) {
-        if (envioEmAndamento.current) return;
-        envioEmAndamento.current = true;
-        setSalvando(true);
-        setErroEnvio(undefined);
-        try {
-          const preparada = resultado.tarefa;
-          if (preparada.rotatividade) {
-            await salvarRotatividade({
-              fk_casa_id: casa.id,
-              nome: preparada.nome,
-              descricao: preparada.descricao,
-              peso: preparada.peso,
-              prazo_dias: preparada.prazo_dias,
-              atraso_maximo: preparada.atraso_maximo,
-              modo_prazo: preparada.modo_prazo,
-              participantes: preparada.rotatividade.participantes,
-              dias_semana: preparada.rotatividade.dias_semana,
-              intervalo_semanas: preparada.rotatividade.intervalo_semanas,
-            });
-          } else {
-            await salvarTarefa({
-              fk_casa_id: casa.id,
-              nome: preparada.nome,
-              descricao: preparada.descricao,
-              peso: preparada.peso,
-              prazo_dias: preparada.prazo_dias,
-              atraso_maximo: preparada.atraso_maximo,
-              tipo: "unitaria",
-              modo_prazo: preparada.modo_prazo,
-              ...(preparada.data_fixa
-                ? { data_fixa: preparada.data_fixa }
-                : {}),
-              usuarios_atribuidos: preparada.usuarios_atribuidos,
-            });
-          }
-          setTarefa(preparada);
-        } catch (erro: unknown) {
-          setErroEnvio(
-            erro instanceof Error
-              ? erro.message
-              : "Não foi possível criar a tarefa.",
-          );
-        } finally {
-          envioEmAndamento.current = false;
-          setSalvando(false);
-        }
+    const preparada = resultado.tarefa;
+    if (!preparada) {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      return;
+    }
+
+    if (preparada.modo_atribuicao === "aleatorio") {
+      setErroEnvio(undefined);
+      setResumo({
+        pendente: preparada,
+        sorteio: { casaId: casa.id, candidatos: moradores, administrador },
+      });
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      return;
+    }
+
+    void gravarTarefa(preparada, casa.id);
+  }
+
+  async function gravarTarefa(
+    preparada: TarefaPreparada,
+    casaId: string,
+    sorteio?: ResultadoRoleta,
+  ) {
+    if (envioEmAndamento.current) return;
+    envioEmAndamento.current = true;
+    setSalvando(true);
+    setErroEnvio(undefined);
+    try {
+      const { rotatividade, ...campos } = preparada;
+      if (rotatividade) {
+        const { nome, descricao, peso, prazo_dias, atraso_maximo, modo_prazo } =
+          campos;
+        await salvarRotatividade({
+          fk_casa_id: casaId,
+          nome,
+          descricao,
+          peso,
+          prazo_dias,
+          atraso_maximo,
+          modo_prazo,
+          ...rotatividade,
+        });
+        setResumo({
+          salva: {
+            ...preparada,
+            usuarios_atribuidos: preparada.usuarios_atribuidos ?? [],
+          },
+        });
+      } else {
+        const salva = await salvarTarefa({
+          ...campos,
+          fk_casa_id: casaId,
+          tipo: "unitaria",
+        });
+        setResumo({
+          salva: {
+            ...preparada,
+            usuarios_atribuidos: salva.usuarios_atribuidos,
+          },
+          sorteio: sorteio && {
+            ...sorteio,
+            sorteadoId: salva.usuarios_atribuidos[0],
+          },
+        });
       }
+    } catch (erro: unknown) {
+      setErroEnvio(
+        mensagemErroAoSalvarTarefa(erro, "Não foi possível criar a tarefa."),
+      );
+    } finally {
+      envioEmAndamento.current = false;
+      setSalvando(false);
     }
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }
@@ -206,12 +260,13 @@ export default function NovaTarefaScreen() {
     setModoPrazo("intervalo");
     setDataFixa("");
     setResponsavel(null);
+    setModoAtribuicao("manual");
     setRotativa(false);
     setParticipantes([]);
     setDiasSemana([]);
     setSemanas(1);
     setErros({});
-    setTarefa(null);
+    setResumo(null);
     setErroEnvio(undefined);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }
@@ -241,11 +296,13 @@ export default function NovaTarefaScreen() {
             <View style={styles.section}>
               <Text style={styles.help}>{casa?.nome ?? "Sua casa"}</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                {tarefa
-                  ? tarefa.rotatividade
-                    ? "RODÍZIO CADASTRADO!"
-                    : "TAREFA CRIADA!"
-                  : "NOVA TAREFA"}
+                {resumo?.pendente
+                  ? "CONFIRA A TAREFA"
+                  : tarefa
+                    ? tarefa.rotatividade
+                      ? "RODÍZIO CADASTRADO!"
+                      : "TAREFA CRIADA!"
+                    : "NOVA TAREFA"}
               </Text>
               <Text style={styles.body}>
                 {tarefa
@@ -255,7 +312,7 @@ export default function NovaTarefaScreen() {
               <View style={styles.badge}>
                 <Text style={styles.help}>Tarefas da sua casa</Text>
               </View>
-              {rotativa && tarefa === null && (
+              {rotativa && !tarefa && (
                 <Text style={styles.help}>
                   Configure o rodízio e distribua ocorrências automaticamente.
                 </Text>
@@ -268,7 +325,7 @@ export default function NovaTarefaScreen() {
               )}
             </View>
 
-            {!contexto ? (
+            {!contexto && !tarefa ? (
               <View style={cardStyle}>
                 <Text style={styles.body} accessibilityLiveRegion="polite">
                   {erroContexto || "Carregando os moradores da sua casa..."}
@@ -295,8 +352,29 @@ export default function NovaTarefaScreen() {
                     accessibilityLiveRegion="polite"
                     style={styles.sectionTitle}
                   >
-                    {tarefa.rotatividade ? "Rodízio salvo" : "Detalhes salvos"}
+                    {resumo?.pendente
+                      ? "Conferir detalhes"
+                      : tarefa.rotatividade
+                        ? "Rodízio salvo"
+                        : "Detalhes salvos"}
                   </Text>
+                  {resumo?.sorteio && (
+                    <RoletaResponsavel
+                      {...resumo.sorteio}
+                      salvando={salvando}
+                      onGirar={
+                        resumo.pendente
+                          ? () =>
+                              void gravarTarefa(
+                                resumo.pendente,
+                                resumo.sorteio.casaId,
+                                resumo.sorteio,
+                              )
+                          : undefined
+                      }
+                    />
+                  )}
+                  <ErroCampo mensagem={erroEnvio} />
                   <View style={styles.section}>
                     <Text style={styles.help}>Nome</Text>
                     <Text style={styles.body}>{tarefa.nome}</Text>
@@ -336,14 +414,14 @@ export default function NovaTarefaScreen() {
                       </Text>
                     )}
                   </View>
-                  {!tarefa.rotatividade && (
+                  {!tarefa.rotatividade && !resumo?.sorteio && (
                     <View style={styles.section}>
                       <Text style={styles.help}>Responsável</Text>
                       <Text style={styles.body}>
                         {
                           moradores.find(
                             (morador) =>
-                              morador.id === tarefa.usuarios_atribuidos[0],
+                              morador.id === tarefa.usuarios_atribuidos?.[0],
                           )?.nome
                         }
                       </Text>
@@ -380,18 +458,32 @@ export default function NovaTarefaScreen() {
                     </View>
                   )}
                 </View>
-                <MotionPressable
-                  accessibilityRole="button"
-                  onPress={criarOutraTarefa}
-                  style={styles.button}
-                >
-                  <Plus color={Caldera.obsidian} size={18} />
-                  <Text style={styles.body}>
-                    {tarefa.rotatividade
-                      ? "Criar outro rodízio"
-                      : "Criar outra tarefa"}
-                  </Text>
-                </MotionPressable>
+                {resumo?.pendente ? (
+                  <MotionPressable
+                    accessibilityRole="button"
+                    disabled={salvando}
+                    onPress={() => {
+                      setResumo(null);
+                      setErroEnvio(undefined);
+                    }}
+                    style={styles.button}
+                  >
+                    <Text style={styles.body}>Voltar para editar</Text>
+                  </MotionPressable>
+                ) : (
+                  <MotionPressable
+                    accessibilityRole="button"
+                    onPress={criarOutraTarefa}
+                    style={styles.button}
+                  >
+                    <Plus color={Caldera.obsidian} size={18} />
+                    <Text style={styles.body}>
+                      {tarefa.rotatividade
+                        ? "Criar outro rodízio"
+                        : "Criar outra tarefa"}
+                    </Text>
+                  </MotionPressable>
+                )}
               </>
             ) : (
               <>
@@ -658,6 +750,7 @@ export default function NovaTarefaScreen() {
                             checked: rotativa === opcao.valor,
                           }}
                           aria-checked={rotativa === opcao.valor}
+                          disabled={salvando}
                           onPress={() => {
                             setRotativa(opcao.valor);
                             setErros((atuais) => ({
@@ -684,15 +777,54 @@ export default function NovaTarefaScreen() {
                     <Text style={styles.body}>
                       {rotativa
                         ? "Participantes do rodízio *"
-                        : "Responsável *"}
+                        : sortear
+                          ? "Responsável"
+                          : "Responsável *"}
                     </Text>
+                    {!rotativa && administrador && (
+                      <View
+                        style={styles.options}
+                        accessibilityRole="radiogroup"
+                        accessibilityLabel="Modo de atribuição"
+                      >
+                        {modosAtribuicaoTarefa.map(({ valor, rotulo }) => (
+                          <MotionPressable
+                            key={valor}
+                            accessibilityRole="radio"
+                            accessibilityState={{
+                              checked: modoAtribuicao === valor,
+                            }}
+                            aria-checked={modoAtribuicao === valor}
+                            disabled={salvando}
+                            onPress={() => {
+                              setModoAtribuicao(valor);
+                              setErros((atuais) => ({
+                                ...atuais,
+                                responsavel: undefined,
+                              }));
+                            }}
+                            style={[
+                              styles.option,
+                              modoAtribuicao === valor && styles.selected,
+                            ]}
+                          >
+                            <IndicadorSelecao
+                              selecionado={modoAtribuicao === valor}
+                            />
+                            <Text style={styles.body}>{rotulo}</Text>
+                          </MotionPressable>
+                        ))}
+                      </View>
+                    )}
                     <Text style={styles.help}>
                       {rotativa
                         ? "Escolha pelo menos dois moradores, na ordem em que vão participar. O primeiro selecionado começa."
-                        : "Escolha apenas um morador. Ao escolher outro, a seleção anterior é substituída."}
+                        : sortear
+                          ? "O sorteio inclui o administrador e os moradores ativos."
+                          : "Escolha apenas um morador. Ao escolher outro, a seleção anterior é substituída."}
                     </Text>
                   </View>
-                  {moradores.length === 0 && (
+                  {!sortear && moradores.length === 0 && (
                     <Text style={styles.help}>
                       Não há moradores disponíveis para esta casa.
                     </Text>
@@ -702,66 +834,70 @@ export default function NovaTarefaScreen() {
                       O rodízio precisa de pelo menos dois moradores na casa.
                     </Text>
                   )}
-                  <View
-                    style={styles.section}
-                    accessibilityRole={rotativa ? undefined : "radiogroup"}
-                    accessibilityLabel={
-                      rotativa
-                        ? "Participantes do rodízio"
-                        : "Responsável pela tarefa"
-                    }
-                  >
-                    {moradores.map((morador) => {
-                      const selecionado = rotativa
-                        ? participantes.includes(morador.id)
-                        : responsavel === morador.id;
-                      const nomeExibido = morador.nome;
-                      return (
-                        <MotionPressable
-                          key={morador.id}
-                          accessibilityRole={rotativa ? "checkbox" : "radio"}
-                          accessibilityLabel={nomeExibido}
-                          accessibilityState={{ checked: selecionado }}
-                          aria-checked={selecionado}
-                          onPress={() => {
-                            if (rotativa) alternarParticipante(morador.id);
-                            else setResponsavel(morador.id);
-                            setErros((atuais) => ({
-                              ...atuais,
-                              responsavel: undefined,
-                            }));
-                          }}
-                          style={[
-                            styles.resident,
-                            selecionado && styles.selected,
-                          ]}
-                        >
-                          <Avatar
-                            nome={morador.nome}
-                            foto={morador.foto}
-                            tamanho={40}
-                          />
-                          <Text style={[styles.body, styles.residentName]}>
-                            {nomeExibido}
-                          </Text>
-                          {rotativa ? (
-                            <View accessible={false} style={styles.checkbox}>
-                              <Text style={styles.help}>
-                                {selecionado ? "✓" : ""}
-                              </Text>
-                            </View>
-                          ) : (
-                            <IndicadorSelecao selecionado={selecionado} />
-                          )}
-                        </MotionPressable>
-                      );
-                    })}
-                  </View>
-                  <ErroCampo
-                    mensagem={
-                      rotativa ? erros.participantes : erros.responsavel
-                    }
-                  />
+                  {!sortear && (
+                    <View
+                      style={styles.section}
+                      accessibilityRole={rotativa ? undefined : "radiogroup"}
+                      accessibilityLabel={
+                        rotativa
+                          ? "Participantes do rodízio"
+                          : "Responsável pela tarefa"
+                      }
+                    >
+                      {moradores.map((morador) => {
+                        const selecionado = rotativa
+                          ? participantes.includes(morador.id)
+                          : responsavel === morador.id;
+                        const nomeExibido = morador.nome;
+                        return (
+                          <MotionPressable
+                            key={morador.id}
+                            accessibilityRole={rotativa ? "checkbox" : "radio"}
+                            accessibilityLabel={nomeExibido}
+                            accessibilityState={{ checked: selecionado }}
+                            aria-checked={selecionado}
+                            onPress={() => {
+                              if (rotativa) alternarParticipante(morador.id);
+                              else setResponsavel(morador.id);
+                              setErros((atuais) => ({
+                                ...atuais,
+                                responsavel: undefined,
+                              }));
+                            }}
+                            style={[
+                              styles.resident,
+                              selecionado && styles.selected,
+                            ]}
+                          >
+                            <Avatar
+                              nome={morador.nome}
+                              foto={morador.foto}
+                              tamanho={40}
+                            />
+                            <Text style={[styles.body, styles.residentName]}>
+                              {nomeExibido}
+                            </Text>
+                            {rotativa ? (
+                              <View accessible={false} style={styles.checkbox}>
+                                <Text style={styles.help}>
+                                  {selecionado ? "✓" : ""}
+                                </Text>
+                              </View>
+                            ) : (
+                              <IndicadorSelecao selecionado={selecionado} />
+                            )}
+                          </MotionPressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                  {!sortear && (
+                    <ErroCampo
+                      mensagem={
+                        rotativa ? erros.participantes : erros.responsavel
+                      }
+                    />
+                  )}
                   {rotativa && (
                     <>
                       {participantes.length > 0 && (
@@ -921,7 +1057,7 @@ export default function NovaTarefaScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ busy: salvando, disabled: salvando }}
                   disabled={salvando}
-                  onPress={() => void criarTarefa()}
+                  onPress={prepararCriacao}
                   style={styles.button}
                 >
                   {rotativa ? (
@@ -934,7 +1070,9 @@ export default function NovaTarefaScreen() {
                       ? "Criando..."
                       : rotativa
                         ? "Conferir rodízio"
-                        : "Criar tarefa"}
+                        : sortear
+                          ? "Conferir detalhes"
+                          : "Criar tarefa"}
                   </Text>
                 </MotionPressable>
               </>

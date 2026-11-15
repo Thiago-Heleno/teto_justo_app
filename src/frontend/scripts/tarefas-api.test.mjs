@@ -32,6 +32,7 @@ const {
   criarRotatividade,
   criarTarefa,
   editarTarefa,
+  mensagemErroAoSalvarTarefa,
   finalizarTarefa,
   carregarExtrato,
   carregarRanking,
@@ -40,6 +41,62 @@ const {
   retirarReportTarefa,
   temConfiguracaoTarefas,
 } = await import("../src/services/tarefas-api.ts");
+
+test("POST e PATCH de roleta omitem responsáveis e devolvem o ID sorteado", async (t) => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  sessao.setState({ token: "sessao-valida" });
+  const campos = {
+    nome: "Limpar a cozinha",
+    descricao: "",
+    peso: 2,
+    prazo_dias: 3,
+    atraso_maximo: 2,
+    modo_atribuicao: "aleatorio",
+  };
+  const criacao = {
+    ...campos,
+    fk_casa_id: "casa-123",
+    tipo: "unitaria",
+    modo_prazo: "intervalo",
+  };
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ usuarios_atribuidos: ["sorteado-pelo-servidor"] }),
+  );
+
+  for (const [enviar, dados, metodo, rota] of [
+    [criarTarefa, criacao, "POST", "/tarefas/"],
+    [
+      (payload) => editarTarefa("tarefa-123", payload),
+      campos,
+      "PATCH",
+      "/tarefas/tarefa-123",
+    ],
+  ]) {
+    const tarefa = await enviar(dados);
+    const [url, opcoes] = fetch.mock.calls.at(-1).arguments;
+    assert.equal(url, `http://api.test${rota}`);
+    assert.equal(opcoes.method, metodo);
+    assert.deepEqual(JSON.parse(opcoes.body), dados);
+    assert.equal("usuarios_atribuidos" in JSON.parse(opcoes.body), false);
+    assert.deepEqual(tarefa.usuarios_atribuidos, ["sorteado-pelo-servidor"]);
+  }
+});
+
+test("falha de rede na gravação orienta a conferir a lista antes de repetir", async (t) => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  sessao.setState({ token: "sessao-valida" });
+  const fetch = t.mock.method(globalThis, "fetch", async () => {
+    throw new TypeError("Failed to fetch");
+  });
+  await assert.rejects(
+    editarTarefa("tarefa-123", { modo_atribuicao: "aleatorio" }),
+    (erro) => {
+      assert.match(mensagemErroAoSalvarTarefa(erro, ""), /Confira a lista/);
+      return true;
+    },
+  );
+  assert.equal(fetch.mock.callCount(), 1);
+});
 
 for (const estado of ["pendente", "em_aberto"]) {
   test(`envia filtro ${estado} e credencial para a lista da casa`, async () => {

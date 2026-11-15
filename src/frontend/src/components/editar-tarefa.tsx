@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Save, X } from "lucide-react-native";
 import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
@@ -6,13 +6,25 @@ import Animated, { FadeInRight, ReduceMotion } from "react-native-reanimated";
 import { Avatar } from "@/components/avatar";
 import { MotionPressable } from "@/components/motion-pressable";
 import {
+  RoletaResponsavel,
+  type ResultadoRoleta,
+} from "@/components/roleta-responsavel";
+import {
+  modosAtribuicaoTarefa,
   pesosTarefa,
   prazosTarefa,
+  type ModoAtribuicao,
   type PesoTarefa,
   type PrazoDias,
 } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
-import type { Morador, Tarefa, TarefaAtualizar } from "@/services/tarefas-api";
+import {
+  mensagemErroAoSalvarTarefa,
+  type Morador,
+  type Tarefa,
+  type TarefaAtualizar,
+  type UsuarioAtual,
+} from "@/services/tarefas-api";
 import { formatarDataDigitada } from "@/utils/data-fixa";
 import {
   prepararEdicaoTarefa,
@@ -22,8 +34,10 @@ import {
 type Props = {
   tarefa: Tarefa;
   moradores: Morador[];
+  administrador?: UsuarioAtual;
   onCancelar: () => void;
-  onSalvar: (dados: TarefaAtualizar) => Promise<void>;
+  onConcluir: () => void;
+  onSalvar: (dados: TarefaAtualizar) => Promise<Tarefa>;
 };
 
 function ErroCampo({ mensagem }: { mensagem?: string }) {
@@ -38,7 +52,9 @@ function ErroCampo({ mensagem }: { mensagem?: string }) {
 export function EditarTarefa({
   tarefa,
   moradores,
+  administrador,
   onCancelar,
+  onConcluir,
   onSalvar,
 }: Props) {
   const [nome, setNome] = useState(tarefa.nome);
@@ -54,32 +70,127 @@ export function EditarTarefa({
   const [responsavel, setResponsavel] = useState(
     tarefa.usuarios_atribuidos[0] ?? "",
   );
+  const [modoAtribuicao, setModoAtribuicao] =
+    useState<ModoAtribuicao>("manual");
+  const [sorteio, setSorteio] = useState<{
+    roleta: ResultadoRoleta;
+    pendente?: TarefaAtualizar;
+  }>();
   const [erros, setErros] = useState<ErrosEdicaoTarefa>({});
   const [salvando, setSalvando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string>();
+  const envioEmAndamento = useRef(false);
+  const podeSortear =
+    !!administrador &&
+    tarefa.tipo === "unitaria" &&
+    (tarefa.estado_atual === "pendente" || tarefa.estado_atual === "atrasada");
+  const sortear = podeSortear && modoAtribuicao === "aleatorio";
+  const moradoresDisponiveis =
+    podeSortear &&
+    administrador &&
+    !moradores.some(({ id }) => id === administrador.id)
+      ? [...moradores, { ...administrador, foto: null }]
+      : moradores;
 
-  async function salvar() {
+  function prepararEdicao() {
+    if (sorteio || envioEmAndamento.current) return;
     const resultado = prepararEdicaoTarefa(
-      { nome, descricao, peso, prazoDias, atrasoMaximo, dataFixa, responsavel },
+      {
+        nome,
+        descricao,
+        peso,
+        prazoDias,
+        atrasoMaximo,
+        dataFixa,
+        responsavel,
+        modoAtribuicao: sortear ? "aleatorio" : "manual",
+      },
       tarefa,
-      moradores,
+      moradoresDisponiveis,
     );
     setErros(resultado.erros);
     if (!resultado.dados) return;
 
+    if (resultado.dados.modo_atribuicao === "aleatorio") {
+      setErroEnvio(undefined);
+      setSorteio({
+        pendente: resultado.dados,
+        roleta: {
+          casaId: tarefa.fk_casa_id,
+          candidatos: moradores,
+          administrador,
+        },
+      });
+      return;
+    }
+
+    void gravarEdicao(resultado.dados);
+  }
+
+  async function gravarEdicao(
+    dados: TarefaAtualizar,
+    roleta?: ResultadoRoleta,
+  ) {
+    if (envioEmAndamento.current) return;
+    envioEmAndamento.current = true;
     setSalvando(true);
     setErroEnvio(undefined);
     try {
-      await onSalvar(resultado.dados);
+      const atualizada = await onSalvar(dados);
+      if (roleta) {
+        setSorteio({
+          roleta: { ...roleta, sorteadoId: atualizada.usuarios_atribuidos[0] },
+        });
+      } else {
+        onConcluir();
+      }
     } catch (erro: unknown) {
       setErroEnvio(
-        erro instanceof Error
-          ? erro.message
-          : "Não foi possível editar a tarefa.",
+        mensagemErroAoSalvarTarefa(erro, "Não foi possível editar a tarefa."),
       );
     } finally {
+      envioEmAndamento.current = false;
       setSalvando(false);
     }
+  }
+
+  if (sorteio) {
+    const { pendente, roleta } = sorteio;
+    return (
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.title}>
+            {pendente ? "CONFIRA A EDIÇÃO" : "TAREFA SALVA"}
+          </Text>
+          {pendente && <Text style={styles.label}>{pendente.nome}</Text>}
+          <RoletaResponsavel
+            {...roleta}
+            salvando={salvando}
+            onGirar={
+              pendente ? () => void gravarEdicao(pendente, roleta) : undefined
+            }
+          />
+          <ErroCampo mensagem={erroEnvio} />
+          <MotionPressable
+            accessibilityRole="button"
+            disabled={salvando}
+            onPress={
+              pendente
+                ? () => {
+                    setSorteio(undefined);
+                    setErroEnvio(undefined);
+                  }
+                : onConcluir
+            }
+            style={pendente ? styles.cancelButton : styles.saveButton}
+          >
+            <Text style={styles.saveText}>
+              {pendente ? "Voltar para editar" : "Continuar"}
+            </Text>
+          </MotionPressable>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -214,32 +325,82 @@ export function EditarTarefa({
         )}
 
         <View style={styles.field}>
-          <Text style={styles.label}>Responsável *</Text>
-          <View accessibilityRole="radiogroup" style={styles.options}>
-            {moradores.map((morador) => (
-              <MotionPressable
-                accessibilityRole="radio"
-                accessibilityState={{ checked: responsavel === morador.id }}
-                accessibilityLabel={morador.nome}
-                key={morador.id}
-                onPress={() => {
-                  setResponsavel(morador.id);
-                  setErros((atuais) => ({ ...atuais, responsavel: undefined }));
-                }}
-                style={[
-                  styles.option,
-                  styles.opcaoMorador,
-                  responsavel === morador.id && styles.selected,
-                ]}
-              >
-                <Avatar nome={morador.nome} foto={morador.foto} tamanho={40} />
-                <Text style={[styles.optionText, { flexShrink: 1 }]}>
-                  {morador.nome}
-                </Text>
-              </MotionPressable>
-            ))}
-          </View>
-          <ErroCampo mensagem={erros.responsavel} />
+          <Text style={styles.label}>
+            {sortear ? "Responsável" : "Responsável *"}
+          </Text>
+          {podeSortear && (
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Modo de atribuição"
+              style={styles.options}
+            >
+              {modosAtribuicaoTarefa.map(({ valor, rotulo }) => (
+                <MotionPressable
+                  key={valor}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: modoAtribuicao === valor }}
+                  aria-checked={modoAtribuicao === valor}
+                  disabled={salvando}
+                  onPress={() => {
+                    setModoAtribuicao(valor);
+                    setErros((atuais) => ({
+                      ...atuais,
+                      responsavel: undefined,
+                    }));
+                  }}
+                  style={[
+                    styles.option,
+                    modoAtribuicao === valor && styles.selected,
+                  ]}
+                >
+                  <Text style={styles.optionText}>{rotulo}</Text>
+                </MotionPressable>
+              ))}
+            </View>
+          )}
+          {sortear ? (
+            <Text style={styles.help}>
+              O sorteio inclui o administrador e os moradores ativos.
+            </Text>
+          ) : (
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Responsável pela tarefa"
+              style={styles.options}
+            >
+              {moradoresDisponiveis.map((morador) => (
+                <MotionPressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: responsavel === morador.id }}
+                  aria-checked={responsavel === morador.id}
+                  accessibilityLabel={morador.nome}
+                  key={morador.id}
+                  onPress={() => {
+                    setResponsavel(morador.id);
+                    setErros((atuais) => ({
+                      ...atuais,
+                      responsavel: undefined,
+                    }));
+                  }}
+                  style={[
+                    styles.option,
+                    styles.opcaoMorador,
+                    responsavel === morador.id && styles.selected,
+                  ]}
+                >
+                  <Avatar
+                    nome={morador.nome}
+                    foto={morador.foto}
+                    tamanho={40}
+                  />
+                  <Text style={[styles.optionText, { flexShrink: 1 }]}>
+                    {morador.nome}
+                  </Text>
+                </MotionPressable>
+              ))}
+            </View>
+          )}
+          {!sortear && <ErroCampo mensagem={erros.responsavel} />}
         </View>
 
         {erroEnvio && (
@@ -251,13 +412,18 @@ export function EditarTarefa({
         <View style={styles.actions}>
           <MotionPressable
             accessibilityRole="button"
+            accessibilityState={{ busy: salvando, disabled: salvando }}
             disabled={salvando}
-            onPress={() => void salvar()}
+            onPress={prepararEdicao}
             style={[styles.saveButton, salvando && styles.disabled]}
           >
             <Save color={Caldera.obsidian} size={18} />
             <Text style={styles.saveText}>
-              {salvando ? "Salvando..." : "Salvar alterações"}
+              {salvando
+                ? "Salvando..."
+                : sortear
+                  ? "Conferir detalhes"
+                  : "Salvar alterações"}
             </Text>
           </MotionPressable>
           <MotionPressable
