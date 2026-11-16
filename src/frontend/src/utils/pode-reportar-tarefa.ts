@@ -1,4 +1,3 @@
-
 import type { PoliticaReclamacao } from "@/services/casas-api";
 
 export const JANELA_REPORTAGEM_MS = 24 * 60 * 60 * 1000;
@@ -25,7 +24,7 @@ export function podeParticiparDoReport(
 ) {
   return Boolean(
     usuarioId &&
-      (usuarioId === administradorId || moradoresIds.includes(usuarioId)),
+    (usuarioId === administradorId || moradoresIds.includes(usuarioId)),
   );
 }
 
