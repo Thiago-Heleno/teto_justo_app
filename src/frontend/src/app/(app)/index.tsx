@@ -257,7 +257,10 @@ export default function HomeScreen() {
                 <MotionPressable
                   accessibilityRole="button"
                   accessibilityLabel="Abrir listas de compras"
-                  style={[styles.button, styles.primaryButton]}
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    styles.primaryButton,
+                  ])}
                 >
                   <ShoppingBasket color={Caldera.obsidian} size={18} />
                   <Text style={styles.buttonText}>Abrir listas de compras</Text>
