@@ -21,14 +21,14 @@ _LOCK_PROCESSAMENTO = Lock()
 _HORIZONTE_DIAS = 60
 
 
-def datas_ocorrencias(configuracao: dict, ate: date) -> list[date]:
+def datas_ocorrencias(configuracao: dict, de: date, ate: date) -> list[date]:
     ancora = date.fromisoformat(str(configuracao["semana_ancora"])[:10])
     inicio_semana = ancora - timedelta(days=ancora.weekday())
     dias_semana = set(configuracao["dias_semana"])
     intervalo = configuracao["intervalo_semanas"]
     datas = []
 
-    dia = ancora
+    dia = max(ancora, de)
     while dia <= ate:
         semanas_desde_ancora = (dia - inicio_semana).days // 7
         if dia.isoweekday() in dias_semana and semanas_desde_ancora % intervalo == 0:
@@ -433,17 +433,23 @@ class ServicoAgendamentoRotatividade:
     def _processar_configuracao(self, configuracao: dict, instante: datetime) -> int:
         fuso = ZoneInfo(configuracao["timezone"])
         hoje = instante.astimezone(fuso).date()
-        datas_previstas = datas_ocorrencias(
-            configuracao,
-            hoje + timedelta(days=_HORIZONTE_DIAS),
-        )
+        horizonte = hoje + timedelta(days=_HORIZONTE_DIAS)
+        datas_previstas = datas_ocorrencias(configuracao, hoje, horizonte)
         if not datas_previstas:
             return 0
 
+        inicio_utc = datetime.combine(hoje, time.min, fuso).astimezone(timezone.utc)
+        fim_utc = datetime.combine(horizonte + timedelta(days=1), time.min, fuso).astimezone(
+            timezone.utc
+        )
         tarefas_existentes = self._listar(
             "tarefa",
             "id,ocorrencia_em,pontuacao",
-            (("eq", "rotatividade_id", str(configuracao["id"])),),
+            (
+                ("eq", "rotatividade_id", str(configuracao["id"])),
+                ("gte", "ocorrencia_em", inicio_utc.isoformat()),
+                ("lt", "ocorrencia_em", fim_utc.isoformat()),
+            ),
         )
         datas_existentes = {
             data_local_ocorrencia(str(tarefa["ocorrencia_em"]), fuso)
