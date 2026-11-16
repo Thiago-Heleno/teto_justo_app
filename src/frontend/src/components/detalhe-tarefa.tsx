@@ -25,12 +25,17 @@ import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import type { Morador, Tarefa } from "@/services/tarefas-api";
 import { formatarPrazo } from "@/utils/filtros-tarefa";
+import {
+  contarVotantesPossiveis,
+  podeParticiparDoReport,
+} from "@/utils/pode-reportar-tarefa";
 
 type Props = {
   tarefa: Tarefa;
   fusoDaCasa: string;
   moradores: Morador[];
   usuarioAtualId: string;
+  administradorId: string;
   administrador?: Pick<Morador, "id" | "nome" | "foto">;
   onVoltar: () => void;
   onEditar?: () => void;
@@ -51,6 +56,7 @@ export function DetalheTarefa({
   fusoDaCasa,
   moradores,
   usuarioAtualId,
+  administradorId,
   administrador,
   onVoltar,
   onEditar,
@@ -282,7 +288,11 @@ export function DetalheTarefa({
               )}
               {finalizada &&
                 tarefa.concluida_em &&
-                moradores.some((morador) => morador.id === usuarioAtualId) && (
+                podeParticiparDoReport(
+                  usuarioAtualId,
+                  moradores.map((morador) => morador.id),
+                  administradorId,
+                ) && (
                   <BotaoReportarTarefa
                     key={tarefa.id + tarefa.concluida_em}
                     tarefaId={tarefa.id}
@@ -290,7 +300,11 @@ export function DetalheTarefa({
                     politica={tarefa.politica_reclamacao}
                     votosAtuais={tarefa.reclamacoes_count}
                     usuarioReclamou={tarefa.usuario_reclamou}
-                    votosPossiveis={moradores.length - responsaveis.length}
+                    votosPossiveis={contarVotantesPossiveis(
+                      moradores.map((morador) => morador.id),
+                      administradorId,
+                      tarefa.usuarios_atribuidos,
+                    )}
                     ehResponsavel={tarefa.usuarios_atribuidos.includes(
                       usuarioAtualId,
                     )}

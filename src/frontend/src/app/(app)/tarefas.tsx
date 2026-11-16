@@ -491,6 +491,7 @@ export default function TarefasScreen() {
             fusoDaCasa={casa.timezone}
             moradores={moradores}
             usuarioAtualId={usuarioAtual.id}
+            administradorId={casa.fk_usuario_id}
             administrador={administrador}
             onVoltar={() => {
               setEditando(false);

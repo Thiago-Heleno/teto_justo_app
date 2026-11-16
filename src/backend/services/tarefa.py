@@ -110,7 +110,7 @@ class ServicoTarefa:
         if id_casa not in self._moradores_politica_por_casa:
             casas = (
                 self.supabase.table("casa")
-                .select("politica_reclamacao")
+                .select("politica_reclamacao,fk_usuario_id")
                 .eq("id", id_casa)
                 .execute()
             ).data or []
@@ -126,7 +126,8 @@ class ServicoTarefa:
             )
             self._moradores_politica_por_casa[id_casa] = (
                 casas[0].get("politica_reclamacao") or "nenhuma",
-                {str(morador["fk_usuario_id"]) for morador in moradores},
+                {str(casas[0]["fk_usuario_id"])}
+                | {str(morador["fk_usuario_id"]) for morador in moradores},
             )
         return self._moradores_politica_por_casa[id_casa]
 

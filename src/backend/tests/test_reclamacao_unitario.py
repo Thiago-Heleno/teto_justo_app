@@ -204,6 +204,56 @@ def test_responsavel_nao_pode_reclamar_da_propria_tarefa(cenario):
     assert banco.registros["reclamacao_tarefa"] == []
 
 
+@pytest.mark.parametrize("situacao_vinculo", ["ausente", "inativo"])
+def test_administrador_sem_vinculo_ativo_pode_reclamar_e_retirar(cenario, situacao_vinculo):
+    banco, servico, tarefa, _, _ = cenario
+    administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
+    if situacao_vinculo == "ausente":
+        banco.registros["pertencer"] = [
+            vinculo for vinculo in banco.registros["pertencer"]
+            if vinculo["fk_usuario_id"] != str(administrador)
+        ]
+    else:
+        banco.registros["pertencer"][0]["ativo"] = False
+
+    resultado = servico.reclamar_tarefa(UUID(tarefa["id"]), administrador)
+    assert resultado["usuario_reclamou"] is True
+    assert banco.registros["reclamacao_tarefa"][0]["fk_usuario_id"] == str(administrador)
+
+    retirado = servico.retirar_reclamacao(UUID(tarefa["id"]), administrador)
+    assert retirado["usuario_reclamou"] is False
+    assert banco.registros["reclamacao_tarefa"] == []
+
+
+def test_administrador_responsavel_nao_pode_reclamar(cenario):
+    banco, servico, tarefa, _, _ = cenario
+    administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
+    banco.registros["atribuida"][0]["fk_usuario_id"] = str(administrador)
+
+    with pytest.raises(HTTPException) as erro:
+        servico.reclamar_tarefa(UUID(tarefa["id"]), administrador)
+
+    assert erro.value.status_code == 403
+    assert banco.registros["reclamacao_tarefa"] == []
+
+
+def test_administrador_sem_vinculo_conta_no_limite_da_votacao(cenario):
+    banco, servico, tarefa, morador, _ = cenario
+    administrador = banco.registros["casa"][0]["fk_usuario_id"]
+    outro_morador = banco.registros["pertencer"][-1]["fk_usuario_id"]
+    banco.registros["pertencer"] = [
+        vinculo
+        for vinculo in banco.registros["pertencer"]
+        if vinculo["fk_usuario_id"] not in {administrador, outro_morador}
+    ]
+
+    primeira = servico.reclamar_tarefa(UUID(tarefa["id"]), morador)
+    assert primeira["reclamacoes_limite"] == 2
+    assert primeira["estado_atual"] == "finalizado"
+    segunda = servico.reclamar_tarefa(UUID(tarefa["id"]), UUID(administrador))
+    assert segunda["estado_atual"] == "pendente"
+
+
 def test_administrador_com_vinculo_ativo_pode_reclamar(cenario):
     banco, servico, tarefa, _, _ = cenario
     administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
@@ -283,6 +333,7 @@ def test_votacao_reabre_ao_atingir_metade_arredondada_dos_demais_moradores(
 ):
     banco, servico, tarefa, morador, _ = cenario
     responsavel = banco.registros["pertencer"][1]
+    banco.registros["casa"][0]["fk_usuario_id"] = responsavel["fk_usuario_id"]
     votantes = [str(morador)] + [str(uuid4()) for _ in range(elegiveis - 1)]
     banco.registros["pertencer"] = [responsavel] + [
         {"fk_casa_id": tarefa["fk_casa_id"], "fk_usuario_id": usuario, "ativo": True}
