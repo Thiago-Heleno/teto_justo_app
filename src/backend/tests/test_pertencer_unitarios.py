@@ -109,9 +109,7 @@ class Consulta:
                 data=[registro for registro in self.banco.atribuidas if self._bate(registro)]
             )
         if self.tabela == "rotatividade":
-            return SimpleNamespace(
-                data=[r for r in self.banco.rotatividades if self._bate(r)]
-            )
+            return SimpleNamespace(data=[r for r in self.banco.rotatividades if self._bate(r)])
         if self.tabela == "rotatividade_participante":
             apagados = [p for p in self.banco.participantes if self._bate(p)]
             if self.operacao == "delete":
@@ -308,9 +306,7 @@ class TesteServicoPertencer(unittest.TestCase):
     def test_saida_remove_do_rodizio_e_apaga_so_tarefas_abertas_de_rodizio(self):
         self._criar_vinculo()
         id_rotatividade = str(uuid4())
-        self.banco.rotatividades.append(
-            {"id": id_rotatividade, "fk_casa_id": str(self.fk_casa_id)}
-        )
+        self.banco.rotatividades.append({"id": id_rotatividade, "fk_casa_id": str(self.fk_casa_id)})
         self.banco.participantes += [
             {"fk_rotatividade_id": id_rotatividade, "fk_usuario_id": str(self.fk_usuario_id)},
             {"fk_rotatividade_id": id_rotatividade, "fk_usuario_id": "outro"},
@@ -329,9 +325,7 @@ class TesteServicoPertencer(unittest.TestCase):
         self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
 
         self.assertEqual(list(self.banco.tarefas), ["feita"])
-        self.assertEqual(
-            [p["fk_usuario_id"] for p in self.banco.participantes], ["outro"]
-        )
+        self.assertEqual([p["fk_usuario_id"] for p in self.banco.participantes], ["outro"])
 
     # Uma tarefa já finalizada não bloqueia a saída -- só pendente/atrasada.
     def test_deletar_pertencer_com_tarefa_finalizada_permite_saida(self):

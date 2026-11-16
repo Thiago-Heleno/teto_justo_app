@@ -270,12 +270,7 @@ class ServicoNotificacao:
         )
 
     def _fuso_da_casa(self, id_casa: str) -> ZoneInfo:
-        resposta = (
-            self.supabase.table("casa")
-            .select("timezone")
-            .eq("id", id_casa)
-            .execute()
-        )
+        resposta = self.supabase.table("casa").select("timezone").eq("id", id_casa).execute()
         nome_fuso = (resposta.data or [{}])[0].get("timezone")
         return fuso_armazenado(nome_fuso) or FUSO_UTC
 

@@ -262,9 +262,7 @@ class ServicoTarefa:
             usuarios_atribuidos = [sortear_responsavel(elegiveis)]
         else:
             usuarios_atribuidos = dados_tarefa.usuarios_atribuidos
-            autorizacao.garantir_responsaveis_da_casa(
-                dados_tarefa.fk_casa_id, usuarios_atribuidos
-            )
+            autorizacao.garantir_responsaveis_da_casa(dados_tarefa.fk_casa_id, usuarios_atribuidos)
         dados = dados_tarefa.model_dump(mode="json")
         dados.pop("usuarios_atribuidos", None)
         dados.pop("modo_atribuicao")

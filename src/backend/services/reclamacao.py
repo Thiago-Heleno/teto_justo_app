@@ -21,7 +21,10 @@ class ServicoReclamacao:
         tarefa = self.tarefas._buscar_tarefa_bruta(id_tarefa)
         id_casa = str(tarefa["fk_casa_id"])
         casas = (
-            self.supabase.table("casa").select("politica_reclamacao,fk_usuario_id").eq("id", id_casa).execute()
+            self.supabase.table("casa")
+            .select("politica_reclamacao,fk_usuario_id")
+            .eq("id", id_casa)
+            .execute()
         ).data
         if not casas:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")

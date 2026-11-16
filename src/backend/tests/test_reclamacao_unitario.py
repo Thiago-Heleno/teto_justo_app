@@ -210,7 +210,8 @@ def test_administrador_sem_vinculo_ativo_pode_reclamar_e_retirar(cenario, situac
     administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
     if situacao_vinculo == "ausente":
         banco.registros["pertencer"] = [
-            vinculo for vinculo in banco.registros["pertencer"]
+            vinculo
+            for vinculo in banco.registros["pertencer"]
             if vinculo["fk_usuario_id"] != str(administrador)
         ]
     else:
@@ -565,12 +566,14 @@ def test_listagem_busca_responsaveis_e_votos_em_lote_sem_misturar_ciclos(cenario
     banco.registros["atribuida"].append(
         {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": outro_responsavel}
     )
-    banco.registros["reclamacao_tarefa"].extend([
-        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(morador), "ciclo": 1},
-        {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": outro_responsavel, "ciclo": 0},
-        {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": responsavel, "ciclo": 0},
-        {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": str(morador), "ciclo": 1},
-    ])
+    banco.registros["reclamacao_tarefa"].extend(
+        [
+            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(morador), "ciclo": 1},
+            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": outro_responsavel, "ciclo": 0},
+            {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": responsavel, "ciclo": 0},
+            {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": str(morador), "ciclo": 1},
+        ]
+    )
     consultas = []
     executar = ConsultaEmMemoria.execute
 
