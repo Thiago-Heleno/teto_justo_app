@@ -106,25 +106,30 @@ export default function ListaComprasScreen() {
   const [quantidadeDialogo, setQuantidadeDialogo] = useState("1");
 
   const listas =
-    resultadoListas?.casaId === casaId &&
+    resultadoListas &&
+    resultadoListas.casaId === casaId &&
     resultadoListas.versao === versaoListas
       ? resultadoListas.listas
       : null;
   const erroListas =
-    falhaListas?.casaId === casaId && falhaListas.versao === versaoListas
+    falhaListas &&
+    falhaListas.casaId === casaId &&
+    falhaListas.versao === versaoListas
       ? falhaListas.mensagem
       : undefined;
   const listaAtiva =
     listas?.find((lista) => lista.id === idSelecionado) ?? listas?.[0] ?? null;
   const listaId = listaAtiva?.id;
   const itens =
-    resultadoItens?.listaId === listaId &&
+    resultadoItens &&
+    resultadoItens.listaId === listaId &&
     resultadoItens.versao === versaoItens &&
     resultadoItens.versaoListas === versaoListas
       ? resultadoItens.itens
       : null;
   const erroItens =
-    falhaItens?.listaId === listaId &&
+    falhaItens &&
+    falhaItens.listaId === listaId &&
     falhaItens.versao === versaoItens &&
     falhaItens.versaoListas === versaoListas
       ? falhaItens.mensagem
