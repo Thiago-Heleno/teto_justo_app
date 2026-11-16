@@ -43,7 +43,13 @@ def cenario(monkeypatch):
     }
     banco = SupabaseEmMemoria(
         {
-            "casa": [{"id": tarefa["fk_casa_id"], "politica_reclamacao": "nenhuma"}],
+            "casa": [
+                {
+                    "id": tarefa["fk_casa_id"],
+                    "fk_usuario_id": tarefa["fk_usuario_id"],
+                    "politica_reclamacao": "nenhuma",
+                }
+            ],
             "tarefa": [tarefa],
             "atribuida": [{"fk_tarefa_id": tarefa["id"], "fk_usuario_id": tarefa["fk_usuario_id"]}],
             "pertencer": [

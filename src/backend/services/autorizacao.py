@@ -159,8 +159,7 @@ class ServicoAutorizacaoCasa:
             ativo=True,
         )
         return sorted(
-            {str(id_administrador)}
-            | {str(morador["fk_usuario_id"]) for morador in moradores}
+            {str(id_administrador)} | {str(morador["fk_usuario_id"]) for morador in moradores}
         )
 
     def garantir_responsaveis_da_casa(

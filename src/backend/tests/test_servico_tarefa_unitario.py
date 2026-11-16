@@ -250,15 +250,12 @@ def test_listagem_ordena_por_prazo_decrescente_apenas_no_filtro_finalizado(
         {"id": "intermediaria", "data_fim": "2026-11-02T10:00:00Z"},
     ]
     registros = [
-        {**tarefa, "estado_atual": "finalizado", "usuarios_atribuidos": []}
-        for tarefa in registros
+        {**tarefa, "estado_atual": "finalizado", "usuarios_atribuidos": []} for tarefa in registros
     ]
     consulta.execute.return_value = SimpleNamespace(data=registros)
     servico._montar_resposta = MagicMock(side_effect=lambda tarefa, agora, **kwargs: tarefa)
 
-    resultado = servico.listar_tarefas_por_casa(
-        ids_relacionados["fk_casa_id"], estado=estado
-    )
+    resultado = servico.listar_tarefas_por_casa(ids_relacionados["fk_casa_id"], estado=estado)
 
     assert [tarefa["id"] for tarefa in resultado] == (
         ["recente", "intermediaria", "antiga"]
