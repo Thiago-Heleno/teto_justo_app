@@ -40,6 +40,7 @@ import { opcoesEstadoTarefa, rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { sessao } from "@/services/sessao-store";
 import {
+  carregarAdministradorDaCasa,
   carregarContextoTarefas,
   carregarTarefas,
   carregarUsuarioAtual,
@@ -119,6 +120,7 @@ export default function TarefasScreen() {
   const [casa, setCasa] = useState<Casa>();
   const [moradores, setMoradores] = useState<Morador[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual>();
+  const [administradorCasa, setAdministradorCasa] = useState<UsuarioAtual>();
   const [todasTarefas, setTodasTarefas] = useState<Tarefa[]>();
   const [resultadoFiltrado, setResultadoFiltrado] = useState<{
     chave: string;
@@ -214,8 +216,14 @@ export default function TarefasScreen() {
           controlador.signal,
         ),
       ])
-        .then(([[casaAtual, moradoresAtuais], usuario, todasTarefas]) => {
+        .then(async ([[casaAtual, moradoresAtuais], usuario, todasTarefas]) => {
+          const administradorAtual = await carregarAdministradorDaCasa(
+            casaAtual,
+            usuario,
+            controlador.signal,
+          );
           if (controlador.signal.aborted) return;
+          setAdministradorCasa(administradorAtual);
           setCasa(casaAtual);
           setMoradores(moradoresAtuais);
           setUsuarioAtual(usuario);
@@ -401,8 +409,8 @@ export default function TarefasScreen() {
     );
   }
 
-  const administrador =
-    casa.fk_usuario_id === usuarioAtual.id ? usuarioAtual : undefined;
+  const administrador = administradorCasa;
+  const podeEditarTudo = casa.fk_usuario_id === usuarioAtual.id;
   const chaveCalendario = `${casa.id}-${casa.timezone}-${usuarioAtual.id}`;
   const tarefasFiltradas =
     estado === "finalizado"
@@ -481,6 +489,7 @@ export default function TarefasScreen() {
             tarefa={tarefaSelecionada}
             moradores={moradores}
             administrador={administrador}
+            edicaoCompleta={podeEditarTudo}
             onCancelar={() => setEditando(false)}
             onConcluir={concluirEdicao}
             onSalvar={salvarEdicao}
@@ -498,7 +507,10 @@ export default function TarefasScreen() {
               setTarefaSelecionadaId(undefined);
             }}
             onEditar={
-              casa.fk_usuario_id === usuarioAtual.id
+              podeEditarTudo ||
+              (tarefaSelecionada.tipo === "unitaria" &&
+                (tarefaSelecionada.estado_atual === "pendente" ||
+                  tarefaSelecionada.estado_atual === "atrasada"))
                 ? () => setEditando(true)
                 : undefined
             }

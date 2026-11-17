@@ -27,6 +27,7 @@ import {
 } from "@/services/tarefas-api";
 import { formatarDataDigitada } from "@/utils/data-fixa";
 import {
+  prepararAtribuicaoTarefa,
   prepararEdicaoTarefa,
   type ErrosEdicaoTarefa,
 } from "@/utils/edicao-tarefa";
@@ -35,6 +36,7 @@ type Props = {
   tarefa: Tarefa;
   moradores: Morador[];
   administrador?: UsuarioAtual;
+  edicaoCompleta: boolean;
   onCancelar: () => void;
   onConcluir: () => void;
   onSalvar: (dados: TarefaAtualizar) => Promise<Tarefa>;
@@ -53,6 +55,7 @@ export function EditarTarefa({
   tarefa,
   moradores,
   administrador,
+  edicaoCompleta,
   onCancelar,
   onConcluir,
   onSalvar,
@@ -81,7 +84,6 @@ export function EditarTarefa({
   const [erroEnvio, setErroEnvio] = useState<string>();
   const envioEmAndamento = useRef(false);
   const podeSortear =
-    !!administrador &&
     tarefa.tipo === "unitaria" &&
     (tarefa.estado_atual === "pendente" || tarefa.estado_atual === "atrasada");
   const sortear = podeSortear && modoAtribuicao === "aleatorio";
@@ -162,7 +164,7 @@ export function EditarTarefa({
           <Text accessibilityRole="header" style={styles.title}>
             {pendente ? "CONFIRA A EDIÇÃO" : "TAREFA SALVA"}
           </Text>
-          {pendente && <Text style={styles.label}>{pendente.nome}</Text>}
+          {pendente && <Text style={styles.label}>{tarefa.nome}</Text>}
           <RoletaResponsavel
             {...roleta}
             salvando={salvando}
@@ -187,6 +189,133 @@ export function EditarTarefa({
             <Text style={styles.saveText}>
               {pendente ? "Voltar para editar" : "Continuar"}
             </Text>
+          </MotionPressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (!edicaoCompleta) {
+    return (
+      <View style={styles.container}>
+        <Text accessibilityRole="header" style={styles.title}>
+          ATRIBUIR RESPONSÁVEL
+        </Text>
+        <View style={styles.card}>
+          <Text style={styles.label}>{tarefa.nome}</Text>
+          <View
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Modo de atribuição"
+            style={styles.options}
+          >
+            {modosAtribuicaoTarefa.map(({ valor, rotulo }) => (
+              <MotionPressable
+                key={valor}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: modoAtribuicao === valor }}
+                aria-checked={modoAtribuicao === valor}
+                disabled={salvando}
+                onPress={() => {
+                  setModoAtribuicao(valor);
+                  setErros({});
+                  setErroEnvio(undefined);
+                }}
+                style={[
+                  styles.option,
+                  modoAtribuicao === valor && styles.selected,
+                ]}
+              >
+                <Text style={styles.optionText}>{rotulo}</Text>
+              </MotionPressable>
+            ))}
+          </View>
+          {sortear ? (
+            <>
+              <Text style={styles.help}>
+                O sorteio inclui o administrador e os moradores ativos.
+              </Text>
+              <RoletaResponsavel
+                casaId={tarefa.fk_casa_id}
+                candidatos={moradores}
+                administrador={administrador}
+                salvando={salvando}
+                onGirar={() =>
+                  void gravarEdicao(
+                    { modo_atribuicao: "aleatorio" },
+                    {
+                      casaId: tarefa.fk_casa_id,
+                      candidatos: moradores,
+                      administrador,
+                    },
+                  )
+                }
+              />
+            </>
+          ) : (
+            <>
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Responsável pela tarefa"
+                style={styles.options}
+              >
+                {moradoresDisponiveis.map((morador) => (
+                  <MotionPressable
+                    key={morador.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: responsavel === morador.id }}
+                    aria-checked={responsavel === morador.id}
+                    accessibilityLabel={morador.nome}
+                    disabled={salvando}
+                    onPress={() => {
+                      setResponsavel(morador.id);
+                      setErros({});
+                    }}
+                    style={[
+                      styles.option,
+                      styles.opcaoMorador,
+                      responsavel === morador.id && styles.selected,
+                    ]}
+                  >
+                    <Avatar
+                      nome={morador.nome}
+                      foto={morador.foto}
+                      tamanho={40}
+                    />
+                    <Text style={[styles.optionText, { flexShrink: 1 }]}>
+                      {morador.nome}
+                    </Text>
+                  </MotionPressable>
+                ))}
+              </View>
+              <ErroCampo mensagem={erros.responsavel} />
+              <MotionPressable
+                accessibilityRole="button"
+                disabled={salvando}
+                onPress={() => {
+                  const resultado = prepararAtribuicaoTarefa(
+                    "manual",
+                    responsavel,
+                    moradoresDisponiveis,
+                  );
+                  setErros(resultado.erros);
+                  if (resultado.dados) void gravarEdicao(resultado.dados);
+                }}
+                style={styles.saveButton}
+              >
+                <Text style={styles.saveText}>
+                  {salvando ? "Salvando..." : "Salvar responsável"}
+                </Text>
+              </MotionPressable>
+            </>
+          )}
+          <ErroCampo mensagem={erroEnvio} />
+          <MotionPressable
+            accessibilityRole="button"
+            disabled={salvando}
+            onPress={onCancelar}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancelar</Text>
           </MotionPressable>
         </View>
       </View>

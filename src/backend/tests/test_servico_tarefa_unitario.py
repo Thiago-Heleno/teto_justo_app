@@ -25,6 +25,7 @@ def consulta():
     consulta.range.return_value = consulta
     consulta.update.return_value = consulta
     consulta.delete.return_value = consulta
+    consulta.limit.return_value = consulta
     return consulta
 
 
@@ -704,8 +705,11 @@ def test_excluir_tarefa_existente_retorna_true(servico, consulta, id_tarefa, reg
     consulta.delete.assert_called_once()
 
 
-def test_morador_nao_pode_criar_tarefa(servico, consulta, ids_relacionados):
-    consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}])
+def test_usuario_sem_vinculo_ativo_nao_pode_criar_tarefa(servico, consulta, ids_relacionados):
+    consulta.execute.side_effect = [
+        SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
+        SimpleNamespace(data=[]),
+    ]
     dados = TarefaCriar(
         nome="Tarefa proibida",
         estado_atual="pendente",
@@ -1295,7 +1299,7 @@ def test_resposta_recupera_o_dia_fixo_no_fuso_aplicavel(
 def test_criacao_com_fuso_invalido_grava_dia_fixo_em_utc(
     servico, consulta, ids_relacionados, monkeypatch
 ):
-    monkeypatch.setattr(ServicoAutorizacaoCasa, "garantir_administrador_da_casa", MagicMock())
+    monkeypatch.setattr(ServicoAutorizacaoCasa, "garantir_acesso", MagicMock())
     monkeypatch.setattr(ServicoAutorizacaoCasa, "garantir_responsaveis_da_casa", MagicMock())
     servico._atribuir_usuarios = MagicMock()
     servico._buscar_usuarios_atribuidos = MagicMock(return_value=[])
@@ -1516,6 +1520,106 @@ def test_sorteio_sem_candidatos_falha_antes_de_gravar():
     assert erro.value.status_code == 422
 
 
+def test_morador_ativo_cria_tarefa_com_sorteio_sem_permissao_de_admin(
+    servico, consulta, registro_tarefa, ids_relacionados, monkeypatch
+):
+    administrador = str(uuid4())
+    morador = ids_relacionados["fk_usuario_id"]
+    escolhido = str(ids_relacionados["usuarios_atribuidos"][0])
+    autorizacao = MagicMock()
+    autorizacao.garantir_acesso.return_value = administrador
+    autorizacao.listar_responsaveis_elegiveis.return_value = [administrador, escolhido]
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    monkeypatch.setattr("services.tarefa.secrets.choice", lambda candidatos: escolhido)
+    servico._atribuir_usuarios = MagicMock()
+    servico._montar_resposta = MagicMock(
+        return_value={"usuarios_atribuidos": [escolhido], "estado_atual": "pendente"}
+    )
+    consulta.execute.return_value = SimpleNamespace(data=[registro_tarefa])
+    dados = TarefaCriar(
+        nome="Tarefa sorteada pelo morador",
+        peso=2,
+        prazo_dias=3,
+        atraso_maximo=2,
+        fk_casa_id=ids_relacionados["fk_casa_id"],
+        modo_atribuicao="aleatorio",
+    )
+
+    resultado = servico.criar_tarefa(dados, morador)
+
+    assert resultado["usuarios_atribuidos"] == [escolhido]
+    autorizacao.garantir_acesso.assert_called_once_with(dados.fk_casa_id, morador)
+    autorizacao.garantir_administrador_da_casa.assert_not_called()
+    autorizacao.listar_responsaveis_elegiveis.assert_called_once_with(
+        dados.fk_casa_id, administrador
+    )
+    servico._atribuir_usuarios.assert_called_once_with(registro_tarefa["id"], [escolhido])
+    assert consulta.insert.call_args.args[0]["fk_usuario_id"] == str(morador)
+
+
+@pytest.mark.parametrize("modo", [None, "manual"])
+def test_morador_ativo_cria_tarefa_com_responsavel_manual(
+    servico, consulta, registro_tarefa, ids_relacionados, monkeypatch, modo
+):
+    morador = uuid4()
+    escolhido = ids_relacionados["usuarios_atribuidos"][0]
+    autorizacao = MagicMock()
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._atribuir_usuarios = MagicMock()
+    servico._montar_resposta = MagicMock(
+        return_value={"usuarios_atribuidos": [str(escolhido)], "estado_atual": "pendente"}
+    )
+    consulta.execute.return_value = SimpleNamespace(data=[registro_tarefa])
+    argumentos = {"modo_atribuicao": modo} if modo else {}
+    dados = TarefaCriar(
+        nome="Tarefa manual pelo morador",
+        peso=2,
+        prazo_dias=3,
+        atraso_maximo=2,
+        fk_casa_id=ids_relacionados["fk_casa_id"],
+        usuarios_atribuidos=[escolhido],
+        **argumentos,
+    )
+
+    resultado = servico.criar_tarefa(dados, morador)
+
+    assert resultado["usuarios_atribuidos"] == [str(escolhido)]
+    autorizacao.garantir_acesso.assert_called_once_with(dados.fk_casa_id, morador)
+    autorizacao.garantir_administrador_da_casa.assert_not_called()
+    autorizacao.garantir_responsaveis_da_casa.assert_called_once_with(dados.fk_casa_id, [escolhido])
+    servico._atribuir_usuarios.assert_called_once_with(registro_tarefa["id"], [escolhido])
+    assert consulta.insert.call_args.args[0]["fk_usuario_id"] == str(morador)
+    assert "modo_atribuicao" not in consulta.insert.call_args.args[0]
+
+
+@pytest.mark.parametrize("tipo", ["aleatorio", "manual"])
+def test_criacao_de_tarefa_nao_permite_usuario_de_fora_da_casa(
+    servico, consulta, ids_relacionados, monkeypatch, tipo
+):
+    autorizacao = MagicMock()
+    autorizacao.garantir_acesso.side_effect = HTTPException(status_code=403)
+    autorizacao.garantir_administrador_da_casa.side_effect = HTTPException(status_code=403)
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    dados = TarefaCriar(
+        nome="Tarefa restrita",
+        peso=2,
+        prazo_dias=3,
+        atraso_maximo=2,
+        fk_casa_id=ids_relacionados["fk_casa_id"],
+        **(
+            {"modo_atribuicao": "aleatorio"}
+            if tipo == "aleatorio"
+            else {"usuarios_atribuidos": ids_relacionados["usuarios_atribuidos"]}
+        ),
+    )
+
+    with pytest.raises(HTTPException) as erro:
+        servico.criar_tarefa(dados, uuid4())
+
+    assert erro.value.status_code == 403
+    consulta.insert.assert_not_called()
+
+
 def test_criacao_aleatoria_atribui_sorteado_sem_gravar_modo(
     servico, consulta, registro_tarefa, ids_relacionados, monkeypatch
 ):
@@ -1523,7 +1627,10 @@ def test_criacao_aleatoria_atribui_sorteado_sem_gravar_modo(
     escolhido = str(ids_relacionados["usuarios_atribuidos"][0])
     outro = str(uuid4())
     monkeypatch.setattr("services.tarefa.secrets.choice", lambda candidatos: escolhido)
+    consulta.in_.return_value = consulta
     consulta.order.return_value = consulta
+    consulta.range.return_value = consulta
+    consulta.limit.return_value = consulta
     consulta.execute.side_effect = [
         SimpleNamespace(data=[{"fk_usuario_id": administrador}]),
         SimpleNamespace(data=[{"fk_usuario_id": escolhido}, {"fk_usuario_id": outro}]),
@@ -1594,13 +1701,185 @@ def test_edicao_aleatoria_substitui_responsavel_e_notifica(
     ]
 
 
-def test_sorteio_de_edicao_exige_administrador_e_tarefa_aberta(
+def test_morador_ativo_pode_sortear_novamente_sem_editar_outros_campos(
+    servico, consulta, registro_tarefa, monkeypatch
+):
+    administrador, anterior, escolhido = (str(uuid4()) for _ in range(3))
+    morador = uuid4()
+    autorizacao = MagicMock()
+    autorizacao.garantir_acesso.return_value = administrador
+    autorizacao.listar_responsaveis_elegiveis.return_value = [administrador, escolhido]
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    monkeypatch.setattr("services.tarefa.secrets.choice", lambda candidatos: escolhido)
+    servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
+    servico._buscar_usuarios_atribuidos = MagicMock(return_value=[anterior])
+    servico._atribuir_usuarios = MagicMock()
+    servico.buscar_tarefa = MagicMock(
+        return_value={**registro_tarefa, "usuarios_atribuidos": [escolhido]}
+    )
+    consulta.execute.return_value = SimpleNamespace(data=[registro_tarefa])
+
+    resultado = servico.atualizar_tarefa(
+        UUID(registro_tarefa["id"]), TarefaAtualizar(modo_atribuicao="aleatorio"), morador
+    )
+
+    assert resultado["usuarios_atribuidos"] == [escolhido]
+    autorizacao.garantir_acesso.assert_called_once_with(registro_tarefa["fk_casa_id"], morador)
+    autorizacao.garantir_administrador_da_casa.assert_not_called()
+    autorizacao.listar_responsaveis_elegiveis.assert_called_once_with(
+        registro_tarefa["fk_casa_id"], administrador
+    )
+    servico._atribuir_usuarios.assert_called_once_with(UUID(registro_tarefa["id"]), [escolhido])
+    assert "nome" not in consulta.update.call_args.args[0]
+
+
+@pytest.mark.parametrize("modo", [None, "manual"])
+def test_morador_ativo_atribui_responsavel_manualmente_sem_editar_outros_campos(
+    servico, consulta, registro_tarefa, monkeypatch, modo
+):
+    anterior, escolhido = str(uuid4()), str(uuid4())
+    morador = uuid4()
+    autorizacao = MagicMock()
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
+    servico._buscar_usuarios_atribuidos = MagicMock(return_value=[anterior])
+    servico._atribuir_usuarios = MagicMock()
+    servico.buscar_tarefa = MagicMock(
+        return_value={**registro_tarefa, "usuarios_atribuidos": [escolhido]}
+    )
+    consulta.execute.return_value = SimpleNamespace(data=[registro_tarefa])
+    campos = {"modo_atribuicao": modo} if modo else {}
+
+    resultado = servico.atualizar_tarefa(
+        UUID(registro_tarefa["id"]),
+        TarefaAtualizar(usuarios_atribuidos=[UUID(escolhido)], **campos),
+        morador,
+    )
+
+    assert resultado["usuarios_atribuidos"] == [escolhido]
+    autorizacao.garantir_acesso.assert_called_once_with(registro_tarefa["fk_casa_id"], morador)
+    autorizacao.garantir_administrador_da_casa.assert_not_called()
+    autorizacao.garantir_responsaveis_da_casa.assert_called_once_with(
+        registro_tarefa["fk_casa_id"], [escolhido]
+    )
+    assert consulta.update.call_args.args[0] == {
+        "aviso_enviado_em": None,
+        "aviso_atraso_enviado_em": None,
+    }
+    servico._atribuir_usuarios.assert_called_once_with(UUID(registro_tarefa["id"]), [escolhido])
+    avisos = [
+        (t.args[0], t.args[2])
+        for t in servico.notificacoes.tarefas_fundo.tasks
+        if t.func == servico.notificacoes._notificar_tarefa
+    ]
+    assert avisos == [("tarefa_atribuida", [escolhido]), ("atribuicao_removida", [anterior])]
+
+
+@pytest.mark.parametrize(
+    "dados",
+    [
+        TarefaAtualizar(nome="Alteração proibida", modo_atribuicao="aleatorio"),
+        TarefaAtualizar(nome="Alteração proibida", usuarios_atribuidos=[uuid4()]),
+        TarefaAtualizar(nome="Alteração proibida"),
+    ],
+)
+def test_morador_nao_altera_outros_campos_ao_atribuir(
+    servico, consulta, registro_tarefa, monkeypatch, dados
+):
+    autorizacao = MagicMock()
+    autorizacao.garantir_administrador_da_casa.side_effect = HTTPException(status_code=403)
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
+
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(UUID(registro_tarefa["id"]), dados, uuid4())
+
+    assert erro.value.status_code == 403
+    autorizacao.garantir_acesso.assert_not_called()
+    autorizacao.listar_responsaveis_elegiveis.assert_not_called()
+    consulta.update.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "dados",
+    [TarefaAtualizar(modo_atribuicao="aleatorio"), TarefaAtualizar(usuarios_atribuidos=[uuid4()])],
+)
+def test_morador_nao_pode_atribuir_responsavel_de_tarefa_rotativa(
+    servico, consulta, registro_tarefa, monkeypatch, dados
+):
+    autorizacao = MagicMock()
+    autorizacao.garantir_administrador_da_casa.side_effect = HTTPException(status_code=403)
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._buscar_tarefa_bruta = MagicMock(return_value={**registro_tarefa, "tipo": "rotativa"})
+
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(UUID(registro_tarefa["id"]), dados, uuid4())
+
+    assert erro.value.status_code == 403
+    autorizacao.garantir_acesso.assert_not_called()
+    consulta.update.assert_not_called()
+
+
+def test_morador_sem_vinculo_ativo_nao_atribui_responsavel_manualmente(
+    servico, consulta, registro_tarefa, monkeypatch
+):
+    autorizacao = MagicMock()
+    autorizacao.garantir_acesso.side_effect = HTTPException(status_code=403)
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
+
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(
+            UUID(registro_tarefa["id"]), TarefaAtualizar(usuarios_atribuidos=[uuid4()]), uuid4()
+        )
+
+    assert erro.value.status_code == 403
+    autorizacao.garantir_responsaveis_da_casa.assert_not_called()
+    consulta.update.assert_not_called()
+    consulta.delete.assert_not_called()
+
+
+@pytest.mark.parametrize("estado", ["finalizado", "nao_feito"])
+def test_atribuicao_manual_exige_tarefa_aberta(
+    servico, consulta, registro_tarefa, monkeypatch, estado
+):
+    autorizacao = MagicMock()
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._buscar_tarefa_bruta = MagicMock(
+        return_value={**registro_tarefa, "estado_atual": estado}
+    )
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(
+            UUID(registro_tarefa["id"]), TarefaAtualizar(usuarios_atribuidos=[uuid4()]), uuid4()
+        )
+    assert erro.value.status_code == 409
+    consulta.update.assert_not_called()
+    consulta.delete.assert_not_called()
+
+
+def test_atribuicao_manual_rejeita_responsavel_fora_da_casa(
+    servico, consulta, registro_tarefa, monkeypatch
+):
+    autorizacao = MagicMock()
+    autorizacao.garantir_responsaveis_da_casa.side_effect = HTTPException(status_code=422)
+    monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
+    servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
+    with pytest.raises(HTTPException) as erro:
+        servico.atualizar_tarefa(
+            UUID(registro_tarefa["id"]), TarefaAtualizar(usuarios_atribuidos=[uuid4()]), uuid4()
+        )
+    assert erro.value.status_code == 422
+    consulta.update.assert_not_called()
+    consulta.delete.assert_not_called()
+
+
+def test_sorteio_de_edicao_exige_acesso_a_casa_e_tarefa_aberta(
     servico, registro_tarefa, monkeypatch
 ):
     autorizacao = MagicMock()
     monkeypatch.setattr("services.tarefa.ServicoAutorizacaoCasa", lambda _banco: autorizacao)
     servico._buscar_tarefa_bruta = MagicMock(return_value=registro_tarefa)
-    autorizacao.garantir_administrador_da_casa.side_effect = HTTPException(status_code=403)
+    autorizacao.garantir_acesso.side_effect = HTTPException(status_code=403)
 
     with pytest.raises(HTTPException) as erro:
         servico.atualizar_tarefa(
@@ -1611,7 +1890,7 @@ def test_sorteio_de_edicao_exige_administrador_e_tarefa_aberta(
     assert erro.value.status_code == 403
     autorizacao.listar_responsaveis_elegiveis.assert_not_called()
 
-    autorizacao.garantir_administrador_da_casa.side_effect = None
+    autorizacao.garantir_acesso.side_effect = None
     encerrada = {**registro_tarefa, "estado_atual": "finalizado"}
     servico._buscar_tarefa_bruta.return_value = encerrada
     with pytest.raises(HTTPException) as erro:

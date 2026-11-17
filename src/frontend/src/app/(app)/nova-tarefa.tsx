@@ -36,6 +36,7 @@ import {
 } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
+  carregarAdministradorDaCasa,
   carregarContextoTarefas,
   carregarUsuarioAtual,
   criarRotatividade as salvarRotatividade,
@@ -73,15 +74,19 @@ function IndicadorSelecao({ selecionado }: { selecionado: boolean }) {
 export default function NovaTarefaScreen() {
   const { width } = useWindowDimensions();
   const [contexto, setContexto] = useState<
-    [Casa, Morador[], UsuarioAtual?] | null
+    [Casa, Morador[], UsuarioAtual | undefined, UsuarioAtual] | null
   >(null);
   const [erroContexto, setErroContexto] = useState<string>();
   const [tentativa, setTentativa] = useState(0);
   const casa = contexto?.[0];
   const moradores = contexto?.[1] ?? [];
   const usuario = contexto?.[2];
-  const administrador =
-    usuario && usuario.id === casa?.fk_usuario_id ? usuario : undefined;
+  const administrador = contexto?.[3];
+  const podeCriarRotativa = usuario?.id === casa?.fk_usuario_id;
+  const responsaveisDisponiveis =
+    administrador && !moradores.some(({ id }) => id === administrador.id)
+      ? [...moradores, { ...administrador, foto: null }]
+      : moradores;
 
   const scrollRef = useRef<ScrollView>(null);
   const envioEmAndamento = useRef(false);
@@ -107,8 +112,7 @@ export default function NovaTarefaScreen() {
   const [salvando, setSalvando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string>();
   const cardStyle = [styles.card, width < 600 && styles.compactCard];
-  const sortear =
-    !rotativa && !!administrador && modoAtribuicao === "aleatorio";
+  const sortear = !rotativa && modoAtribuicao === "aleatorio";
 
   useFocusEffect(
     useCallback(() => {
@@ -122,8 +126,18 @@ export default function NovaTarefaScreen() {
               carregarContextoTarefas(controlador.signal),
               carregarUsuarioAtual(controlador.signal).catch(() => undefined),
             ]);
+          const administradorAtual = await carregarAdministradorDaCasa(
+            casaAtual,
+            usuarioAtual,
+            controlador.signal,
+          );
           if (!controlador.signal.aborted) {
-            setContexto([casaAtual, moradoresAtuais, usuarioAtual]);
+            setContexto([
+              casaAtual,
+              moradoresAtuais,
+              usuarioAtual,
+              administradorAtual,
+            ]);
             const ids = new Set(moradoresAtuais.map((morador) => morador.id));
             setResponsavel((atual) => (atual && ids.has(atual) ? atual : null));
             setParticipantes((atuais) => atuais.filter((id) => ids.has(id)));
@@ -170,7 +184,7 @@ export default function NovaTarefaScreen() {
         diasSemana,
         semanas,
       },
-      moradores,
+      rotativa ? moradores : responsaveisDisponiveis,
     );
     setErros(resultado.erros);
     Keyboard.dismiss();
@@ -733,47 +747,49 @@ export default function NovaTarefaScreen() {
                     >
                       QUEM VAI FAZER?
                     </Text>
-                    <View
-                      style={styles.options}
-                      accessibilityRole="radiogroup"
-                      accessibilityLabel="Tipo de tarefa"
-                    >
-                      {[
-                        { valor: false, nome: "Comum" },
-                        { valor: true, nome: "Rotativa" },
-                      ].map((opcao) => (
-                        <MotionPressable
-                          key={opcao.nome}
-                          accessibilityRole="radio"
-                          accessibilityLabel={`Tarefa ${opcao.nome.toLowerCase()}`}
-                          accessibilityState={{
-                            checked: rotativa === opcao.valor,
-                          }}
-                          aria-checked={rotativa === opcao.valor}
-                          disabled={salvando}
-                          onPress={() => {
-                            setRotativa(opcao.valor);
-                            setErros((atuais) => ({
-                              ...atuais,
-                              responsavel: undefined,
-                              participantes: undefined,
-                              diasSemana: undefined,
-                              semanas: undefined,
-                              dataFixa: undefined,
-                            }));
-                          }}
-                          style={[
-                            styles.option,
-                            rotativa === opcao.valor && styles.selected,
-                          ]}
-                        >
-                          <IndicadorSelecao
-                            selecionado={rotativa === opcao.valor}
-                          />
-                          <Text style={styles.body}>{opcao.nome}</Text>
-                        </MotionPressable>
-                      ))}
-                    </View>
+                    {podeCriarRotativa && (
+                      <View
+                        style={styles.options}
+                        accessibilityRole="radiogroup"
+                        accessibilityLabel="Tipo de tarefa"
+                      >
+                        {[
+                          { valor: false, nome: "Comum" },
+                          { valor: true, nome: "Rotativa" },
+                        ].map((opcao) => (
+                          <MotionPressable
+                            key={opcao.nome}
+                            accessibilityRole="radio"
+                            accessibilityLabel={`Tarefa ${opcao.nome.toLowerCase()}`}
+                            accessibilityState={{
+                              checked: rotativa === opcao.valor,
+                            }}
+                            aria-checked={rotativa === opcao.valor}
+                            disabled={salvando}
+                            onPress={() => {
+                              setRotativa(opcao.valor);
+                              setErros((atuais) => ({
+                                ...atuais,
+                                responsavel: undefined,
+                                participantes: undefined,
+                                diasSemana: undefined,
+                                semanas: undefined,
+                                dataFixa: undefined,
+                              }));
+                            }}
+                            style={[
+                              styles.option,
+                              rotativa === opcao.valor && styles.selected,
+                            ]}
+                          >
+                            <IndicadorSelecao
+                              selecionado={rotativa === opcao.valor}
+                            />
+                            <Text style={styles.body}>{opcao.nome}</Text>
+                          </MotionPressable>
+                        ))}
+                      </View>
+                    )}
                     <Text style={styles.body}>
                       {rotativa
                         ? "Participantes do rodízio *"
@@ -781,7 +797,7 @@ export default function NovaTarefaScreen() {
                           ? "Responsável"
                           : "Responsável *"}
                     </Text>
-                    {!rotativa && administrador && (
+                    {!rotativa && (
                       <View
                         style={styles.options}
                         accessibilityRole="radiogroup"
@@ -824,7 +840,7 @@ export default function NovaTarefaScreen() {
                           : "Escolha apenas um morador. Ao escolher outro, a seleção anterior é substituída."}
                     </Text>
                   </View>
-                  {!sortear && moradores.length === 0 && (
+                  {!sortear && responsaveisDisponiveis.length === 0 && (
                     <Text style={styles.help}>
                       Não há moradores disponíveis para esta casa.
                     </Text>
@@ -844,51 +860,58 @@ export default function NovaTarefaScreen() {
                           : "Responsável pela tarefa"
                       }
                     >
-                      {moradores.map((morador) => {
-                        const selecionado = rotativa
-                          ? participantes.includes(morador.id)
-                          : responsavel === morador.id;
-                        const nomeExibido = morador.nome;
-                        return (
-                          <MotionPressable
-                            key={morador.id}
-                            accessibilityRole={rotativa ? "checkbox" : "radio"}
-                            accessibilityLabel={nomeExibido}
-                            accessibilityState={{ checked: selecionado }}
-                            aria-checked={selecionado}
-                            onPress={() => {
-                              if (rotativa) alternarParticipante(morador.id);
-                              else setResponsavel(morador.id);
-                              setErros((atuais) => ({
-                                ...atuais,
-                                responsavel: undefined,
-                              }));
-                            }}
-                            style={[
-                              styles.resident,
-                              selecionado && styles.selected,
-                            ]}
-                          >
-                            <Avatar
-                              nome={morador.nome}
-                              foto={morador.foto}
-                              tamanho={40}
-                            />
-                            <Text style={[styles.body, styles.residentName]}>
-                              {nomeExibido}
-                            </Text>
-                            {rotativa ? (
-                              <View accessible={false} style={styles.checkbox}>
-                                <Text style={styles.help}>
-                                  {selecionado ? "✓" : ""}
-                                </Text>
-                              </View>
-                            ) : (
-                              <IndicadorSelecao selecionado={selecionado} />
-                            )}
-                          </MotionPressable>
-                        );
-                      })}
+                      {(rotativa ? moradores : responsaveisDisponiveis).map(
+                        (morador) => {
+                          const selecionado = rotativa
+                            ? participantes.includes(morador.id)
+                            : responsavel === morador.id;
+                          const nomeExibido = morador.nome;
+                          return (
+                            <MotionPressable
+                              key={morador.id}
+                              accessibilityRole={
+                                rotativa ? "checkbox" : "radio"
+                              }
+                              accessibilityLabel={nomeExibido}
+                              accessibilityState={{ checked: selecionado }}
+                              aria-checked={selecionado}
+                              onPress={() => {
+                                if (rotativa) alternarParticipante(morador.id);
+                                else setResponsavel(morador.id);
+                                setErros((atuais) => ({
+                                  ...atuais,
+                                  responsavel: undefined,
+                                }));
+                              }}
+                              style={[
+                                styles.resident,
+                                selecionado && styles.selected,
+                              ]}
+                            >
+                              <Avatar
+                                nome={morador.nome}
+                                foto={morador.foto}
+                                tamanho={40}
+                              />
+                              <Text style={[styles.body, styles.residentName]}>
+                                {nomeExibido}
+                              </Text>
+                              {rotativa ? (
+                                <View
+                                  accessible={false}
+                                  style={styles.checkbox}
+                                >
+                                  <Text style={styles.help}>
+                                    {selecionado ? "✓" : ""}
+                                  </Text>
+                                </View>
+                              ) : (
+                                <IndicadorSelecao selecionado={selecionado} />
+                              )}
+                            </MotionPressable>
+                          );
+                        },
+                      )}
                     </View>
                   )}
                   {!sortear && (

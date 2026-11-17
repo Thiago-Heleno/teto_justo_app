@@ -20,6 +20,20 @@ export type ErrosEdicaoTarefa = Partial<
   >
 >;
 
+export function prepararAtribuicaoTarefa(
+  modo: ModoAtribuicao,
+  responsavel: string,
+  moradores: { id: string }[],
+): { erros: ErrosEdicaoTarefa; dados?: TarefaAtualizar } {
+  if (modo === "aleatorio") {
+    return { erros: {}, dados: { modo_atribuicao: "aleatorio" } };
+  }
+  if (!moradores.some(({ id }) => id === responsavel)) {
+    return { erros: { responsavel: "Selecione um responsável desta casa." } };
+  }
+  return { erros: {}, dados: { usuarios_atribuidos: [responsavel] } };
+}
+
 export function prepararEdicaoTarefa(
   formulario: FormularioEdicaoTarefa,
   tarefaOriginal: Tarefa,

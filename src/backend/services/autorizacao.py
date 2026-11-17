@@ -73,7 +73,7 @@ class ServicoAutorizacaoCasa:
                 inicio += self.TAMANHO_PAGINA
         return sorted(ids)
 
-    def garantir_acesso(self, id_casa: UUID | str, id_usuario: UUID | str) -> None:
+    def garantir_acesso(self, id_casa: UUID | str, id_usuario: UUID | str) -> str:
         casa = (
             self.supabase.table("casa")
             .select("fk_usuario_id")
@@ -85,7 +85,7 @@ class ServicoAutorizacaoCasa:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
         id_administrador = casa[0]["fk_usuario_id"]
         if papel_na_casa(id_usuario, id_administrador, False) == "administrador":
-            return
+            return str(id_administrador)
         vinculo = (
             self.supabase.table("pertencer")
             .select("fk_usuario_id")
@@ -97,6 +97,7 @@ class ServicoAutorizacaoCasa:
         ).data or []
         if papel_na_casa(id_usuario, id_administrador, bool(vinculo)) == "nenhum":
             raise HTTPException(status_code=403, detail="Acesso restrito aos moradores da casa.")
+        return str(id_administrador)
 
     def ids_usuarios_visiveis(self, id_usuario: UUID | str) -> list[str]:
         ids_casas = self.ids_casas_acessiveis(id_usuario)

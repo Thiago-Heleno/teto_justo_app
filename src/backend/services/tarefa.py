@@ -251,10 +251,7 @@ class ServicoTarefa:
         id_usuario_atual: UUID,
     ):
         autorizacao = ServicoAutorizacaoCasa(self.supabase)
-        id_administrador = autorizacao.garantir_administrador_da_casa(
-            dados_tarefa.fk_casa_id,
-            id_usuario_atual,
-        )
+        id_administrador = autorizacao.garantir_acesso(dados_tarefa.fk_casa_id, id_usuario_atual)
         if dados_tarefa.modo_atribuicao == "aleatorio":
             elegiveis = autorizacao.listar_responsaveis_elegiveis(
                 dados_tarefa.fk_casa_id, id_administrador
@@ -405,10 +402,23 @@ class ServicoTarefa:
             return self._concluir_tarefa(tarefa_atual, id_usuario_atual)
         else:
             autorizacao = ServicoAutorizacaoCasa(self.supabase)
-            id_administrador = autorizacao.garantir_administrador_da_casa(
-                tarefa_atual["fk_casa_id"],
-                id_usuario_atual,
+            apenas_atribuicao = tarefa_atual.get("tipo", "unitaria") == "unitaria" and (
+                (
+                    dados_tarefa.modo_atribuicao == "aleatorio"
+                    and dados_tarefa.model_fields_set == {"modo_atribuicao"}
+                )
+                or (
+                    dados_tarefa.modo_atribuicao != "aleatorio"
+                    and dados_tarefa.model_fields_set
+                    in ({"usuarios_atribuidos"}, {"modo_atribuicao", "usuarios_atribuidos"})
+                )
             )
+            verificar_acesso = (
+                autorizacao.garantir_acesso
+                if apenas_atribuicao
+                else autorizacao.garantir_administrador_da_casa
+            )
+            id_administrador = verificar_acesso(tarefa_atual["fk_casa_id"], id_usuario_atual)
         if tarefa_atual["estado_atual"] in ESTADOS_FINAIS:
             raise HTTPException(
                 status_code=409,
