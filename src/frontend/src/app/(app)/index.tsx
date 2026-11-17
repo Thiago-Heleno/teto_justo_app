@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Info,
   ListChecks,
+  ShoppingBasket,
   LogOut,
   Repeat,
   Settings,
@@ -239,6 +240,35 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {casa && (
+            <View
+              style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
+            >
+              <View style={styles.shoppingCopy}>
+                <Text style={styles.shoppingEyebrow}>ORGANIZAÇÃO DA CASA</Text>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>
+                  LISTAS DE COMPRAS
+                </Text>
+                <Text style={styles.body}>
+                  Crie listas com os moradores e marque o que já foi comprado.
+                </Text>
+              </View>
+              <Link href="/lista-compras" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir listas de compras"
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    styles.primaryButton,
+                  ])}
+                >
+                  <ShoppingBasket color={Caldera.obsidian} size={18} />
+                  <Text style={styles.buttonText}>Abrir listas de compras</Text>
+                </MotionPressable>
+              </Link>
+            </View>
+          )}
+
           {casa && detalhesAbertos && (
             <DetalhesCasa
               key={`detalhes-${casa.id}`}
@@ -450,6 +480,15 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   cardSmall: { padding: Spacing.three, borderRadius: 24 },
+  shoppingCard: {
+    backgroundColor: Caldera.limestone,
+    borderRadius: 40,
+    padding: Spacing.five,
+    gap: Spacing.four,
+    alignItems: "flex-start",
+  },
+  shoppingCopy: { gap: Spacing.two },
+  shoppingEyebrow: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
   sectionTitle: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,

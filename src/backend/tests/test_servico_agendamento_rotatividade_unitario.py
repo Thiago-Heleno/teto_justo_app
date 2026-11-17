@@ -1,5 +1,6 @@
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from operator import ge, lt
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
@@ -23,12 +24,36 @@ def test_datas_ocorrencias_respeitam_dia_inicial_e_intervalo_de_semanas():
         "intervalo_semanas": 2,
     }
 
-    assert datas_ocorrencias(configuracao, date(2026, 10, 14)) == [
+    assert datas_ocorrencias(configuracao, date(2026, 9, 28), date(2026, 10, 14)) == [
         date(2026, 9, 30),
         date(2026, 10, 2),
         date(2026, 10, 12),
         date(2026, 10, 14),
     ]
+
+
+def test_datas_ocorrencias_preservam_a_cadencia_ao_recortar_uma_regra_antiga():
+    configuracao = {
+        "semana_ancora": "2025-10-01",
+        "dias_semana": [1, 3, 5],
+        "intervalo_semanas": 2,
+    }
+
+    assert datas_ocorrencias(configuracao, date(2026, 10, 7), date(2026, 10, 16)) == [
+        date(2026, 10, 12),
+        date(2026, 10, 14),
+        date(2026, 10, 16),
+    ]
+
+
+def test_datas_ocorrencias_de_ancora_apos_o_horizonte_sao_vazias():
+    configuracao = {
+        "semana_ancora": "2026-12-15",
+        "dias_semana": [1, 2, 3, 4, 5, 6, 7],
+        "intervalo_semanas": 1,
+    }
+
+    assert datas_ocorrencias(configuracao, date(2026, 10, 14), date(2026, 12, 13)) == []
 
 
 def test_data_de_ocorrencia_sem_fuso_e_interpretada_como_utc():
@@ -122,6 +147,7 @@ class ConsultaFalsa:
         self.banco = banco
         self.tabela = tabela
         self.filtros = {}
+        self.limites = []
         self.dados_insercao = None
 
     def select(self, _campos):
@@ -133,6 +159,14 @@ class ConsultaFalsa:
 
     def in_(self, campo, valores):
         self.filtros[campo] = set(valores)
+        return self
+
+    def gte(self, campo, valor):
+        self.limites.append((ge, campo, valor))
+        return self
+
+    def lt(self, campo, valor):
+        self.limites.append((lt, campo, valor))
         return self
 
     def order(self, _campo):
@@ -166,6 +200,10 @@ class ConsultaFalsa:
                 if isinstance(valor, set)
                 else str(registro.get(campo)) == str(valor)
                 for campo, valor in self.filtros.items()
+            )
+            and all(
+                comparar(datetime.fromisoformat(registro[campo]), datetime.fromisoformat(valor))
+                for comparar, campo, valor in self.limites
             )
         ]
         return SimpleNamespace(data=encontrados)
@@ -333,6 +371,60 @@ def test_processamento_respeita_escopo_e_nao_duplica_ocorrencias(processamento_g
     assert banco.registros == registros_antes
 
 
+def test_falha_em_um_rodizio_nao_impede_o_processamento_dos_demais(monkeypatch):
+    servico = ServicoAgendamentoRotatividade(MagicMock())
+    configuracoes = [{"id": "com-erro"}, {"id": "ok"}]
+    monkeypatch.setattr(servico, "_listar", lambda *_args: configuracoes)
+
+    def processar(configuracao, _instante):
+        if configuracao["id"] == "com-erro":
+            raise HTTPException(status_code=409, detail="sem participantes")
+        return 5
+
+    monkeypatch.setattr(servico, "_processar_configuracao", processar)
+
+    assert servico.processar_ocorrencias(datetime(2026, 10, 1, tzinfo=timezone.utc)) == {
+        "rotatividades_analisadas": 2,
+        "ocorrencias_processadas": 5,
+    }
+
+
+@pytest.mark.parametrize("com_tarefas_pontuadas", [False, True])
+def test_rodizio_sem_participantes_elegiveis_e_apagado_sem_abortar_o_job(
+    monkeypatch, com_tarefas_pontuadas
+):
+    servico = ServicoAgendamentoRotatividade(MagicMock())
+    configuracao = {
+        "id": str(uuid4()),
+        "timezone": "UTC",
+        "semana_ancora": "2026-10-01",
+        "dias_semana": [4],
+        "intervalo_semanas": 1,
+    }
+    apagados = []
+
+    def apagar(id_rotatividade):
+        apagados.append(id_rotatividade)
+        if com_tarefas_pontuadas:
+            raise HTTPException(status_code=409, detail="Pause-o.")
+        return True
+
+    monkeypatch.setattr(servico, "_listar", lambda *_args: [])
+    monkeypatch.setattr(
+        servico,
+        "_membros_elegiveis",
+        MagicMock(side_effect=HTTPException(status_code=409, detail="sem participantes")),
+    )
+    monkeypatch.setattr(servico, "_apagar_rotatividade", apagar)
+
+    resultado = servico._processar_configuracao(
+        configuracao, datetime(2026, 10, 1, tzinfo=timezone.utc)
+    )
+
+    assert resultado == 0
+    assert apagados == [configuracao["id"]]
+
+
 def test_processamento_gera_ocorrencias_ate_o_horizonte():
     banco = BancoFalso()
     id_usuario = str(uuid4())
@@ -375,3 +467,81 @@ def test_processamento_gera_ocorrencias_ate_o_horizonte():
     assert ocorrencias[0] == "2026-10-14T00:00:00+00:00"
     assert ocorrencias[-1] == "2026-12-09T00:00:00+00:00"
     assert servico._processar_configuracao(configuracao, instante) == 0
+
+
+def test_rodizio_antigo_processa_61_dias_locais_e_repara_lacunas_da_janela(monkeypatch):
+    banco = BancoFalso()
+    servico = ServicoAgendamentoRotatividade(banco)
+    registrar = MagicMock(wraps=servico._registrar_ocorrencia)
+    listar = MagicMock(wraps=servico._listar)
+    monkeypatch.setattr(servico, "_registrar_ocorrencia", registrar)
+    monkeypatch.setattr(servico, "_listar", listar)
+    fuso = ZoneInfo("America/New_York")
+    instante = datetime(2026, 11, 1, 2, tzinfo=timezone.utc)
+    hoje = date(2026, 10, 31)
+    ancora = date(2025, 10, 31)
+    horizonte = hoje + timedelta(days=60)
+    lacuna_passada = hoje - timedelta(days=1)
+    lacuna_atual = hoje + timedelta(days=2)
+    id_usuario = str(uuid4())
+    configuracao = {
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
+        "fk_usuario_id": id_usuario,
+        "timezone": fuso.key,
+        "nome": "Limpar cozinha",
+        "dificuldade": 1,
+        "pontuacao": 10,
+        "prazo_dias": 1,
+        "atraso_maximo": 1,
+        "modo_prazo": "intervalo",
+        "semana_ancora": ancora.isoformat(),
+        "dias_semana": [1, 2, 3, 4, 5, 6, 7],
+        "intervalo_semanas": 1,
+    }
+    banco.registros["rotatividade_participante"] = [
+        {"fk_rotatividade_id": configuracao["id"], "fk_usuario_id": id_usuario, "ordem": 1}
+    ]
+    banco.registros["pertencer"] = [
+        {"fk_casa_id": configuracao["fk_casa_id"], "fk_usuario_id": id_usuario, "ativo": True}
+    ]
+    tarefas_por_data = {}
+    for deslocamento in range((horizonte - ancora).days + 1):
+        dia = ancora + timedelta(days=deslocamento)
+        if dia in (lacuna_passada, lacuna_atual, horizonte):
+            continue
+        ocorrencia = datetime.combine(dia, time.min, fuso).astimezone(timezone.utc)
+        tarefa = {
+            "id": str(uuid4()),
+            "rotatividade_id": configuracao["id"],
+            "ocorrencia_em": ocorrencia.isoformat(),
+            "pontuacao": 10,
+        }
+        tarefas_por_data[dia] = tarefa
+        banco.registros["tarefa"].append(tarefa)
+        if dia not in (ancora, hoje):
+            banco.registros["atribuida"].append(
+                {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": id_usuario}
+            )
+
+    assert servico._processar_configuracao(configuracao, instante) == 2
+    assert [chamada.args[1] for chamada in registrar.call_args_list] == [
+        hoje + timedelta(days=deslocamento) for deslocamento in range(61)
+    ]
+    assert listar.call_args_list[0].args[2] == (
+        ("eq", "rotatividade_id", configuracao["id"]),
+        ("gte", "ocorrencia_em", "2026-10-31T04:00:00+00:00"),
+        ("lt", "ocorrencia_em", "2026-12-31T05:00:00+00:00"),
+    )
+    datas = {
+        data_local_ocorrencia(tarefa["ocorrencia_em"], fuso) for tarefa in banco.registros["tarefa"]
+    }
+    assert {lacuna_atual, horizonte} <= datas
+    assert lacuna_passada not in datas
+    ids_atribuidos = {atribuicao["fk_tarefa_id"] for atribuicao in banco.registros["atribuida"]}
+    assert tarefas_por_data[hoje]["id"] in ids_atribuidos
+    assert tarefas_por_data[ancora]["id"] not in ids_atribuidos
+
+    registros_antes = deepcopy(banco.registros)
+    assert servico._processar_configuracao(configuracao, instante) == 0
+    assert banco.registros == registros_antes

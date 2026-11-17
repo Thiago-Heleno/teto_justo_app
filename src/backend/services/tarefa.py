@@ -1,4 +1,5 @@
 import secrets
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
@@ -105,12 +106,11 @@ class ServicoTarefa:
         elegiveis = moradores - set(str(usuario) for usuario in responsaveis)
         return max(1, (len(elegiveis) + 1) // 2)
 
-    def _metadados_reclamacoes(self, tarefa: dict, responsaveis: list[str]) -> dict:
-        id_casa = str(tarefa["fk_casa_id"])
+    def _politica_e_moradores(self, id_casa: str) -> tuple[str, set[str]]:
         if id_casa not in self._moradores_politica_por_casa:
             casas = (
                 self.supabase.table("casa")
-                .select("politica_reclamacao")
+                .select("politica_reclamacao,fk_usuario_id")
                 .eq("id", id_casa)
                 .execute()
             ).data or []
@@ -126,9 +126,15 @@ class ServicoTarefa:
             )
             self._moradores_politica_por_casa[id_casa] = (
                 casas[0].get("politica_reclamacao") or "nenhuma",
-                {str(morador["fk_usuario_id"]) for morador in moradores},
+                {str(casas[0]["fk_usuario_id"])}
+                | {str(morador["fk_usuario_id"]) for morador in moradores},
             )
-        politica, moradores = self._moradores_politica_por_casa[id_casa]
+        return self._moradores_politica_por_casa[id_casa]
+
+    def _metadados_reclamacoes(
+        self, tarefa: dict, responsaveis: list[str], reclamantes: list[str] | None = None
+    ) -> dict:
+        politica, moradores = self._politica_e_moradores(str(tarefa["fk_casa_id"]))
         if politica == "nenhuma":
             return {
                 "politica_reclamacao": politica,
@@ -137,24 +143,65 @@ class ServicoTarefa:
                 "usuario_reclamou": False,
             }
 
-        reclamacoes = (
-            self.supabase.table("reclamacao_tarefa")
-            .select("fk_usuario_id", count="exact")
-            .eq("fk_tarefa_id", str(tarefa["id"]))
-            .eq("ciclo", tarefa.get("reaberturas") or 0)
-            .execute()
-        )
+        if reclamantes is None:
+            reclamacoes = (
+                self.supabase.table("reclamacao_tarefa")
+                .select("fk_usuario_id", count="exact")
+                .eq("fk_tarefa_id", str(tarefa["id"]))
+                .eq("ciclo", tarefa.get("reaberturas") or 0)
+                .execute()
+            )
+            reclamantes = [str(voto["fk_usuario_id"]) for voto in reclamacoes.data]
+            total = reclamacoes.count or 0
+        else:
+            total = len(reclamantes)
+
         return {
             "politica_reclamacao": politica,
-            "reclamacoes_count": reclamacoes.count or 0,
-            "usuario_reclamou": any(
-                str(voto["fk_usuario_id"]) == str(self.id_usuario_atual)
-                for voto in reclamacoes.data
-            ),
+            "reclamacoes_count": total,
+            "usuario_reclamou": str(self.id_usuario_atual) in reclamantes,
             "reclamacoes_limite": self._limite_reclamacoes(moradores, responsaveis),
         }
 
-    def _montar_resposta(self, tarefa: dict, agora: datetime | None = None) -> dict:
+    def _relacoes_da_listagem(
+        self, id_casa: str, ids_tarefas: list[str]
+    ) -> tuple[dict[str, list[str]], dict[tuple[str, int], list[str]]]:
+        if not ids_tarefas:
+            return {}, {}
+
+        consultar = ServicoAutorizacaoCasa(self.supabase).registros_por_ids
+        atribuicoes = defaultdict(list)
+        for registro in consultar(
+            "atribuida",
+            "fk_tarefa_id",
+            ids_tarefas,
+            "fk_tarefa_id,fk_usuario_id",
+            ("fk_tarefa_id", "fk_usuario_id"),
+        ):
+            atribuicoes[str(registro["fk_tarefa_id"])].append(str(registro["fk_usuario_id"]))
+
+        reclamacoes = defaultdict(list)
+        politica, _ = self._politica_e_moradores(id_casa)
+        if politica != "nenhuma":
+            for registro in consultar(
+                "reclamacao_tarefa",
+                "fk_tarefa_id",
+                ids_tarefas,
+                "fk_tarefa_id,ciclo,fk_usuario_id",
+                ("fk_tarefa_id", "ciclo", "fk_usuario_id"),
+            ):
+                chave = (str(registro["fk_tarefa_id"]), registro["ciclo"])
+                reclamacoes[chave].append(str(registro["fk_usuario_id"]))
+        return atribuicoes, reclamacoes
+
+    def _montar_resposta(
+        self,
+        tarefa: dict,
+        agora: datetime | None = None,
+        *,
+        relacoes: tuple[list[str], list[str]] | None = None,
+    ) -> dict:
+        original = tarefa
         tarefa = self._sincronizar_estado_por_atraso(tarefa, agora)
         modo_prazo = tarefa.get("modo_prazo") or "intervalo"
         inicio = tarefa.get("data_inicio") or tarefa.get("criado_em")
@@ -188,8 +235,14 @@ class ServicoTarefa:
             "fk_casa_id": tarefa["fk_casa_id"],
             "fk_usuario_id": tarefa["fk_usuario_id"],
         }
-        resposta["usuarios_atribuidos"] = self._buscar_usuarios_atribuidos(tarefa["id"])
-        resposta.update(self._metadados_reclamacoes(tarefa, resposta["usuarios_atribuidos"]))
+        # Se a sincronização substituiu o registro, as relações podem ter mudado.
+        if relacoes is not None and tarefa is original:
+            responsaveis, reclamantes = relacoes
+        else:
+            responsaveis = self._buscar_usuarios_atribuidos(tarefa["id"])
+            reclamantes = None
+        resposta["usuarios_atribuidos"] = responsaveis
+        resposta.update(self._metadados_reclamacoes(tarefa, responsaveis, reclamantes))
         return resposta
 
     def criar_tarefa(
@@ -209,9 +262,7 @@ class ServicoTarefa:
             usuarios_atribuidos = [sortear_responsavel(elegiveis)]
         else:
             usuarios_atribuidos = dados_tarefa.usuarios_atribuidos
-            autorizacao.garantir_responsaveis_da_casa(
-                dados_tarefa.fk_casa_id, usuarios_atribuidos
-            )
+            autorizacao.garantir_responsaveis_da_casa(dados_tarefa.fk_casa_id, usuarios_atribuidos)
         dados = dados_tarefa.model_dump(mode="json")
         dados.pop("usuarios_atribuidos", None)
         dados.pop("modo_atribuicao")
@@ -291,8 +342,17 @@ class ServicoTarefa:
         tarefas = []
         agora = datetime.now(timezone.utc)
         fuso = self._fuso_casa(id_casa) if prazo in ("antigas", "hoje", "sete_dias") else None
+        atribuicoes, reclamacoes = self._relacoes_da_listagem(
+            str(id_casa), [str(tarefa["id"]) for tarefa in resposta.data]
+        )
         for tarefa in resposta.data:
-            tarefa_resposta = self._montar_resposta(tarefa, agora)
+            id_tarefa = str(tarefa["id"])
+            ciclo = tarefa.get("reaberturas") or 0
+            tarefa_resposta = self._montar_resposta(
+                tarefa,
+                agora,
+                relacoes=(atribuicoes.get(id_tarefa, []), reclamacoes.get((id_tarefa, ciclo), [])),
+            )
             if (
                 estado
                 and estado != "todos"

@@ -204,6 +204,57 @@ def test_responsavel_nao_pode_reclamar_da_propria_tarefa(cenario):
     assert banco.registros["reclamacao_tarefa"] == []
 
 
+@pytest.mark.parametrize("situacao_vinculo", ["ausente", "inativo"])
+def test_administrador_sem_vinculo_ativo_pode_reclamar_e_retirar(cenario, situacao_vinculo):
+    banco, servico, tarefa, _, _ = cenario
+    administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
+    if situacao_vinculo == "ausente":
+        banco.registros["pertencer"] = [
+            vinculo
+            for vinculo in banco.registros["pertencer"]
+            if vinculo["fk_usuario_id"] != str(administrador)
+        ]
+    else:
+        banco.registros["pertencer"][0]["ativo"] = False
+
+    resultado = servico.reclamar_tarefa(UUID(tarefa["id"]), administrador)
+    assert resultado["usuario_reclamou"] is True
+    assert banco.registros["reclamacao_tarefa"][0]["fk_usuario_id"] == str(administrador)
+
+    retirado = servico.retirar_reclamacao(UUID(tarefa["id"]), administrador)
+    assert retirado["usuario_reclamou"] is False
+    assert banco.registros["reclamacao_tarefa"] == []
+
+
+def test_administrador_responsavel_nao_pode_reclamar(cenario):
+    banco, servico, tarefa, _, _ = cenario
+    administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
+    banco.registros["atribuida"][0]["fk_usuario_id"] = str(administrador)
+
+    with pytest.raises(HTTPException) as erro:
+        servico.reclamar_tarefa(UUID(tarefa["id"]), administrador)
+
+    assert erro.value.status_code == 403
+    assert banco.registros["reclamacao_tarefa"] == []
+
+
+def test_administrador_sem_vinculo_conta_no_limite_da_votacao(cenario):
+    banco, servico, tarefa, morador, _ = cenario
+    administrador = banco.registros["casa"][0]["fk_usuario_id"]
+    outro_morador = banco.registros["pertencer"][-1]["fk_usuario_id"]
+    banco.registros["pertencer"] = [
+        vinculo
+        for vinculo in banco.registros["pertencer"]
+        if vinculo["fk_usuario_id"] not in {administrador, outro_morador}
+    ]
+
+    primeira = servico.reclamar_tarefa(UUID(tarefa["id"]), morador)
+    assert primeira["reclamacoes_limite"] == 2
+    assert primeira["estado_atual"] == "finalizado"
+    segunda = servico.reclamar_tarefa(UUID(tarefa["id"]), UUID(administrador))
+    assert segunda["estado_atual"] == "pendente"
+
+
 def test_administrador_com_vinculo_ativo_pode_reclamar(cenario):
     banco, servico, tarefa, _, _ = cenario
     administrador = UUID(banco.registros["casa"][0]["fk_usuario_id"])
@@ -283,6 +334,7 @@ def test_votacao_reabre_ao_atingir_metade_arredondada_dos_demais_moradores(
 ):
     banco, servico, tarefa, morador, _ = cenario
     responsavel = banco.registros["pertencer"][1]
+    banco.registros["casa"][0]["fk_usuario_id"] = responsavel["fk_usuario_id"]
     votantes = [str(morador)] + [str(uuid4()) for _ in range(elegiveis - 1)]
     banco.registros["pertencer"] = [responsavel] + [
         {"fk_casa_id": tarefa["fk_casa_id"], "fk_usuario_id": usuario, "ativo": True}
@@ -502,6 +554,47 @@ def test_listagem_entrega_metadados_das_tarefas(cenario):
     assert tarefas[0]["politica_reclamacao"] == "votacao"
     assert tarefas[0]["reclamacoes_count"] == 1
     assert tarefas[0]["reclamacoes_limite"] == 2
+
+
+def test_listagem_busca_responsaveis_e_votos_em_lote_sem_misturar_ciclos(cenario, monkeypatch):
+    banco, _, tarefa, morador, _ = cenario
+    outra_tarefa_id = str(uuid4())
+    outro_responsavel = tarefa["fk_usuario_id"]
+    responsavel = banco.registros["atribuida"][0]["fk_usuario_id"]
+    tarefa["reaberturas"] = 1
+    banco.registros["tarefa"].append({**tarefa, "id": outra_tarefa_id, "reaberturas": 0})
+    banco.registros["atribuida"].append(
+        {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": outro_responsavel}
+    )
+    banco.registros["reclamacao_tarefa"].extend(
+        [
+            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": str(morador), "ciclo": 1},
+            {"fk_tarefa_id": tarefa["id"], "fk_usuario_id": outro_responsavel, "ciclo": 0},
+            {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": responsavel, "ciclo": 0},
+            {"fk_tarefa_id": outra_tarefa_id, "fk_usuario_id": str(morador), "ciclo": 1},
+        ]
+    )
+    consultas = []
+    executar = ConsultaEmMemoria.execute
+
+    def registrar_consulta(consulta):
+        consultas.append(consulta.tabela)
+        return executar(consulta)
+
+    monkeypatch.setattr(ConsultaEmMemoria, "execute", registrar_consulta)
+    servico = ServicoTarefa(banco, id_usuario_atual=morador)
+    tarefas = {
+        item["id"]: item for item in servico.listar_tarefas_por_casa(UUID(tarefa["fk_casa_id"]))
+    }
+
+    assert tarefas[tarefa["id"]]["usuarios_atribuidos"] == [responsavel]
+    assert tarefas[outra_tarefa_id]["usuarios_atribuidos"] == [outro_responsavel]
+    assert tarefas[tarefa["id"]]["reclamacoes_count"] == 1
+    assert tarefas[outra_tarefa_id]["reclamacoes_count"] == 1
+    assert tarefas[tarefa["id"]]["usuario_reclamou"] is True
+    assert tarefas[outra_tarefa_id]["usuario_reclamou"] is False
+    assert consultas.count("atribuida") == 1
+    assert consultas.count("reclamacao_tarefa") == 1
 
 
 def test_retirar_voto_preserva_outros_moradores_tarefas_e_ciclos(cenario):

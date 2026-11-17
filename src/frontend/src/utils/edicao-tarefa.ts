@@ -1,4 +1,4 @@
-import type { PesoTarefa, PrazoDias } from "@/constants/tarefa";
+import type { ModoAtribuicao, PesoTarefa, PrazoDias } from "@/constants/tarefa";
 import type { Tarefa, TarefaAtualizar } from "@/services/tarefas-api";
 import { dataFixaParaIso } from "./data-fixa.ts";
 
@@ -10,6 +10,7 @@ export type FormularioEdicaoTarefa = {
   atrasoMaximo: number;
   dataFixa: string;
   responsavel: string;
+  modoAtribuicao?: ModoAtribuicao;
 };
 
 export type ErrosEdicaoTarefa = Partial<
@@ -25,6 +26,7 @@ export function prepararEdicaoTarefa(
   moradores: { id: string }[],
 ): { erros: ErrosEdicaoTarefa; dados?: TarefaAtualizar } {
   const erros: ErrosEdicaoTarefa = {};
+  const sortear = formulario.modoAtribuicao === "aleatorio";
   const nome = formulario.nome.trim();
   const usaDiaFixo = tarefaOriginal.modo_prazo === "dia_fixo";
   const dataFixaIso = usaDiaFixo
@@ -48,7 +50,7 @@ export function prepararEdicaoTarefa(
     !dataFixaIso
   )
     erros.dataFixa = "Informe uma data válida no formato DD-MM-AAAA.";
-  if (!moradores.some(({ id }) => id === formulario.responsavel))
+  if (!sortear && !moradores.some(({ id }) => id === formulario.responsavel))
     erros.responsavel = "Selecione um responsável desta casa.";
 
   if (Object.keys(erros).length) return { erros };
@@ -69,7 +71,9 @@ export function prepararEdicaoTarefa(
       ...(dataFixaIso && dataFixaIso !== tarefaOriginal.data_fixa
         ? { data_fixa: dataFixaIso }
         : {}),
-      usuarios_atribuidos: [formulario.responsavel],
+      ...(sortear
+        ? { modo_atribuicao: "aleatorio" }
+        : { usuarios_atribuidos: [formulario.responsavel] }),
     },
   };
 }

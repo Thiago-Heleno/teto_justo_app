@@ -1,4 +1,4 @@
-import { requisitar } from "./api.ts";
+import { ErroApi, requisitar } from "./api.ts";
 import { listarMoradoresCasa, type MoradorCasa } from "./casas-api.ts";
 import { sessao } from "./sessao-store.ts";
 
@@ -14,7 +14,11 @@ export type Casa = {
 
 export type Morador = MoradorCasa;
 
-export type UsuarioAtual = { id: string };
+export type UsuarioAtual = { id: string; nome: string };
+
+export type AtribuicaoTarefa =
+  | { modo_atribuicao?: "manual"; usuarios_atribuidos: [string] }
+  | { modo_atribuicao: "aleatorio"; usuarios_atribuidos?: never };
 
 export type Tarefa = {
   id: string;
@@ -50,8 +54,7 @@ export type TarefaAtualizar = {
   prazo_dias?: number;
   atraso_maximo?: number;
   data_fixa?: string;
-  usuarios_atribuidos: string[];
-};
+} & AtribuicaoTarefa;
 
 export type TarefaCriar = {
   fk_casa_id: string;
@@ -63,8 +66,7 @@ export type TarefaCriar = {
   tipo: "unitaria";
   modo_prazo: "intervalo" | "dia_fixo";
   data_fixa?: string;
-  usuarios_atribuidos: [string];
-};
+} & AtribuicaoTarefa;
 
 export type { RotatividadeCriar } from "./rotatividade-api.ts";
 export { criarRotatividade } from "./rotatividade-api.ts";
@@ -159,6 +161,20 @@ export function criarTarefa(dados: TarefaCriar, signal?: AbortSignal) {
     method: "POST",
     body: dados,
   });
+}
+
+export function mensagemErroAoSalvarTarefa(
+  erro: unknown,
+  mensagemPadrao: string,
+) {
+  if (
+    erro instanceof TypeError ||
+    erro instanceof SyntaxError ||
+    (erro instanceof ErroApi && erro.status >= 500)
+  ) {
+    return "Não foi possível confirmar o salvamento. Confira a lista de tarefas antes de tentar novamente.";
+  }
+  return erro instanceof Error ? erro.message : mensagemPadrao;
 }
 
 export async function carregarTarefas(

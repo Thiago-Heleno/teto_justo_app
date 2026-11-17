@@ -16,3 +16,24 @@ export function podeReportarTarefa(
     idade <= JANELA_REPORTAGEM_MS
   );
 }
+
+export function podeParticiparDoReport(
+  usuarioId: string | undefined,
+  moradoresIds: readonly string[],
+  administradorId: string | undefined,
+) {
+  return Boolean(
+    usuarioId &&
+    (usuarioId === administradorId || moradoresIds.includes(usuarioId)),
+  );
+}
+
+export function contarVotantesPossiveis(
+  moradoresIds: readonly string[],
+  administradorId: string | undefined,
+  responsaveisIds: readonly string[],
+) {
+  const moradores = new Set(moradoresIds);
+  if (administradorId) moradores.add(administradorId);
+  return [...moradores].filter((id) => !responsaveisIds.includes(id)).length;
+}

@@ -22,9 +22,19 @@ class BancoMemoria:
         self.rotacao_versao = 0
         self.atribuidas = []  # lista de {"fk_usuario_id":..., "fk_tarefa_id":...}
         self.tarefas = {}  # dict: id (str) -> dict com os campos da tarefa
+        self.rotatividades = []  # lista de {"id":..., "fk_casa_id":...}
+        self.participantes = []  # lista de {"fk_rotatividade_id":..., "fk_usuario_id":...}
 
     def table(self, nome):
-        if nome not in {"pertencer", "casa", "score_event", "atribuida", "tarefa"}:
+        if nome not in {
+            "pertencer",
+            "casa",
+            "score_event",
+            "atribuida",
+            "tarefa",
+            "rotatividade",
+            "rotatividade_participante",
+        }:
             raise AssertionError(f"Tabela inesperada: {nome}")
         return Consulta(self, nome)
 
@@ -67,6 +77,10 @@ class Consulta:
         self.dados = dict(dados)
         return self
 
+    def delete(self):
+        self.operacao = "delete"
+        return self
+
     def _bate(self, registro):
         return all(registro.get(c) == valor for c, valor in self.filtros) and all(
             registro.get(c) in valores for c, valores in self.filtros_in
@@ -94,7 +108,21 @@ class Consulta:
             return SimpleNamespace(
                 data=[registro for registro in self.banco.atribuidas if self._bate(registro)]
             )
+        if self.tabela == "rotatividade":
+            return SimpleNamespace(data=[r for r in self.banco.rotatividades if self._bate(r)])
+        if self.tabela == "rotatividade_participante":
+            apagados = [p for p in self.banco.participantes if self._bate(p)]
+            if self.operacao == "delete":
+                self.banco.participantes = [
+                    p for p in self.banco.participantes if p not in apagados
+                ]
+            return SimpleNamespace(data=apagados)
         if self.tabela == "tarefa":
+            if self.operacao == "delete":
+                apagadas = [t for t in self.banco.tarefas.values() if self._bate(t)]
+                for tarefa in apagadas:
+                    del self.banco.tarefas[tarefa["id"]]
+                return SimpleNamespace(data=apagadas)
             return SimpleNamespace(
                 data=[dict(tarefa) for tarefa in self.banco.tarefas.values() if self._bate(tarefa)]
             )
@@ -274,6 +302,30 @@ class TesteServicoPertencer(unittest.TestCase):
             self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
 
         self.assertEqual(contexto.exception.status_code, 409)
+
+    def test_saida_remove_do_rodizio_e_apaga_so_tarefas_abertas_de_rodizio(self):
+        self._criar_vinculo()
+        id_rotatividade = str(uuid4())
+        self.banco.rotatividades.append({"id": id_rotatividade, "fk_casa_id": str(self.fk_casa_id)})
+        self.banco.participantes += [
+            {"fk_rotatividade_id": id_rotatividade, "fk_usuario_id": str(self.fk_usuario_id)},
+            {"fk_rotatividade_id": id_rotatividade, "fk_usuario_id": "outro"},
+        ]
+        for id_tarefa, estado in [("aberta", "pendente"), ("feita", "finalizado")]:
+            self.banco.tarefas[id_tarefa] = {
+                "id": id_tarefa,
+                "fk_casa_id": str(self.fk_casa_id),
+                "estado_atual": estado,
+                "rotatividade_id": id_rotatividade,
+            }
+            self.banco.atribuidas.append(
+                {"fk_usuario_id": str(self.fk_usuario_id), "fk_tarefa_id": id_tarefa}
+            )
+
+        self.servico.deletar_pertencer(self.fk_usuario_id, self.fk_casa_id)
+
+        self.assertEqual(list(self.banco.tarefas), ["feita"])
+        self.assertEqual([p["fk_usuario_id"] for p in self.banco.participantes], ["outro"])
 
     # Uma tarefa já finalizada não bloqueia a saída -- só pendente/atrasada.
     def test_deletar_pertencer_com_tarefa_finalizada_permite_saida(self):

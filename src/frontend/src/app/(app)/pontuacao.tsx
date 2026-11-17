@@ -11,12 +11,14 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useStore } from "zustand";
 
 import { Avatar } from "@/components/avatar";
 import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { listarMoradoresCasa } from "@/services/casas-api";
+import { sessao } from "@/services/sessao-store";
 import {
   carregarExtrato,
   carregarPlacar,
@@ -25,6 +27,10 @@ import {
   type Placar,
   type Tarefa,
 } from "@/services/tarefas-api";
+import {
+  contarVotantesPossiveis,
+  podeParticiparDoReport,
+} from "@/utils/pode-reportar-tarefa";
 import {
   periodosPlacar,
   resumirPlacar,
@@ -43,6 +49,10 @@ export default function PontuacaoScreen() {
     new Map(),
   );
   const [usuarioId, setUsuarioId] = useState<string>();
+  const administradorId = useStore(
+    sessao,
+    (estado) => estado.casaAtiva?.fk_usuario_id,
+  );
   const [extrato, setExtrato] = useState<Extrato>();
   const [periodo, setPeriodo] = useState<PeriodoPlacar>("semanal");
   const [ajudaAberta, setAjudaAberta] = useState(false);
@@ -121,8 +131,10 @@ export default function PontuacaoScreen() {
   }
 
   const resumo = placar ? resumirPlacar(placar, periodo) : undefined;
-  const moradorAtivo = placar?.moradores.some(
-    (m) => m.usuario_id === usuarioId,
+  const podeReportarNaCasa = podeParticiparDoReport(
+    usuarioId,
+    placar?.moradores.map((morador) => morador.usuario_id) ?? [],
+    administradorId,
   );
   const rotulo = periodosPlacar.find(
     (opcao) => opcao.valor === periodo,
@@ -331,7 +343,7 @@ export default function PontuacaoScreen() {
                           </Text>
                         </MotionPressable>
                         {placar &&
-                          moradorAtivo &&
+                          podeReportarNaCasa &&
                           evento.tipo === "credito" &&
                           evento.concluida_em && (
                             <BotaoReportarTarefa
@@ -340,9 +352,13 @@ export default function PontuacaoScreen() {
                               politica={extrato.politica_reclamacao}
                               votosAtuais={evento.reclamacoes_count}
                               usuarioReclamou={evento.usuario_reclamou ?? false}
-                              votosPossiveis={
-                                placar.moradores.length - (responsavel ? 1 : 0)
-                              }
+                              votosPossiveis={contarVotantesPossiveis(
+                                placar.moradores.map(
+                                  (morador) => morador.usuario_id,
+                                ),
+                                administradorId,
+                                [evento.fk_usuario_id],
+                              )}
                               ehResponsavel={evento.fk_usuario_id === usuarioId}
                               onReportada={(tarefa) =>
                                 atualizarAposReport(evento.id, tarefa)

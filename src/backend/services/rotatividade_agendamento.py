@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 from threading import Lock
 from uuid import UUID
@@ -14,19 +15,20 @@ from services.ciclo_vida_tarefa import instante_utc, janela_dia_fixo
 from services.rotatividade import TarefaDistribuicao, distribuir_tarefas
 from services.score import ServicoScore
 
+_LOGGER = logging.getLogger(__name__)
 _TAMANHO_PAGINA = 500
 _LOCK_PROCESSAMENTO = Lock()
 _HORIZONTE_DIAS = 60
 
 
-def datas_ocorrencias(configuracao: dict, ate: date) -> list[date]:
+def datas_ocorrencias(configuracao: dict, de: date, ate: date) -> list[date]:
     ancora = date.fromisoformat(str(configuracao["semana_ancora"])[:10])
     inicio_semana = ancora - timedelta(days=ancora.weekday())
     dias_semana = set(configuracao["dias_semana"])
     intervalo = configuracao["intervalo_semanas"]
     datas = []
 
-    dia = ancora
+    dia = max(ancora, de)
     while dia <= ate:
         semanas_desde_ancora = (dia - inicio_semana).days // 7
         if dia.isoweekday() in dias_semana and semanas_desde_ancora % intervalo == 0:
@@ -171,6 +173,9 @@ class ServicoAgendamentoRotatividade:
             configuracao["fk_casa_id"],
             id_usuario_atual,
         )
+        return self._apagar_rotatividade(id_rotatividade)
+
+    def _apagar_rotatividade(self, id_rotatividade: UUID | str) -> bool:
         conflito = HTTPException(
             status_code=409,
             detail="Rodízio com tarefas já pontuadas não pode ser excluído. Pause-o.",
@@ -428,23 +433,37 @@ class ServicoAgendamentoRotatividade:
     def _processar_configuracao(self, configuracao: dict, instante: datetime) -> int:
         fuso = ZoneInfo(configuracao["timezone"])
         hoje = instante.astimezone(fuso).date()
-        datas_previstas = datas_ocorrencias(
-            configuracao,
-            hoje + timedelta(days=_HORIZONTE_DIAS),
-        )
+        horizonte = hoje + timedelta(days=_HORIZONTE_DIAS)
+        datas_previstas = datas_ocorrencias(configuracao, hoje, horizonte)
         if not datas_previstas:
             return 0
 
+        inicio_utc = datetime.combine(hoje, time.min, fuso).astimezone(timezone.utc)
+        fim_utc = datetime.combine(horizonte + timedelta(days=1), time.min, fuso).astimezone(
+            timezone.utc
+        )
         tarefas_existentes = self._listar(
             "tarefa",
             "id,ocorrencia_em,pontuacao",
-            (("eq", "rotatividade_id", str(configuracao["id"])),),
+            (
+                ("eq", "rotatividade_id", str(configuracao["id"])),
+                ("gte", "ocorrencia_em", inicio_utc.isoformat()),
+                ("lt", "ocorrencia_em", fim_utc.isoformat()),
+            ),
         )
         datas_existentes = {
             data_local_ocorrencia(str(tarefa["ocorrencia_em"]), fuso)
             for tarefa in tarefas_existentes
         }
-        membros = self._membros_elegiveis(configuracao)
+        try:
+            membros = self._membros_elegiveis(configuracao)
+        except HTTPException:
+            try:
+                self._apagar_rotatividade(configuracao["id"])
+            except HTTPException:
+                # Tem tarefas já pontuadas: _apagar_rotatividade já a deixou pausada.
+                pass
+            return 0
 
         processadas = 0
         for dia in datas_previstas:
@@ -463,9 +482,12 @@ class ServicoAgendamentoRotatividade:
             "*",
             (("eq", "ativa", True),),
         )
-        processadas = sum(
-            self._processar_configuracao(configuracao, instante) for configuracao in configuracoes
-        )
+        processadas = 0
+        for configuracao in configuracoes:
+            try:
+                processadas += self._processar_configuracao(configuracao, instante)
+            except Exception:
+                _LOGGER.exception("Falha ao processar o rodízio %s", configuracao["id"])
         return {
             "rotatividades_analisadas": len(configuracoes),
             "ocorrencias_processadas": processadas,

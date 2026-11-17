@@ -42,6 +42,19 @@ test("PATCH usa duração e tolerância, nunca data_fim", () => {
   assert.equal("data_fim" in resultado.dados, false);
 });
 
+test("PATCH com roleta envia só o modo de atribuição e os campos da edição", () => {
+  const { dados, erros } = prepararEdicaoTarefa(
+    { ...formulario, responsavel: "", modoAtribuicao: "aleatorio" },
+    tarefa,
+    moradores,
+  );
+  assert.deepEqual(erros, {});
+  assert.equal(dados.modo_atribuicao, "aleatorio");
+  assert.equal("usuarios_atribuidos" in dados, false);
+  assert.equal(dados.nome, "Lavar e secar a louça");
+  assert.equal(dados.prazo_dias, 5);
+});
+
 test("data fixa usa data local ISO somente se for alterada", () => {
   const fixa = { ...tarefa, modo_prazo: "dia_fixo", data_fixa: "2026-10-01" };
   assert.equal(

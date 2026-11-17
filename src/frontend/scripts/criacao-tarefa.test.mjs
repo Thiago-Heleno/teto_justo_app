@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { prepararTarefa } from "../src/utils/criacao-tarefa.ts";
 import { formatarDataDigitada } from "../src/utils/data-fixa.ts";
+import { anguloGiroRoleta } from "../src/utils/roleta.ts";
 
 const moradores = [{ id: "ana" }, { id: "bruno" }, { id: "carla" }];
 const formulario = {
@@ -21,6 +22,32 @@ const formulario = {
 const preparar = (alteracoes = {}) =>
   prepararTarefa({ ...formulario, ...alteracoes }, moradores);
 
+test("tarefa comum sorteia sem exigir ou enviar um responsável manual", () => {
+  for (const responsavel of [null, "ana"]) {
+    const { tarefa, erros } = preparar({
+      modoAtribuicao: "aleatorio",
+      responsavel,
+    });
+    assert.deepEqual(erros, {});
+    assert.equal(tarefa.modo_atribuicao, "aleatorio");
+    assert.equal("usuarios_atribuidos" in tarefa, false);
+  }
+});
+
+test("o centro da fatia sorteada para no ponteiro depois de três voltas", () => {
+  const total = 7;
+  for (let indice = 0; indice < total; indice++) {
+    const giro = anguloGiroRoleta(indice, total);
+    assert.ok(giro >= 1080 && giro < 1440);
+    const posicaoFinal = giro + (indice * 360) / total;
+    assert.ok(
+      Math.abs(posicaoFinal / 360 - Math.round(posicaoFinal / 360)) < 1e-10,
+    );
+  }
+  assert.equal(anguloGiroRoleta(-1, total), undefined);
+  assert.equal(anguloGiroRoleta(0, 1), undefined);
+});
+
 test("tarefa comum mantém um responsável e descarta campos ocultos do rodízio", () => {
   const { tarefa, erros } = preparar({
     participantes: ["bruno", "carla"],
@@ -39,6 +66,7 @@ test("rodízio preserva a ordem dos moradores e guarda dias semanais separados d
   const participantes = ["carla", "ana", "bruno"];
   const { tarefa, erros } = preparar({
     rotativa: true,
+    modoAtribuicao: "aleatorio",
     participantes,
     diasSemana: [1],
     responsavel: null,
@@ -46,6 +74,7 @@ test("rodízio preserva a ordem dos moradores e guarda dias semanais separados d
   assert.deepEqual(erros, {});
   assert.equal(tarefa.prazo_dias, 3);
   assert.deepEqual(tarefa.usuarios_atribuidos, ["carla"]);
+  assert.equal("modo_atribuicao" in tarefa, false);
   assert.deepEqual(tarefa.rotatividade, {
     participantes: ["carla", "ana", "bruno"],
     dias_semana: [1],
@@ -190,10 +219,17 @@ test("dia fixo unitário exige data válida e não altera agendamento de rodízi
     assert.ok(preparar({ modoPrazo: "dia_fixo", dataFixa }).erros.dataFixa);
   }
   assert.equal(
-    preparar({ modoPrazo: "dia_fixo", dataFixa: "29-02-2028" }).tarefa.data_fixa,
+    preparar({ modoPrazo: "dia_fixo", dataFixa: "29-02-2028" }).tarefa
+      .data_fixa,
     "2028-02-29",
   );
-  const rotativa = preparar({ rotativa: true, responsavel: null, participantes: ["ana", "bruno"], diasSemana: [1], modoPrazo: "dia_fixo" });
+  const rotativa = preparar({
+    rotativa: true,
+    responsavel: null,
+    participantes: ["ana", "bruno"],
+    diasSemana: [1],
+    modoPrazo: "dia_fixo",
+  });
   assert.deepEqual(rotativa.erros, {});
   assert.equal(rotativa.tarefa.data_fixa, undefined);
 });

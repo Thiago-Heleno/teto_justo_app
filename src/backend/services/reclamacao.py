@@ -21,7 +21,10 @@ class ServicoReclamacao:
         tarefa = self.tarefas._buscar_tarefa_bruta(id_tarefa)
         id_casa = str(tarefa["fk_casa_id"])
         casas = (
-            self.supabase.table("casa").select("politica_reclamacao").eq("id", id_casa).execute()
+            self.supabase.table("casa")
+            .select("politica_reclamacao,fk_usuario_id")
+            .eq("id", id_casa)
+            .execute()
         ).data
         if not casas:
             raise HTTPException(status_code=404, detail="Casa não encontrada.")
@@ -35,6 +38,7 @@ class ServicoReclamacao:
             ativo=True,
         )
         ids_moradores = {str(morador["fk_usuario_id"]) for morador in moradores}
+        ids_moradores.add(str(casas[0]["fk_usuario_id"]))
         if str(id_usuario) not in ids_moradores:
             raise HTTPException(status_code=403, detail="Apenas moradores ativos podem reclamar.")
         responsaveis = self.tarefas._buscar_usuarios_atribuidos(id_tarefa)
