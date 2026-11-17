@@ -47,14 +47,17 @@ export type Tarefa = {
   } | null;
 };
 
-export type TarefaAtualizar = {
-  nome: string;
-  descricao: string;
-  peso: number;
-  prazo_dias?: number;
-  atraso_maximo?: number;
-  data_fixa?: string;
-} & AtribuicaoTarefa;
+export type TarefaAtualizar =
+  | ({
+      nome: string;
+      descricao: string;
+      peso: number;
+      prazo_dias?: number;
+      atraso_maximo?: number;
+      data_fixa?: string;
+    } & AtribuicaoTarefa)
+  | { modo_atribuicao: "aleatorio"; usuarios_atribuidos?: never }
+  | { modo_atribuicao?: "manual"; usuarios_atribuidos: [string] };
 
 export type TarefaCriar = {
   fk_casa_id: string;
@@ -139,6 +142,16 @@ export async function carregarContextoTarefas(signal?: AbortSignal) {
 
 export function carregarUsuarioAtual(signal?: AbortSignal) {
   return requisitar<UsuarioAtual>("/usuarios/eu", signal);
+}
+
+export function carregarAdministradorDaCasa(
+  casa: Casa,
+  usuarioAtual?: UsuarioAtual,
+  signal?: AbortSignal,
+) {
+  return usuarioAtual?.id === casa.fk_usuario_id
+    ? Promise.resolve(usuarioAtual)
+    : requisitar<UsuarioAtual>(`/usuarios/${casa.fk_usuario_id}`, signal);
 }
 
 export function carregarPlacar(signal?: AbortSignal) {

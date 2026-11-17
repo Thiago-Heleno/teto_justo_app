@@ -166,7 +166,7 @@ def test_tipo_e_modo_prazo_persistem_no_supabase(
         assert antes <= inicio <= depois
 
 
-def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
+def test_morador_pode_criar_e_atribuir_manual_mas_nao_editar_outros_campos_ou_excluir(
     dependencias_temporarias,
     autenticacao_temporaria,
     criar_autenticacao_temporaria,
@@ -183,6 +183,7 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "fk_usuario_id": morador["usuario_id"],
                 "fk_casa_id": casa_id,
                 "score": 0,
+                "ativo": True,
             }
         )
         .execute()
@@ -194,10 +195,10 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
         raise_server_exceptions=False,
         headers=morador["headers"],
     ) as cliente_morador:
-        proibida = cliente_morador.post(
+        permitida = cliente_morador.post(
             "/tarefas/",
             json={
-                "nome": "Tarefa que o morador não pode criar",
+                "nome": "Tarefa criada pelo morador",
                 "estado_atual": "pendente",
                 "peso": 1,
                 "atraso_maximo": 5,
@@ -206,7 +207,8 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
                 "usuarios_atribuidos": [morador["usuario_id"]],
             },
         )
-        assert proibida.status_code == 403, proibida.text
+        assert permitida.status_code == 201, permitida.text
+        assert permitida.json()["usuarios_atribuidos"] == [morador["usuario_id"]]
 
     with TestClient(
         app,
@@ -239,6 +241,13 @@ def test_morador_nao_pode_criar_atualizar_ou_excluir_tarefa(
         raise_server_exceptions=False,
         headers=morador["headers"],
     ) as cliente_morador:
+        atribuida = cliente_morador.patch(
+            f"/tarefas/{tarefa['id']}",
+            json={"usuarios_atribuidos": [morador["usuario_id"]]},
+        )
+        assert atribuida.status_code == 200, atribuida.text
+        assert atribuida.json()["usuarios_atribuidos"] == [morador["usuario_id"]]
+
         atualizada = cliente_morador.patch(
             f"/tarefas/{tarefa['id']}",
             json={"nome": "Alteração proibida"},

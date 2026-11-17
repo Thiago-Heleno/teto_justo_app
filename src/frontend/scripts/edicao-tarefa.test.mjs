@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { prepararEdicaoTarefa } from "../src/utils/edicao-tarefa.ts";
+import { prepararAtribuicaoTarefa, prepararEdicaoTarefa } from "../src/utils/edicao-tarefa.ts";
 
 const tarefa = {
   id: "tarefa-1",
@@ -107,5 +107,22 @@ test("rejeita nome vazio e responsável de outra casa", () => {
   );
   assert.equal(resultado.dados, undefined);
   assert.match(resultado.erros.nome, /nome/);
+  assert.match(resultado.erros.responsavel, /desta casa/);
+});
+
+test("morador envia apenas o novo responsável na edição manual", () => {
+  assert.deepEqual(prepararAtribuicaoTarefa("manual", "morador-2", moradores), {
+    erros: {},
+    dados: { usuarios_atribuidos: ["morador-2"] },
+  });
+  assert.deepEqual(prepararAtribuicaoTarefa("aleatorio", "", moradores), {
+    erros: {},
+    dados: { modo_atribuicao: "aleatorio" },
+  });
+});
+
+test("morador não pode atribuir manualmente um responsável fora da casa", () => {
+  const resultado = prepararAtribuicaoTarefa("manual", "outro", moradores);
+  assert.equal(resultado.dados, undefined);
   assert.match(resultado.erros.responsavel, /desta casa/);
 });

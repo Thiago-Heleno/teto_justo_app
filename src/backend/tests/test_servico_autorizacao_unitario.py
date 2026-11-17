@@ -101,7 +101,7 @@ def test_administrador_acessa_sem_consultar_vinculo(servico, consulta):
     id_usuario = uuid4()
     consulta.execute.return_value = SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}])
 
-    servico.garantir_acesso(uuid4(), id_usuario)
+    assert servico.garantir_acesso(uuid4(), id_usuario) == str(id_usuario)
 
     consulta.execute.assert_called_once()
     servico.supabase.table.assert_called_once_with("casa")
@@ -109,12 +109,13 @@ def test_administrador_acessa_sem_consultar_vinculo(servico, consulta):
 
 def test_morador_acessa_somente_com_vinculo_ativo_na_casa(servico, consulta):
     id_casa, id_usuario = uuid4(), uuid4()
+    administrador = str(uuid4())
     consulta.execute.side_effect = [
-        SimpleNamespace(data=[{"fk_usuario_id": str(uuid4())}]),
+        SimpleNamespace(data=[{"fk_usuario_id": administrador}]),
         SimpleNamespace(data=[{"fk_usuario_id": str(id_usuario)}]),
     ]
 
-    servico.garantir_acesso(id_casa, id_usuario)
+    assert servico.garantir_acesso(id_casa, id_usuario) == administrador
 
     assert servico.supabase.table.call_args_list == [call("casa"), call("pertencer")]
     assert consulta.eq.call_args_list == [
