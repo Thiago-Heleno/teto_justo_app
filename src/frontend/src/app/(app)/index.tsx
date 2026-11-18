@@ -240,35 +240,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {casa && (
-            <View
-              style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
-            >
-              <View style={styles.shoppingCopy}>
-                <Text style={styles.shoppingEyebrow}>ORGANIZAÇÃO DA CASA</Text>
-                <Text accessibilityRole="header" style={styles.sectionTitle}>
-                  LISTAS DE COMPRAS
-                </Text>
-                <Text style={styles.body}>
-                  Crie listas com os moradores e marque o que já foi comprado.
-                </Text>
-              </View>
-              <Link href="/lista-compras" asChild>
-                <MotionPressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Abrir listas de compras"
-                  style={StyleSheet.flatten([
-                    styles.button,
-                    styles.primaryButton,
-                  ])}
-                >
-                  <ShoppingBasket color={Caldera.obsidian} size={18} />
-                  <Text style={styles.buttonText}>Abrir listas de compras</Text>
-                </MotionPressable>
-              </Link>
-            </View>
-          )}
-
           {casa && detalhesAbertos && (
             <DetalhesCasa
               key={`detalhes-${casa.id}`}
@@ -298,6 +269,35 @@ export default function HomeScreen() {
               casa={casa}
               usuarioId={usuarioId}
             />
+          )}
+
+          {casa && (
+            <View
+              style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
+            >
+              <View style={styles.shoppingCopy}>
+                <Text style={styles.shoppingEyebrow}>ORGANIZAÇÃO DA CASA</Text>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>
+                  LISTAS DE COMPRAS
+                </Text>
+                <Text style={styles.body}>
+                  Crie listas com os moradores e marque o que já foi comprado.
+                </Text>
+              </View>
+              <Link href="/lista-compras" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir listas de compras"
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    styles.primaryButton,
+                  ])}
+                >
+                  <ShoppingBasket color={Caldera.obsidian} size={18} />
+                  <Text style={styles.buttonText}>Abrir listas de compras</Text>
+                </MotionPressable>
+              </Link>
+            </View>
           )}
 
           <View style={[styles.card, telaPequena && styles.cardSmall]}>
