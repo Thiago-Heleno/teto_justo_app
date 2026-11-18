@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headingCopy: { flexShrink: 1, gap: Spacing.two },
-  eyebrow: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
+  eyebrow: { color: Caldera.obsidian, fontSize: 14, fontWeight: "500" },
   title: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
