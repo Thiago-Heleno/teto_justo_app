@@ -136,13 +136,8 @@ export default function HomeScreen() {
         <View style={styles.content}>
           <View style={[styles.hero, telaPequena && styles.heroSmall]}>
             <View style={styles.heroCopy}>
-              <Text style={styles.eyebrow}>TETO JUSTO · CASA ATIVA</Text>
-              <Text
-                accessibilityRole="header"
-                style={[styles.title, telaPequena && styles.titleSmall]}
-              >
-                SUA CASA
-              </Text>
+              <Text style={styles.eyebrow}>THIAGO</Text>
+              
               <Text style={styles.description}>
                 Acompanhe as tarefas da casa e a contribuição de cada morador.
               </Text>
