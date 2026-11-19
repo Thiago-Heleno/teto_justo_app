@@ -12,6 +12,7 @@ Aplicam-se a todo o repositório.
 
 ## Testes e validação
 
+- Siga TDD (*red-green-refactor*): em toda nova funcionalidade, mudança de comportamento ou correção de bug, escreva primeiro o teste que falha (*red*), implemente o mínimo para fazê-lo passar (*green*) e refatore mantendo os testes verdes.
 - Teste comportamento observável e relevante, um teste por comportamento. Testes tautológicos e testes feitos só para subir a cobertura ficam de fora.
 - Nomeie cada teste pelo que ele de fato exercita: um teste com banco falso é teste de unidade, não de integração.
 - Valide em proporção ao risco da mudança e relate apenas o que foi executado, com o resultado real.

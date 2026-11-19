@@ -51,3 +51,4 @@ jobs:
           tests/test_casa_integracao.py
           tests/test_pertencer_integracao.py
           tests/test_rotatividade_integracao.py
+          tests/test_lista_integracao.py

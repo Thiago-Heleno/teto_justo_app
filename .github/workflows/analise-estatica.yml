@@ -58,6 +58,9 @@ jobs:
     - name: Linter e SAST (Regras de Segurança)
       run: npm run lint
 
+    - name: Verificação de tipos (TypeScript)
+      run: npx tsc --noEmit
+
     - name: Auditoria de Dependências Hackeadas (SCA)
       run: npm run sast:audit 
       continue-on-error: true # Ignora o erro e deixa o PR ser aprovado

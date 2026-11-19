@@ -22,8 +22,9 @@ Expor o CRUD de listas de compras e de itens, conforme as migrations `docs/migra
 - Itens são apagados junto com a lista pelo `ON DELETE CASCADE` da migration.
 
 ## Validação
-- O app importa e o OpenAPI lista as 7 rotas de path. Nada além disso foi executado.
+- O app importa e o OpenAPI lista as 7 rotas de path.
+- Adicionados testes unitários em `src/backend/tests/test_lista_unitario.py` (banco em memória; 8 casos aprovados) e teste de integração em `src/backend/tests/test_lista_integracao.py` (integrado ao `.github/workflows/backend-pytest.yml`, pendente de execução contra Supabase no CI).
 
 ## Pendências
-- Sem testes automatizados.
+- Executar `test_lista_integracao.py` contra o Supabase de teste no CI.
 - Não há rota para buscar lista ou item individual por ID.
