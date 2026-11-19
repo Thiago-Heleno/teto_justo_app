@@ -720,7 +720,7 @@ export default function TarefasScreen() {
                 )}
                 style={styles.resultCount}
               >
-                Exibindo {tarefasVisiveis.length} de {tarefasFiltradas.length}{" "}
+                Exibindo {tarefasVisiveis.length} de {" "}{tarefasFiltradas.length + 1}
                 resultados
               </Animated.Text>
             </View>
