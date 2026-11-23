@@ -133,7 +133,7 @@ export default function RegrasCasaScreen() {
   const [observacaoMulta, setObservacaoMulta] = useState("");
 
   const usuarioId =
-    resultadoUsuario?.casaId === casaId
+    resultadoUsuario && resultadoUsuario.casaId === casaId
       ? resultadoUsuario.usuarioId
       : undefined;
   const administrador = Boolean(casa && usuarioId === casa.fk_usuario_id);
@@ -342,7 +342,9 @@ export default function RegrasCasaScreen() {
       }
       const centavos = valorParaCentavos(valorRegra);
       if (centavos === null) {
-        setErroAcao("Informe um valor de multa válido maior que zero (ex.: 25,00).");
+        setErroAcao(
+          "Informe um valor de multa válido maior que zero (ex.: 25,00).",
+        );
         return;
       }
       void executar(
@@ -494,10 +496,14 @@ export default function RegrasCasaScreen() {
             </Text>
           )}
 
-          <View style={[styles.summaryRow, compacto && styles.summaryRowCompact]}>
+          <View
+            style={[styles.summaryRow, compacto && styles.summaryRowCompact]}
+          >
             <View style={[styles.statCard, compacto && styles.cardSmall]}>
               <Text style={styles.statLabel}>TOTAL PENDENTE DA CASA</Text>
-              <Text style={[styles.statValue, compacto && styles.statValueSmall]}>
+              <Text
+                style={[styles.statValue, compacto && styles.statValueSmall]}
+              >
                 {formatarCentavos(resumo.totalPendenteCentavos)}
               </Text>
               <Text style={styles.statCaption}>
@@ -505,7 +511,13 @@ export default function RegrasCasaScreen() {
                 {formatarCentavos(resumo.totalPagoCentavos)} quitado(s)
               </Text>
             </View>
-            <View style={[styles.card, styles.summaryCard, compacto && styles.cardSmall]}>
+            <View
+              style={[
+                styles.card,
+                styles.summaryCard,
+                compacto && styles.cardSmall,
+              ]}
+            >
               <Text style={styles.eyebrow}>SUAS PENDÊNCIAS</Text>
               <Text style={styles.sectionValue}>
                 {formatarCentavos(resumo.minhasPendentesCentavos)}
@@ -587,7 +599,9 @@ export default function RegrasCasaScreen() {
 
               {regras?.length === 0 && (
                 <View style={[styles.card, compacto && styles.cardSmall]}>
-                  <Text style={styles.sectionTitle}>NENHUMA REGRA CADASTRADA</Text>
+                  <Text style={styles.sectionTitle}>
+                    NENHUMA REGRA CADASTRADA
+                  </Text>
                   <Text style={styles.body}>
                     {administrador
                       ? "Cadastre a primeira regra com multa para organizar os combinados da casa."
@@ -756,7 +770,8 @@ export default function RegrasCasaScreen() {
               {multasFiltradas.map((multa) => {
                 const multado = moradoresPorId.get(multa.fk_usuario_multado_id);
                 const nomeMultado = multado?.nome ?? "Morador";
-                const ehUsuarioAtual = multa.fk_usuario_multado_id === usuarioId;
+                const ehUsuarioAtual =
+                  multa.fk_usuario_multado_id === usuarioId;
 
                 return (
                   <View
@@ -803,7 +818,9 @@ export default function RegrasCasaScreen() {
                       )}
                     </View>
 
-                    <Text style={styles.cardHeadline}>{multa.titulo_regra}</Text>
+                    <Text style={styles.cardHeadline}>
+                      {multa.titulo_regra}
+                    </Text>
                     {multa.observacao && (
                       <Text style={styles.body}>{multa.observacao}</Text>
                     )}

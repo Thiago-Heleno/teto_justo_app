@@ -306,7 +306,9 @@ export default function HomeScreen() {
               style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
             >
               <View style={styles.shoppingCopy}>
-                <Text style={styles.shoppingEyebrow}>CONVIVÊNCIA E ACORDOS</Text>
+                <Text style={styles.shoppingEyebrow}>
+                  CONVIVÊNCIA E ACORDOS
+                </Text>
                 <Text accessibilityRole="header" style={styles.sectionTitle}>
                   REGRAS E MULTAS
                 </Text>

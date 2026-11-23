@@ -104,9 +104,13 @@ export function aplicarMultaCasa(dados: MultaCasaCriar) {
 }
 
 export function definirMultaPaga(multaId: string, paga: boolean) {
-  return requisitar<MultaCasa>(`/regras-casa/multas/${multaId}/pagar`, undefined, {
-    method: paga ? "POST" : "DELETE",
-  });
+  return requisitar<MultaCasa>(
+    `/regras-casa/multas/${multaId}/pagar`,
+    undefined,
+    {
+      method: paga ? "POST" : "DELETE",
+    },
+  );
 }
 
 export function excluirMultaCasa(multaId: string) {

@@ -10,11 +10,17 @@ const formatadorBrl = new Intl.NumberFormat("pt-BR", {
 
 export function valorParaCentavos(texto: string): number | null {
   const semPrefixo = texto.trim().replace(/^R\$\s*/i, "");
-  const correspondencia = /^(\d+)(?:[.,](\d{1,2}))?$/.exec(semPrefixo);
-  if (!correspondencia) return null;
+  const partes = semPrefixo.split(/[.,]/);
+  if (
+    partes.length > 2 ||
+    !/^\d+$/.test(partes[0]) ||
+    (partes[1] !== undefined && !/^\d{1,2}$/.test(partes[1]))
+  ) {
+    return null;
+  }
 
-  const reais = Number(correspondencia[1]);
-  const centavos = Number((correspondencia[2] ?? "").padEnd(2, "0"));
+  const reais = Number(partes[0]);
+  const centavos = Number((partes[1] ?? "").padEnd(2, "0"));
   const total = reais * 100 + centavos;
   return Number.isSafeInteger(total) && total > 0 && total <= MAX_INT4
     ? total
