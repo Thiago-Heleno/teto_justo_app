@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
@@ -17,9 +17,11 @@ from schemas.casa import (
     MoradorResposta,
 )
 from schemas.score import (
+    DesempenhoScoreResposta,
     ExtratoScoreResposta,
     FiltroExtratoScore,
     FiltroPeriodoScore,
+    PeriodoDesempenho,
     RankingScoreResposta,
     SaldoScoreResposta,
 )
@@ -171,6 +173,30 @@ def obter_placar(
     ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
     servico = ServicoPlacar(supabase)
     return servico.obter_placar(id_casa)
+
+
+@router.get(
+    "/{id_casa}/desempenho",
+    response_model=DesempenhoScoreResposta,
+    responses={403: ERRO_403, 404: ERRO_404},
+    summary="Comparar o desempenho diário dos moradores ativos",
+    description=(
+        "Recalcula créditos e estornos a cada consulta, até o instante atualizado_em. "
+        "Janelas do calendário no fuso da casa: semana desde domingo, mês desde o dia 1 "
+        "e semestre desde janeiro ou julho. Inclui dias sem pontos e moradores sem eventos. "
+        "O acumulado começa em zero em cada janela."
+    ),
+)
+def obter_desempenho(
+    id_casa: UUID,
+    usuario_atual: UsuarioAtual,
+    response: Response,
+    periodo: Annotated[PeriodoDesempenho, Query(description="Janela de comparação.")] = "semanal",
+    supabase=Depends(get_supabase),
+):
+    ServicoAutorizacaoCasa(supabase).garantir_acesso(id_casa, usuario_atual.id)
+    response.headers["Cache-Control"] = "no-store"
+    return ServicoPlacar(supabase).obter_desempenho(id_casa, periodo)
 
 
 @router.get("/{id_casa}/saldo", response_model=SaldoScoreResposta)
