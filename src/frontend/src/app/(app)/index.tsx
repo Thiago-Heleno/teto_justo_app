@@ -7,6 +7,7 @@ import {
   ShoppingBasket,
   LogOut,
   Repeat,
+  ScrollText,
   Settings,
   UserMinus,
 } from "lucide-react-native";
@@ -295,6 +296,36 @@ export default function HomeScreen() {
                 >
                   <ShoppingBasket color={Caldera.obsidian} size={18} />
                   <Text style={styles.buttonText}>Abrir listas de compras</Text>
+                </MotionPressable>
+              </Link>
+            </View>
+          )}
+
+          {casa && (
+            <View
+              style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
+            >
+              <View style={styles.shoppingCopy}>
+                <Text style={styles.shoppingEyebrow}>CONVIVÊNCIA E ACORDOS</Text>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>
+                  REGRAS E MULTAS
+                </Text>
+                <Text style={styles.body}>
+                  Consulte as regras da casa, valores de multa e pendências de
+                  pagamento.
+                </Text>
+              </View>
+              <Link href="/regras-casa" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir regras e multas"
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    styles.primaryButton,
+                  ])}
+                >
+                  <ScrollText color={Caldera.obsidian} size={18} />
+                  <Text style={styles.buttonText}>Abrir regras e multas</Text>
                 </MotionPressable>
               </Link>
             </View>

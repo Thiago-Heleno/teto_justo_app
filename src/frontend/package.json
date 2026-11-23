@@ -60,7 +60,8 @@
     "test:gerenciamento": "node --experimental-test-module-mocks --test scripts/gerenciamento-api.test.mjs",
     "test:casas": "node --experimental-test-module-mocks --test scripts/casas.test.mjs",
     "reset-project": "node ./scripts/reset-project.js",
-    "test:compras": "node --experimental-strip-types --experimental-test-module-mocks --test scripts/lista-compras-api.test.mjs"
+    "test:compras": "node --experimental-strip-types --experimental-test-module-mocks --test scripts/lista-compras-api.test.mjs",
+    "test:regras": "node --experimental-strip-types --experimental-test-module-mocks --test scripts/regras-casa-api.test.mjs"
   },
   "private": true,
   "allowScripts": {

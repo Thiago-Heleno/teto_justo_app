@@ -260,6 +260,9 @@ export default function GerenciarCasaScreen() {
             <Link href="/rotatividades" style={styles.text}>
               Ver regras de rodízio →
             </Link>
+            <Link href="/regras-casa" style={styles.text}>
+              Ver regras da casa e multas →
+            </Link>
             {g.admin && (
               <Acao
                 texto="Excluir casa"
