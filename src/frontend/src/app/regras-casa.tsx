@@ -445,9 +445,6 @@ export default function RegrasCasaScreen() {
 
           <View style={styles.heading}>
             <View style={styles.headingCopy}>
-              <Text style={styles.eyebrow}>
-                TETO JUSTO · {casa?.nome ?? "CASA"}
-              </Text>
               <Text
                 accessibilityRole="header"
                 style={[styles.title, compacto && styles.titleSmall]}
