@@ -308,7 +308,6 @@ export default function NovaTarefaScreen() {
         >
           <View style={styles.form}>
             <View style={styles.section}>
-              <Text style={styles.help}>{casa?.nome ?? "Sua casa"}</Text>
               <Text accessibilityRole="header" style={styles.title}>
                 {resumo?.pendente
                   ? "CONFIRA A TAREFA"
@@ -318,14 +317,12 @@ export default function NovaTarefaScreen() {
                       : "TAREFA CRIADA!"
                     : "NOVA TAREFA"}
               </Text>
+              <Text style={styles.houseName}>{casa?.nome ?? "Sua casa"}</Text>
               <Text style={styles.body}>
                 {tarefa
                   ? "Confira os detalhes abaixo."
                   : "Organize o que precisa ser feito na casa."}
               </Text>
-              <View style={styles.badge}>
-                <Text style={styles.help}>Tarefas da sua casa</Text>
-              </View>
               {rotativa && !tarefa && (
                 <Text style={styles.help}>
                   Configure o rodízio e distribua ocorrências automaticamente.
@@ -505,9 +502,9 @@ export default function NovaTarefaScreen() {
                   <View style={styles.section}>
                     <Text
                       accessibilityRole="header"
-                      style={styles.sectionTitle}
+                      style={[styles.sectionTitle, styles.detailsTitle]}
                     >
-                      OS DETALHES
+                      DETALHES
                     </Text>
                     <Text style={styles.help}>
                       Campos com * são obrigatórios.
@@ -1130,6 +1127,14 @@ const styles = StyleSheet.create({
     lineHeight: 56,
     letterSpacing: 0.96,
   },
+  houseName: {
+    color: Caldera.ember,
+    fontFamily: CompactFont,
+    fontSize: 32,
+    lineHeight: 40,
+    letterSpacing: 0.64,
+  },
+  detailsTitle: { fontSize: 32, lineHeight: 40, letterSpacing: 0.64 },
   sectionTitle: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
@@ -1160,13 +1165,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "700",
-  },
-  badge: {
-    alignSelf: "flex-start",
-    backgroundColor: Caldera.sulfur,
-    borderRadius: 800,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
   },
   card: {
     backgroundColor: Caldera.limestone,

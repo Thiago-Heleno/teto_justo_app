@@ -137,12 +137,11 @@ export default function HomeScreen() {
         <View style={styles.content}>
           <View style={[styles.hero, telaPequena && styles.heroSmall]}>
             <View style={styles.heroCopy}>
-              <Text style={styles.eyebrow}>TETO JUSTO · CASA ATIVA</Text>
               <Text
                 accessibilityRole="header"
                 style={[styles.title, telaPequena && styles.titleSmall]}
               >
-                SUA CASA
+                TETO JUSTO
               </Text>
               <Text style={styles.description}>
                 Acompanhe as tarefas da casa e a contribuição de cada morador.
@@ -197,20 +196,6 @@ export default function HomeScreen() {
                   <Text style={styles.buttonText}>Ver tarefas</Text>
                 </MotionPressable>
               </Link>
-              <Link href="/gerenciar-casa" asChild>
-                <MotionPressable
-                  accessibilityRole="button"
-                  disabled={ocupado}
-                  accessibilityState={{ disabled: ocupado }}
-                  style={StyleSheet.flatten([
-                    styles.button,
-                    ocupado && styles.disabled,
-                  ])}
-                >
-                  <Settings color={Caldera.obsidian} size={18} />
-                  <Text style={styles.buttonText}>Gerenciar casa</Text>
-                </MotionPressable>
-              </Link>
               <Link href="/rotatividades" asChild>
                 <MotionPressable
                   accessibilityRole="button"
@@ -235,6 +220,20 @@ export default function HomeScreen() {
                   <Text style={styles.buttonText}>Detalhes da casa</Text>
                 </MotionPressable>
               )}
+              <Link href="/gerenciar-casa" asChild>
+                <MotionPressable
+                  accessibilityRole="button"
+                  disabled={ocupado}
+                  accessibilityState={{ disabled: ocupado }}
+                  style={StyleSheet.flatten([
+                    styles.button,
+                    ocupado && styles.disabled,
+                  ])}
+                >
+                  <Settings color={Caldera.obsidian} size={18} />
+                  <Text style={styles.buttonText}>Gerenciar casa</Text>
+                </MotionPressable>
+              </Link>
               {casa && usuarioId && !ocupado && (
                 <ConvidarMorador casa={casa} usuarioId={usuarioId} />
               )}
@@ -277,7 +276,6 @@ export default function HomeScreen() {
               style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
             >
               <View style={styles.shoppingCopy}>
-                <Text style={styles.shoppingEyebrow}>ORGANIZAÇÃO DA CASA</Text>
                 <Text accessibilityRole="header" style={styles.sectionTitle}>
                   LISTAS DE COMPRAS
                 </Text>
@@ -306,9 +304,6 @@ export default function HomeScreen() {
               style={[styles.shoppingCard, telaPequena && styles.cardSmall]}
             >
               <View style={styles.shoppingCopy}>
-                <Text style={styles.shoppingEyebrow}>
-                  CONVIVÊNCIA E ACORDOS
-                </Text>
                 <Text accessibilityRole="header" style={styles.sectionTitle}>
                   REGRAS E MULTAS
                 </Text>
@@ -461,7 +456,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.three,
   },
-  eyebrow: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
   title: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
@@ -521,7 +515,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   shoppingCopy: { gap: Spacing.two },
-  shoppingEyebrow: { color: Caldera.ember, fontSize: 14, fontWeight: "500" },
   sectionTitle: {
     color: Caldera.obsidian,
     fontFamily: CompactFont,
