@@ -2,7 +2,17 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import casa, jobs, lista, pertencer, rotatividade, sessao, tarefa, usuario
+from routers import (
+    casa,
+    jobs,
+    lista,
+    pertencer,
+    regra_casa,
+    rotatividade,
+    sessao,
+    tarefa,
+    usuario,
+)
 
 app = FastAPI(title="Teto Justo API")
 
@@ -28,6 +38,7 @@ app.include_router(casa.router)
 app.include_router(sessao.router)
 app.include_router(pertencer.router)
 app.include_router(lista.router)
+app.include_router(regra_casa.router)
 
 
 @app.get("/health")
