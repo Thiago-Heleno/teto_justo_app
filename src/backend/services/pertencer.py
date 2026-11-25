@@ -1,5 +1,9 @@
 from uuid import UUID
+
+import httpx
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
+
 from schemas.pertencer import PertencerCriar
 from services.autorizacao import ServicoAutorizacaoCasa, papel_na_casa
 
@@ -130,27 +134,56 @@ class ServicoPertencer:
         if ids_tarefas:
             tarefas_abertas = (
                 self.supabase.table("tarefa")
-                .select("id,rotatividade_id")
+                .select("id,rotatividade_id,roleta_expira_em")
                 .in_("id", ids_tarefas)
                 .eq("fk_casa_id", str(fk_casa_id))
                 .in_("estado_atual", ["pendente", "atrasada"])
                 .execute()
             ).data
-        if any(tarefa.get("rotatividade_id") is None for tarefa in tarefas_abertas):
+        if any(
+            tarefa.get("rotatividade_id") is None or tarefa.get("roleta_expira_em") is not None
+            for tarefa in tarefas_abertas
+        ):
             raise HTTPException(
                 status_code=409,
                 detail="O morador possui tarefas abertas nesta casa.",
             )
         # Tarefas abertas de rodízio saem junto; o job recria as futuras sem o morador.
-        ids_rotatividades = [
-            registro["id"]
-            for registro in (
-                self.supabase.table("rotatividade")
-                .select("id")
-                .eq("fk_casa_id", str(fk_casa_id))
-                .execute()
-            ).data
-        ]
+        rotatividades = (
+            self.supabase.table("rotatividade")
+            .select("id,usar_roleta")
+            .eq("fk_casa_id", str(fk_casa_id))
+            .execute()
+        ).data
+        com_roleta = any(registro.get("usar_roleta") for registro in rotatividades)
+        if com_roleta:
+            # A FK decide a corrida entre o giro e a saída antes de remover participações.
+            self._desativar_vinculo(fk_usuario_id, fk_casa_id)
+        try:
+            self._limpar_rodizios_apos_saida(fk_usuario_id, rotatividades, tarefas_abertas)
+        except (APIError, httpx.RequestError):
+            if com_roleta:
+                (
+                    self.supabase.table("pertencer")
+                    .update({"ativo": True})
+                    .eq("fk_usuario_id", str(fk_usuario_id))
+                    .eq("fk_casa_id", str(fk_casa_id))
+                    .eq("ativo", False)
+                    .execute()
+                )
+            raise
+        if not com_roleta:
+            self._desativar_vinculo(fk_usuario_id, fk_casa_id)
+        self.supabase.table("casa").update({"rotacao_versao": casa[0]["rotacao_versao"] + 1}).eq(
+            "id", str(fk_casa_id)
+        ).execute()
+
+        return True
+
+    def _limpar_rodizios_apos_saida(
+        self, fk_usuario_id: UUID, rotatividades: list[dict], tarefas_abertas: list[dict]
+    ) -> None:
+        ids_rotatividades = [registro["id"] for registro in rotatividades]
         if ids_rotatividades:
             (
                 self.supabase.table("rotatividade_participante")
@@ -166,18 +199,22 @@ class ServicoPertencer:
                 .in_("id", [tarefa["id"] for tarefa in tarefas_abertas])
                 .execute()
             )
-        resposta = (
-            self.supabase.table("pertencer")
-            .update({"ativo": False})
-            .eq("fk_usuario_id", str(fk_usuario_id))
-            .eq("fk_casa_id", str(fk_casa_id))
-            .eq("ativo", True)
-            .execute()
-        )
+
+    def _desativar_vinculo(self, fk_usuario_id: UUID, fk_casa_id: UUID) -> None:
+        try:
+            resposta = (
+                self.supabase.table("pertencer")
+                .update({"ativo": False})
+                .eq("fk_usuario_id", str(fk_usuario_id))
+                .eq("fk_casa_id", str(fk_casa_id))
+                .eq("ativo", True)
+                .execute()
+            )
+        except APIError as erro:
+            if erro.code == "23503":
+                raise HTTPException(
+                    status_code=409, detail="O morador possui tarefas abertas nesta casa."
+                ) from erro
+            raise
         if not resposta.data:
             raise HTTPException(status_code=404, detail="Vínculo não encontrado ou já deletado.")
-        self.supabase.table("casa").update({"rotacao_versao": casa[0]["rotacao_versao"] + 1}).eq(
-            "id", str(fk_casa_id)
-        ).execute()
-
-        return True

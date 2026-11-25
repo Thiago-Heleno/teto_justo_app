@@ -19,6 +19,20 @@ ModoPrazo = Literal["dia_fixo", "intervalo"]
 ModoAtribuicao = Literal["manual", "aleatorio"]
 
 
+class RoletaOcorrencia(BaseModel):
+    abre_em: datetime
+    expira_em: datetime
+    estado: Literal["agendada", "aberta", "expirada", "atribuindo", "atribuida"]
+    responsavel_id: UUID | None = None
+    origem: Literal["giro", "balanceamento"] | None = None
+    atribuida_em: datetime | None = None
+
+
+class RoletaOcorrenciaDetalhe(RoletaOcorrencia):
+    candidatos: list[UUID]
+    pode_girar: bool
+
+
 class TarefaCriar(BaseModel):
     nome: str = Field(min_length=1)
     descricao: str | None = None
@@ -102,6 +116,7 @@ class TarefaResposta(BaseModel):
     usuarios_atribuidos: list[UUID] = Field(
         default_factory=list, description="Responsáveis (donos) atribuídos à tarefa."
     )
+    roleta: RoletaOcorrencia | None = None
     fk_usuario_id: UUID = Field(description="ID do criador da tarefa.")
     politica_reclamacao: PoliticaReclamacao
     reclamacoes_count: int = Field(ge=0)

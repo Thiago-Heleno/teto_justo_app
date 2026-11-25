@@ -20,7 +20,10 @@ class ServicoPenalidade:
         while True:
             pagina = (
                 self.supabase.table("tarefa")
-                .select("id,fk_casa_id,estado_atual,data_fim,atraso_maximo")
+                .select(
+                    "id,fk_casa_id,estado_atual,data_fim,atraso_maximo,"
+                    "roleta_expira_em,roleta_atribuida_em"
+                )
                 .in_("estado_atual", ESTADOS_ABERTOS)
                 .order("id")
                 .range(inicio, inicio + self.TAMANHO_PAGINA - 1)

@@ -568,6 +568,7 @@ def test_saida_bloqueada_preserva_vinculo(ambiente, bloqueio):
                 "fk_casa_id": str(alvo),
                 "estado_atual": "pendente",
                 "rotatividade_id": None,
+                "roleta_expira_em": None,
             }
         )
     antes = deepcopy(banco.registros["pertencer"])

@@ -220,6 +220,30 @@ class BancoFalso:
         raise AssertionError("O serviço não deve chamar funções do banco.")
 
 
+def test_janela_da_roleta_tem_24_horas_reais_ao_atravessar_mudanca_de_fuso():
+    banco = BancoFalso()
+    configuracao = {
+        "id": str(uuid4()),
+        "fk_casa_id": str(uuid4()),
+        "fk_usuario_id": str(uuid4()),
+        "timezone": "America/New_York",
+        "nome": "Limpar cozinha",
+        "dificuldade": 2,
+        "pontuacao": 25,
+        "prazo_dias": 1,
+        "atraso_maximo": 1,
+        "modo_prazo": "dia_fixo",
+        "usar_roleta": True,
+        "criado_em": "2026-03-01T16:00:00+00:00",
+    }
+    ServicoAgendamentoRotatividade(banco)._registrar_ocorrencia(configuracao, date(2026, 3, 8), ())
+
+    tarefa = banco.registros["tarefa"][0]
+    assert tarefa["ocorrencia_em"] == "2026-03-08T05:00:00+00:00"
+    assert tarefa["roleta_expira_em"] == "2026-03-09T05:00:00+00:00"
+    assert banco.registros["atribuida"] == []
+
+
 @pytest.mark.parametrize("vinculo", ["ausente", "inativo"])
 def test_administrador_sem_vinculo_ativo_nao_e_elegivel_para_rodizio(vinculo):
     banco = BancoFalso()

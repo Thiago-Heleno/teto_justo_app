@@ -12,8 +12,10 @@ from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.rotatividade import RotatividadeAtualizar, RotatividadeCriar
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.ciclo_vida_tarefa import instante_utc, janela_dia_fixo
+from services.roleta_rotatividade import JANELA_ROLETA, ServicoRoletaRotatividade, resumir_roleta
 from services.rotatividade import TarefaDistribuicao, distribuir_tarefas
 from services.score import ServicoScore
+from services.tarefa import sortear_responsavel
 
 _LOGGER = logging.getLogger(__name__)
 _TAMANHO_PAGINA = 500
@@ -42,8 +44,9 @@ def data_local_ocorrencia(valor: str, fuso: ZoneInfo) -> date:
 
 
 class ServicoAgendamentoRotatividade:
-    def __init__(self, supabase):
+    def __init__(self, supabase, tarefas_fundo=None):
         self.supabase = supabase
+        self.roleta = ServicoRoletaRotatividade(supabase, tarefas_fundo)
 
     def criar_rotatividade(
         self,
@@ -59,6 +62,12 @@ class ServicoAgendamentoRotatividade:
             dados.fk_casa_id,
             dados.participantes,
         )
+        if dados.usar_roleta:
+            ativos = self._moradores_ativos(dados.fk_casa_id)
+            if len(ativos.intersection(map(str, dados.participantes))) < 2:
+                raise HTTPException(
+                    status_code=422, detail="A roleta exige pelo menos dois participantes ativos."
+                )
         resposta_casa = (
             self.supabase.table("casa").select("timezone").eq("id", str(dados.fk_casa_id)).execute()
         )
@@ -82,6 +91,8 @@ class ServicoAgendamentoRotatividade:
             "intervalo_semanas": dados.intervalo_semanas,
             "semana_ancora": agora_local.date().isoformat(),
         }
+        if dados.usar_roleta:
+            payload.update(usar_roleta=True, criado_em=agora_local.isoformat())
         resposta = self.supabase.table("rotatividade").insert(payload).execute()
         if not resposta.data:
             raise HTTPException(
@@ -287,19 +298,7 @@ class ServicoAgendamentoRotatividade:
         if atribuicoes_existentes:
             return
 
-        totais = self._pontuacao_anterior(str(configuracao["id"]), membros)
-        distribuicao = distribuir_tarefas(
-            [
-                TarefaDistribuicao(
-                    id=UUID(str(tarefa["id"])),
-                    pontuacao_potencial=tarefa["pontuacao"],
-                    usuarios_elegiveis=membros,
-                )
-            ],
-            membros,
-            totais,
-        )
-        usuario_id = distribuicao.atribuicoes[0].usuario_id
+        usuario_id = self._balancear_ocorrencia(tarefa, configuracao, membros)
         try:
             self.supabase.table("atribuida").insert(
                 {
@@ -319,7 +318,34 @@ class ServicoAgendamentoRotatividade:
             if not atribuicoes_existentes:
                 raise
 
-    def _membros_elegiveis(self, configuracao: dict) -> tuple[UUID, ...]:
+    def _balancear_ocorrencia(
+        self, tarefa: dict, configuracao: dict, membros: tuple[UUID, ...]
+    ) -> UUID:
+        totais = self._pontuacao_anterior(str(configuracao["id"]), membros)
+        distribuicao = distribuir_tarefas(
+            [
+                TarefaDistribuicao(
+                    id=UUID(str(tarefa["id"])),
+                    pontuacao_potencial=tarefa["pontuacao"],
+                    usuarios_elegiveis=membros,
+                )
+            ],
+            membros,
+            totais,
+        )
+        return distribuicao.atribuicoes[0].usuario_id
+
+    def _moradores_ativos(self, id_casa: UUID | str) -> set[str]:
+        vinculos = (
+            self.supabase.table("pertencer")
+            .select("fk_usuario_id")
+            .eq("fk_casa_id", str(id_casa))
+            .eq("ativo", True)
+            .execute()
+        ).data
+        return {str(vinculo["fk_usuario_id"]) for vinculo in vinculos}
+
+    def _membros_elegiveis(self, configuracao: dict, *, exigir: bool = True) -> tuple[UUID, ...]:
         participantes = (
             self.supabase.table("rotatividade_participante")
             .select("fk_usuario_id,ordem")
@@ -327,25 +353,49 @@ class ServicoAgendamentoRotatividade:
             .order("ordem")
             .execute()
         ).data
-        vinculos = (
-            self.supabase.table("pertencer")
-            .select("fk_usuario_id")
-            .eq("fk_casa_id", str(configuracao["fk_casa_id"]))
-            .eq("ativo", True)
-            .execute()
-        ).data
-        membros_da_casa = {str(vinculo["fk_usuario_id"]) for vinculo in vinculos}
+        membros_da_casa = self._moradores_ativos(configuracao["fk_casa_id"])
         membros = tuple(
             UUID(str(participante["fk_usuario_id"]))
             for participante in participantes
             if str(participante["fk_usuario_id"]) in membros_da_casa
         )
-        if not membros:
+        if exigir and not membros:
             raise HTTPException(
                 status_code=409,
                 detail="O rodízio não possui participantes vinculados à casa.",
             )
         return membros
+
+    def _consultar_roleta(self, id_tarefa: UUID, id_usuario: UUID) -> tuple[dict, list[str]]:
+        tarefa = self.roleta.buscar_tarefa(str(id_tarefa))
+        ServicoAutorizacaoCasa(self.supabase).garantir_acesso(tarefa["fk_casa_id"], id_usuario)
+        if tarefa.get("roleta_expira_em") is None:
+            raise HTTPException(status_code=409, detail="A tarefa não usa a roleta do rodízio.")
+        candidatos = self._membros_elegiveis(
+            {"id": tarefa["rotatividade_id"], "fk_casa_id": tarefa["fk_casa_id"]}, exigir=False
+        )
+        return tarefa, [str(candidato) for candidato in candidatos]
+
+    def consultar_roleta(self, id_tarefa: UUID, id_usuario: UUID) -> dict:
+        tarefa, candidatos = self._consultar_roleta(id_tarefa, id_usuario)
+        resumo = resumir_roleta(tarefa, datetime.now(timezone.utc))
+        return {
+            **resumo,
+            "candidatos": candidatos,
+            "pode_girar": str(id_usuario) in candidatos and resumo["estado"] == "aberta",
+        }
+
+    def girar_roleta(self, id_tarefa: UUID, id_usuario: UUID) -> dict:
+        tarefa, candidatos = self._consultar_roleta(id_tarefa, id_usuario)
+        if str(id_usuario) not in candidatos:
+            raise HTTPException(status_code=403, detail="Apenas participantes ativos podem girar.")
+        agora = datetime.now(timezone.utc)
+        if not tarefa.get("roleta_responsavel_id"):
+            if resumir_roleta(tarefa, agora)["estado"] != "aberta":
+                raise HTTPException(status_code=409, detail="A roleta está fora da janela de giro.")
+            tarefa = self.roleta.decidir(tarefa, sortear_responsavel(candidatos), "giro", agora)
+        atribuida = self.roleta.atribuir(tarefa)
+        return {**resumir_roleta(atribuida, agora), "candidatos": candidatos, "pode_girar": False}
 
     def _registrar_ocorrencia(
         self,
@@ -390,6 +440,9 @@ class ServicoAgendamentoRotatividade:
                 "ocorrencia_em": ocorrencia_em,
                 "timezone": configuracao["timezone"],
             }
+            if configuracao.get("usar_roleta"):
+                abre_em = max(data_inicio, instante_utc(configuracao["criado_em"]))
+                registro["roleta_expira_em"] = (abre_em + JANELA_ROLETA).isoformat()
             try:
                 resposta = self.supabase.table("tarefa").insert(registro).execute()
             except APIError as erro:
@@ -417,7 +470,8 @@ class ServicoAgendamentoRotatividade:
                     status_code=500,
                     detail="Não foi possível localizar a ocorrência criada.",
                 )
-        self._garantir_atribuicao(tarefa, configuracao, membros)
+        if not configuracao.get("usar_roleta"):
+            self._garantir_atribuicao(tarefa, configuracao, membros)
 
     def processar_ocorrencias(self, agora: datetime | None = None) -> dict[str, int]:
         if not _LOCK_PROCESSAMENTO.acquire(blocking=False):
@@ -458,11 +512,12 @@ class ServicoAgendamentoRotatividade:
         try:
             membros = self._membros_elegiveis(configuracao)
         except HTTPException:
-            try:
-                self._apagar_rotatividade(configuracao["id"])
-            except HTTPException:
-                # Tem tarefas já pontuadas: _apagar_rotatividade já a deixou pausada.
-                pass
+            if not configuracao.get("usar_roleta"):
+                try:
+                    self._apagar_rotatividade(configuracao["id"])
+                except HTTPException:
+                    # Tem tarefas já pontuadas: _apagar_rotatividade já a deixou pausada.
+                    pass
             return 0
 
         processadas = 0
@@ -471,6 +526,41 @@ class ServicoAgendamentoRotatividade:
             if dia not in datas_existentes:
                 processadas += 1
         return processadas
+
+    def _processar_roletas(self, configuracao: dict, instante: datetime) -> None:
+        filtros = (
+            ("eq", "rotatividade_id", str(configuracao["id"])),
+            ("is_", "roleta_atribuida_em", "null"),
+        )
+        pendentes = {}
+        for campo in ("roleta_expira_em", "roleta_decidida_em"):
+            for tarefa in self._listar(
+                "tarefa", "*", (*filtros, ("lte", campo, instante.isoformat()))
+            ):
+                pendentes[tarefa["id"]] = tarefa
+        if not pendentes:
+            return
+        membros = self._membros_elegiveis(configuracao, exigir=False)
+        avisar_sem_elegiveis = False
+        for tarefa in sorted(
+            pendentes.values(), key=lambda tarefa: instante_utc(tarefa["roleta_expira_em"])
+        ):
+            try:
+                if not tarefa.get("roleta_responsavel_id"):
+                    if not membros:
+                        avisar_sem_elegiveis = True
+                        continue
+                    responsavel = self._balancear_ocorrencia(tarefa, configuracao, membros)
+                    tarefa = self.roleta.decidir(
+                        tarefa, str(responsavel), "balanceamento", instante
+                    )
+                self.roleta.atribuir(tarefa)
+            except Exception:
+                _LOGGER.exception("Falha ao atribuir a ocorrência %s da roleta.", tarefa["id"])
+        if avisar_sem_elegiveis:
+            _LOGGER.warning(
+                "Rodízio %s tem roletas vencidas sem participantes.", configuracao["id"]
+            )
 
     def _processar_ocorrencias(self, agora: datetime | None = None) -> dict[str, int]:
         instante = agora or datetime.now(timezone.utc)
@@ -488,6 +578,11 @@ class ServicoAgendamentoRotatividade:
                 processadas += self._processar_configuracao(configuracao, instante)
             except Exception:
                 _LOGGER.exception("Falha ao processar o rodízio %s", configuracao["id"])
+        for configuracao in self._listar("rotatividade", "*", (("eq", "usar_roleta", True),)):
+            try:
+                self._processar_roletas(configuracao, instante)
+            except Exception:
+                _LOGGER.exception("Falha ao processar as roletas do rodízio %s", configuracao["id"])
         return {
             "rotatividades_analisadas": len(configuracoes),
             "ocorrencias_processadas": processadas,
