@@ -40,15 +40,19 @@ export function prepararEdicaoTarefa(
   moradores: { id: string }[],
 ): { erros: ErrosEdicaoTarefa; dados?: TarefaAtualizar } {
   const erros: ErrosEdicaoTarefa = {};
-  const sortear = formulario.modoAtribuicao === "aleatorio";
+  const atribuicaoPorRoleta = Boolean(tarefaOriginal.roleta);
+  const sortear =
+    !atribuicaoPorRoleta && formulario.modoAtribuicao === "aleatorio";
   const nome = formulario.nome.trim();
-  const usaDiaFixo = tarefaOriginal.modo_prazo === "dia_fixo";
+  const usaDiaFixo =
+    !atribuicaoPorRoleta && tarefaOriginal.modo_prazo === "dia_fixo";
   const dataFixaIso = usaDiaFixo
     ? dataFixaParaIso(formulario.dataFixa)
     : undefined;
 
   if (!nome) erros.nome = "Informe o nome da tarefa.";
   if (
+    !atribuicaoPorRoleta &&
     formulario.prazoDias !== null &&
     ![1, 2, 3, 4, 5].includes(formulario.prazoDias)
   )
@@ -64,7 +68,11 @@ export function prepararEdicaoTarefa(
     !dataFixaIso
   )
     erros.dataFixa = "Informe uma data válida no formato DD-MM-AAAA.";
-  if (!sortear && !moradores.some(({ id }) => id === formulario.responsavel))
+  if (
+    !atribuicaoPorRoleta &&
+    !sortear &&
+    !moradores.some(({ id }) => id === formulario.responsavel)
+  )
     erros.responsavel = "Selecione um responsável desta casa.";
 
   if (Object.keys(erros).length) return { erros };
@@ -75,7 +83,8 @@ export function prepararEdicaoTarefa(
       nome,
       descricao: formulario.descricao.trim(),
       peso: formulario.peso,
-      ...(formulario.prazoDias !== null &&
+      ...(!atribuicaoPorRoleta &&
+      formulario.prazoDias !== null &&
       formulario.prazoDias !== tarefaOriginal.prazo_dias
         ? { prazo_dias: formulario.prazoDias }
         : {}),
@@ -85,9 +94,11 @@ export function prepararEdicaoTarefa(
       ...(dataFixaIso && dataFixaIso !== tarefaOriginal.data_fixa
         ? { data_fixa: dataFixaIso }
         : {}),
-      ...(sortear
-        ? { modo_atribuicao: "aleatorio" }
-        : { usuarios_atribuidos: [formulario.responsavel] }),
+      ...(atribuicaoPorRoleta
+        ? {}
+        : sortear
+          ? { modo_atribuicao: "aleatorio" }
+          : { usuarios_atribuidos: [formulario.responsavel] }),
     },
   };
 }

@@ -2,7 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { explicarPrazoTarefa, prepararTarefa } from "../src/utils/criacao-tarefa.ts";
 import { formatarDataDigitada } from "../src/utils/data-fixa.ts";
-import { anguloGiroRoleta } from "../src/utils/roleta.ts";
+import { anguloGiroRoleta, rotulosRoleta } from "../src/utils/roleta.ts";
+
+test("a roda preserva o primeiro nome e distingue homônimos na legenda", () => {
+  const rotulos = rotulosRoleta([
+    "  João-Pedro Silva",
+    "Ágata Reis",
+    "Ágata Luz",
+  ]);
+  assert.deepEqual(rotulos, [
+    { primeiro: "João-Pedro", legenda: "João-Pedro" },
+    { primeiro: "Ágata", legenda: "Ágata Reis" },
+    { primeiro: "Ágata", legenda: "Ágata Luz" },
+  ]);
+  assert.equal(rotulosRoleta(["Maximiliano Silva"])[0].primeiro, "Maximiliano");
+});
 
 const moradores = [{ id: "ana" }, { id: "bruno" }, { id: "carla" }];
 const formulario = {
@@ -137,6 +151,18 @@ test("rodízio exige dois moradores diferentes da casa", () => {
     assert.ok(resultado.erros.participantes);
     assert.equal(resultado.tarefa, undefined);
   }
+});
+
+test("roleta habilitada segue na configuração do rodízio", () => {
+  const { tarefa, erros } = preparar({
+    rotativa: true,
+    usarRoleta: true,
+    participantes: ["ana", "bruno"],
+    diasSemana: [1],
+  });
+  assert.deepEqual(erros, {});
+  assert.equal(tarefa.rotatividade.usar_roleta, true);
+  assert.equal(preparar({ usarRoleta: true }).tarefa.rotatividade, null);
 });
 
 test("recorrência exige ao menos um dia válido e rejeita dias repetidos", () => {

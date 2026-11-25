@@ -77,6 +77,7 @@ export function FormularioRotatividade({
   const [nome, setNome] = useState(regra?.nome ?? "");
   const [descricao, setDescricao] = useState(regra?.descricao ?? "");
   const [ativa, setAtiva] = useState(regra?.ativa ?? true);
+  const [usarRoleta, setUsarRoleta] = useState(false);
   const [peso, setPeso] = useState(1);
   const [prazo, setPrazo] = useState(1);
   const [atraso, setAtraso] = useState(1);
@@ -116,6 +117,7 @@ export function FormularioRotatividade({
       participantes,
       dias_semana: [...dias].sort((a, b) => a - b),
       intervalo_semanas: intervalo,
+      ...(usarRoleta ? { usar_roleta: true } : {}),
     });
   }
   return (
@@ -143,6 +145,11 @@ export function FormularioRotatividade({
       {regra ? (
         <>
           <Text style={styles.text}>
+            {regra.usar_roleta
+              ? "Atribuição por roleta"
+              : "Atribuição por balanceamento"}
+          </Text>
+          <Text style={styles.text}>
             Nesta versão, a API permite editar nome, descrição e status.
             Calendário e participantes são definidos na criação.
           </Text>
@@ -158,6 +165,15 @@ export function FormularioRotatividade({
         </>
       ) : (
         <>
+          <View style={styles.row}>
+            <Text style={styles.label}>Usar roleta nas ocorrências</Text>
+            <Switch
+              accessibilityLabel="Usar roleta nas ocorrências"
+              value={usarRoleta}
+              onValueChange={setUsarRoleta}
+              disabled={ocupado}
+            />
+          </View>
           <Opcoes
             titulo="Dificuldade (1 = 10, 2 = 20, 3 = 30 pontos)"
             valores={pesosTarefa}

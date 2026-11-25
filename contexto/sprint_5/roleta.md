@@ -83,3 +83,37 @@ permissão de administrador. O giro pela edição vale para tarefas abertas.
 - A aplicação das migrations 01 a 40 preservou um rodízio e sua atribuição
   registrados antes da migration 40. O Ruff passou nos arquivos Python
   alterados. A execução do cron em produção segue sem verificação.
+
+## ECH-370 · Primeiro nome na roleta
+
+- A roda compartilhada usa fatias coloridas da paleta Caldera, aro escuro e
+  ponteiro laranja. Os rótulos e o resultado exibem o primeiro nome,
+  com o resultado em destaque direto sobre a superfície da tela.
+  A legenda mantém a ordem das fatias em telas estreitas, com nomes
+  longos ou com mais de oito candidatos. Para primeiros nomes iguais, exibe
+  o nome completo. Com movimento reduzido, o resultado aparece sem giro.
+- Os dois formulários de criação de rodízio oferecem a opção de roleta.
+  Na edição do rodízio, o modo de atribuição é informativo. Nas ocorrências
+  com roleta, a edição administrativa oferece nome, descrição, peso e
+  tolerância de atraso.
+- Os detalhes consultam a janela, a permissão e os candidatos no
+  backend. A tela consulta novamente na abertura, no fechamento e ao
+  retornar à aba. Durante o envio, o botão fica indisponível. Se a resposta
+  do giro falhar, a tela verifica o estado antes de liberar outra tentativa.
+  Após a atribuição, a tarefa é recarregada para atualizar o responsável e
+  o vencimento.
+
+### Validação do frontend
+
+- A partir de `src/frontend`, passaram os 196 testes do `npm test`,
+  a checagem TypeScript e o ESLint dos arquivos alterados. O lint geral
+  apontou finais de linha mistos já presentes em
+  `src/hooks/use-color-scheme.web.ts`.
+- O Expo exportou Web e Android. No Chrome com API simulada, foram
+  verificados os nomes, a posição final do ponteiro, a tela estreita,
+  o movimento reduzido e o giro com um candidato. Também foram conferidos
+  a abertura e o fechamento da janela, a permissão de giro, o clique
+  duplo, o resultado por balanceamento, a recuperação após erro e o envio
+  de `usar_roleta` pelos dois formulários de criação.
+- A interação em um dispositivo Android e a validação contra a API
+  publicada seguem pendentes.

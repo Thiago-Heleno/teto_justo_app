@@ -21,6 +21,7 @@ import { CircleCheck, Pencil, RotateCcw } from "lucide-react-native";
 import { Avatar } from "@/components/avatar";
 import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
 import { MotionPressable } from "@/components/motion-pressable";
+import { RoletaOcorrencia } from "@/components/roleta-ocorrencia";
 import { rotulosEstado } from "@/constants/tarefa";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import type { Morador, Tarefa } from "@/services/tarefas-api";
@@ -41,7 +42,7 @@ type Props = {
   onEditar?: () => void;
   onFinalizar: () => Promise<ResultadoFinalizacao>;
   onReabrir?: () => Promise<void>;
-  onReportada: (tarefa: Tarefa) => void;
+  onAtualizada: (tarefa: Tarefa) => void;
   onContinuar: () => void;
 };
 
@@ -62,7 +63,7 @@ export function DetalheTarefa({
   onEditar,
   onFinalizar,
   onReabrir,
-  onReportada,
+  onAtualizada,
   onContinuar,
 }: Props) {
   const { width } = useWindowDimensions();
@@ -216,21 +217,36 @@ export function DetalheTarefa({
             </View>
           </View>
 
-          <View style={styles.responsiblesSection}>
-            <Text style={styles.sectionTitle}>RESPONSÁVEL</Text>
-            <View style={styles.responsibles}>
-              {responsaveisExibidos.map((morador) => (
-                <View key={morador.id} style={styles.responsible}>
-                  <Avatar
-                    nome={morador.nome}
-                    foto={morador.foto}
-                    tamanho={48}
-                  />
-                  <Text style={styles.responsibleName}>{morador.nome}</Text>
-                </View>
-              ))}
+          {tarefa.roleta ? (
+            <View style={styles.responsiblesSection}>
+              <Text style={styles.sectionTitle}>ROLETA DO RODÍZIO</Text>
+              <RoletaOcorrencia
+                key={tarefa.id}
+                tarefaId={tarefa.id}
+                casaId={tarefa.fk_casa_id}
+                fusoDaCasa={fusoDaCasa}
+                moradores={moradores}
+                administrador={administrador}
+                onAtualizada={onAtualizada}
+              />
             </View>
-          </View>
+          ) : (
+            <View style={styles.responsiblesSection}>
+              <Text style={styles.sectionTitle}>RESPONSÁVEL</Text>
+              <View style={styles.responsibles}>
+                {responsaveisExibidos.map((morador) => (
+                  <View key={morador.id} style={styles.responsible}>
+                    <Avatar
+                      nome={morador.nome}
+                      foto={morador.foto}
+                      tamanho={48}
+                    />
+                    <Text style={styles.responsibleName}>{morador.nome}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {(onEditar || podeFinalizar || finalizada) && (
             <View style={styles.completionSection}>
@@ -308,7 +324,7 @@ export function DetalheTarefa({
                     ehResponsavel={tarefa.usuarios_atribuidos.includes(
                       usuarioAtualId,
                     )}
-                    onReportada={onReportada}
+                    onReportada={onAtualizada}
                   />
                 )}
               {erroFinalizacao && (

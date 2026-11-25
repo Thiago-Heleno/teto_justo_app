@@ -31,6 +31,7 @@ export const intervalosSemanasTarefa = [1, 2, 3, 4] as const;
 export type IntervaloSemanas = (typeof intervalosSemanasTarefa)[number];
 
 export type RotatividadeTarefa = {
+  usar_roleta?: boolean;
   participantes: string[];
   dias_semana: DiaSemana[];
   intervalo_semanas: IntervaloSemanas;

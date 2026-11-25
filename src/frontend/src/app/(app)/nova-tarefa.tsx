@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   useWindowDimensions,
@@ -107,6 +108,7 @@ export default function NovaTarefaScreen() {
   const [modoAtribuicao, setModoAtribuicao] =
     useState<ModoAtribuicao>("manual");
   const [rotativa, setRotativa] = useState(false);
+  const [usarRoleta, setUsarRoleta] = useState(false);
   const [participantes, setParticipantes] = useState<string[]>([]);
   const [diasSemana, setDiasSemana] = useState<DiaSemana[]>([]);
   const [semanas, setSemanas] = useState<IntervaloSemanas>(1);
@@ -184,6 +186,7 @@ export default function NovaTarefaScreen() {
         responsavel,
         modoAtribuicao: sortear ? "aleatorio" : "manual",
         rotativa,
+        usarRoleta,
         participantes,
         diasSemana,
         semanas,
@@ -280,6 +283,7 @@ export default function NovaTarefaScreen() {
     setResponsavel(null);
     setModoAtribuicao("manual");
     setRotativa(false);
+    setUsarRoleta(false);
     setParticipantes([]);
     setDiasSemana([]);
     setSemanas(1);
@@ -466,9 +470,9 @@ export default function NovaTarefaScreen() {
                           .join(", ")}
                       </Text>
                       <Text style={styles.help}>
-                        A cada ocorrência, o sistema escolhe o participante
-                        elegível com menor pontuação potencial acumulada. A
-                        ordem selecionada desempata pontuações iguais.
+                        {tarefa.rotatividade.usar_roleta
+                          ? "A roleta abre no início de cada ocorrência. Se ninguém girar em 24 horas, o sistema atribui a tarefa por balanceamento."
+                          : "A cada ocorrência, o sistema escolhe o participante elegível com menor pontuação potencial acumulada. A ordem selecionada desempata pontuações iguais."}
                       </Text>
                     </View>
                   )}
@@ -922,6 +926,16 @@ export default function NovaTarefaScreen() {
                   )}
                   {rotativa && (
                     <>
+                      <View style={styles.orderRow}>
+                        <Text style={[styles.body, styles.residentName]}>
+                          Usar roleta nas ocorrências
+                        </Text>
+                        <Switch
+                          accessibilityLabel="Usar roleta nas ocorrências"
+                          value={usarRoleta}
+                          onValueChange={setUsarRoleta}
+                        />
+                      </View>
                       {participantes.length > 0 && (
                         <View style={styles.section}>
                           <Text style={styles.body}>Ordem do rodízio</Text>
@@ -933,7 +947,6 @@ export default function NovaTarefaScreen() {
                                   moradores.find((morador) => morador.id === id)
                                     ?.nome
                                 }
-                                {indice === 0 ? " · começa" : ""}
                               </Text>
                               {indice > 0 && (
                                 <MotionPressable
@@ -958,7 +971,8 @@ export default function NovaTarefaScreen() {
                             </View>
                           ))}
                           <Text style={styles.help}>
-                            Após o último, o rodízio volta ao primeiro.
+                            A ordem desempata participantes com a mesma
+                            pontuação no balanceamento.
                           </Text>
                         </View>
                       )}
