@@ -1,4 +1,4 @@
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -6,6 +6,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import {
   Camera,
@@ -13,7 +14,9 @@ import {
   EyeOff,
   Pencil,
   RefreshCw,
+  Repeat,
   Save,
+  ScrollText,
   Trash2,
   Undo2,
   X,
@@ -21,6 +24,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
+import { BotaoVoltar } from "@/components/botao-voltar";
 import { MoradoresCasa } from "@/components/moradores-casa";
 import { DetalhesCasa } from "@/components/detalhes-casa";
 import { SeletorPoliticaReclamacao } from "@/components/seletor-politica-reclamacao";
@@ -35,6 +39,9 @@ import { limparCasaAposSaida, sessao } from "@/services/sessao-store";
 import { selecionarFoto } from "@/utils/selecionar-foto";
 
 export default function GerenciarCasaScreen() {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const compacto = width < 720;
   const g = useGerenciamentoCasa(false);
   const [edicao, setEdicao] = useState<CasaAtualizar | null>(null);
   const [confirmacao, setConfirmacao] = useState<"casa" | null>(null);
@@ -105,36 +112,50 @@ export default function GerenciarCasaScreen() {
     setConfirmacao(null);
   }
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, compacto && styles.pageSmall]}
       >
-        <Link href="/" style={styles.text}>
-          ← Voltar ao início
-        </Link>
-        <Text accessibilityRole="header" style={styles.title}>
-          GERENCIAR CASA
-        </Text>
-        {g.erro && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {g.erro}
-          </Text>
-        )}
-        {aviso && (
-          <Text accessibilityRole="alert" style={styles.text}>
-            {aviso}
-          </Text>
-        )}
-        {!g.dados && !g.erro && (
-          <ActivityIndicator accessibilityLabel="Carregando casa e moradores" />
-        )}
-        <Acao
-          texto="Atualizar dados"
-          icone={RefreshCw}
-          disabled={g.ocupado}
-          onPress={g.atualizar}
-        />
+        <View style={styles.content}>
+          <BotaoVoltar />
+
+          <View style={styles.heading}>
+            <View style={styles.headingCopy}>
+              <Text style={styles.eyebrow}>
+                TETO JUSTO · {casa?.nome ?? "CASA"}
+              </Text>
+              <Text
+                accessibilityRole="header"
+                style={[styles.title, compacto && styles.titleSmall]}
+              >
+                GERENCIAR CASA
+              </Text>
+              <Text style={styles.text}>
+                Consulte e atualize os dados, moradores e configurações da casa.
+              </Text>
+            </View>
+            <Acao
+              texto="Atualizar"
+              icone={RefreshCw}
+              disabled={g.ocupado}
+              onPress={g.atualizar}
+            />
+          </View>
+
+          {g.erro && (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {g.erro}
+            </Text>
+          )}
+          {aviso && (
+            <Text accessibilityRole="alert" style={styles.text}>
+              {aviso}
+            </Text>
+          )}
+          {!g.dados && !g.erro && (
+            <ActivityIndicator accessibilityLabel="Carregando casa e moradores" />
+          )}
         {casa && (
           <>
             <View style={styles.card}>
@@ -257,20 +278,26 @@ export default function GerenciarCasaScreen() {
               casa={casa}
               usuarioId={g.dados?.usuarioId}
             />
-            <Link href="/rotatividades" style={styles.text}>
-              Ver regras de rodízio →
-            </Link>
-            <Link href="/regras-casa" style={styles.text}>
-              Ver regras da casa e multas →
-            </Link>
-            {g.admin && (
+            <View style={styles.row}>
               <Acao
-                texto="Excluir casa"
-                icone={Trash2}
-                disabled={g.ocupado}
-                onPress={() => setConfirmacao("casa")}
+                texto="Regras de rodízio"
+                icone={Repeat}
+                onPress={() => router.push("/rotatividades")}
               />
-            )}
+              <Acao
+                texto="Regras e multas"
+                icone={ScrollText}
+                onPress={() => router.push("/regras-casa")}
+              />
+              {g.admin && (
+                <Acao
+                  texto="Excluir casa"
+                  icone={Trash2}
+                  disabled={g.ocupado}
+                  onPress={() => setConfirmacao("casa")}
+                />
+              )}
+            </View>
           </>
         )}
         <ConfirmarAcao
@@ -283,6 +310,7 @@ export default function GerenciarCasaScreen() {
           onCancelar={() => setConfirmacao(null)}
           onConfirmar={() => void confirmar()}
         />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

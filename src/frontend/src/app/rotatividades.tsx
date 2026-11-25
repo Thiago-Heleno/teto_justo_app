@@ -1,9 +1,16 @@
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { Pencil, Plus, RefreshCw, Settings, Trash2 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { BotaoVoltar } from "@/components/botao-voltar";
 import { FormularioRotatividade } from "@/components/formulario-rotatividade";
 import { Acao, ConfirmarAcao, styles } from "@/components/gerenciamento-ui";
 import { diasSemanaTarefa } from "@/constants/tarefa";
@@ -20,6 +27,9 @@ import {
 } from "@/services/rotatividade-api";
 
 export default function RotatividadesScreen() {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const compacto = width < 720;
   const g = useGerenciamentoCasa();
   const [resultado, setResultado] = useState<{
     casa: typeof casa;
@@ -63,61 +73,76 @@ export default function RotatividadesScreen() {
     setVersao((v) => v + 1);
   }
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, compacto && styles.pageSmall]}
       >
-        <Link href="/" style={styles.text}>
-          ← Voltar ao início
-        </Link>
-        <Link href="/gerenciar-casa" style={styles.text}>
-          Gerenciar casa
-        </Link>
-        <Text accessibilityRole="header" style={styles.title}>
-          REGRAS DE RODÍZIO
-        </Text>
-        {casa && <Text style={styles.subtitle}>{casa.nome}</Text>}
-        {g.erro && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {g.erro}
-          </Text>
-        )}
-        {erroLista && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {erroLista}
-          </Text>
-        )}
-        {aviso && (
-          <Text accessibilityRole="alert" style={styles.text}>
-            {aviso}
-          </Text>
-        )}
-        <Acao
-          texto="Atualizar lista"
-          icone={RefreshCw}
-          disabled={g.ocupado}
-          onPress={() => {
-            setEdicao(null);
-            setRemover(null);
-            g.atualizar();
-          }}
-        />
-        {((!g.dados && !g.erro) || (casa && regras === null && !erroLista)) && (
-          <ActivityIndicator accessibilityLabel="Carregando regras" />
-        )}
-        {casa && (
-          <Text style={styles.text}>
-            {g.admin
-              ? "Gerencie as regras desta casa."
-              : "Você pode consultar as regras. Alterações são exclusivas do administrador."}
-          </Text>
-        )}
-        {g.admin && !edicao && (
-          <Acao
-            texto="Criar regra"
-            icone={Plus}
-            disabled={g.ocupado}
+        <View style={styles.content}>
+          <BotaoVoltar />
+
+          <View style={styles.heading}>
+            <View style={styles.headingCopy}>
+              <Text style={styles.eyebrow}>
+                TETO JUSTO · {casa?.nome ?? "CASA"}
+              </Text>
+              <Text
+                accessibilityRole="header"
+                style={[styles.title, compacto && styles.titleSmall]}
+              >
+                REGRAS DE RODÍZIO
+              </Text>
+              {casa && (
+                <Text style={styles.text}>
+                  {g.admin
+                    ? "Gerencie as regras de rodízio desta casa."
+                    : "Você pode consultar as regras. Alterações são exclusivas do administrador."}
+                </Text>
+              )}
+            </View>
+            <View style={styles.row}>
+              <Acao
+                texto="Gerenciar casa"
+                icone={Settings}
+                onPress={() => router.push("/gerenciar-casa")}
+              />
+              <Acao
+                texto="Atualizar"
+                icone={RefreshCw}
+                disabled={g.ocupado}
+                onPress={() => {
+                  setEdicao(null);
+                  setRemover(null);
+                  g.atualizar();
+                }}
+              />
+            </View>
+          </View>
+
+          {g.erro && (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {g.erro}
+            </Text>
+          )}
+          {erroLista && (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {erroLista}
+            </Text>
+          )}
+          {aviso && (
+            <Text accessibilityRole="alert" style={styles.text}>
+              {aviso}
+            </Text>
+          )}
+          {((!g.dados && !g.erro) || (casa && regras === null && !erroLista)) && (
+            <ActivityIndicator accessibilityLabel="Carregando regras" />
+          )}
+          {g.admin && !edicao && (
+            <Acao
+              texto="Criar regra"
+              icone={Plus}
+              variante="primaria"
+              disabled={g.ocupado}
             onPress={() => {
               g.setErro(undefined);
               setAviso(undefined);
@@ -220,6 +245,7 @@ export default function RotatividadesScreen() {
                 .finally(() => setRemover(null));
           }}
         />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
