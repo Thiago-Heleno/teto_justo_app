@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { prepararTarefa } from "../src/utils/criacao-tarefa.ts";
+import { explicarPrazoTarefa, prepararTarefa } from "../src/utils/criacao-tarefa.ts";
 import { formatarDataDigitada } from "../src/utils/data-fixa.ts";
 import { anguloGiroRoleta } from "../src/utils/roleta.ts";
 
@@ -21,6 +21,40 @@ const formulario = {
 };
 const preparar = (alteracoes = {}) =>
   prepararTarefa({ ...formulario, ...alteracoes }, moradores);
+
+test("explicação do intervalo acompanha o prazo selecionado e concorda com um dia", () => {
+  for (const dias of [1, 2, 3, 4, 5]) {
+    assert.equal(
+      explicarPrazoTarefa("intervalo", dias, false),
+      `A tarefa abre no dia atual e vence após ${dias} ${dias === 1 ? "dia" : "dias"}.`,
+    );
+  }
+});
+
+test("explicação solicita o prazo quando o intervalo ainda não foi selecionado", () => {
+  assert.equal(
+    explicarPrazoTarefa("intervalo", null, false),
+    "Selecione o prazo para saber quando a tarefa vence.",
+  );
+});
+
+test("explicação do dia fixo informa abertura e vencimento no próprio dia", () => {
+  for (const dias of [null, 1, 3, 5]) {
+    for (const rotativa of [false, true]) {
+      assert.equal(
+        explicarPrazoTarefa("dia_fixo", dias, rotativa),
+        "A tarefa abre à meia-noite e vence no fim do dia escolhido.",
+      );
+    }
+  }
+});
+
+test("explicação do intervalo no rodízio conta o dia de abertura no prazo", () => {
+  assert.equal(
+    explicarPrazoTarefa("intervalo", 3, true),
+    "A tarefa abre no dia do rodízio e vence ao final de 3 dias, contando o dia de abertura.",
+  );
+});
 
 test("tarefa comum sorteia sem exigir ou enviar um responsável manual", () => {
   for (const responsavel of [null, "ana"]) {

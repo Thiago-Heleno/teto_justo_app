@@ -41,6 +41,21 @@ export type ErrosCriacao = Partial<
   >
 >;
 
+export function explicarPrazoTarefa(
+  modoPrazo: ModoPrazo,
+  dias: PrazoDias | null,
+  rotativa: boolean,
+): string {
+  if (modoPrazo === "dia_fixo")
+    return "A tarefa abre à meia-noite e vence no fim do dia escolhido.";
+  if (dias === null)
+    return "Selecione o prazo para saber quando a tarefa vence.";
+  const prazo = `${dias} ${dias === 1 ? "dia" : "dias"}`;
+  return rotativa
+    ? `A tarefa abre no dia do rodízio e vence ao final de ${prazo}, contando o dia de abertura.`
+    : `A tarefa abre no dia atual e vence após ${prazo}.`;
+}
+
 export function prepararTarefa(
   formulario: FormularioTarefa,
   moradores: { id: string }[],

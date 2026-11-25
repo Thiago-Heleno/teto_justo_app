@@ -46,7 +46,11 @@ import {
   type Morador,
   type UsuarioAtual,
 } from "@/services/tarefas-api";
-import { prepararTarefa, type ErrosCriacao } from "@/utils/criacao-tarefa";
+import {
+  explicarPrazoTarefa,
+  prepararTarefa,
+  type ErrosCriacao,
+} from "@/utils/criacao-tarefa";
 import { formatarDataDigitada } from "@/utils/data-fixa";
 
 type TarefaPreparada = NonNullable<ReturnType<typeof prepararTarefa>["tarefa"]>;
@@ -511,7 +515,7 @@ export default function NovaTarefaScreen() {
                     </Text>
                   </View>
                   <View style={styles.section}>
-                    <Text style={styles.body}>Nome *</Text>
+                    <Text style={styles.body}>Tarefa *</Text>
                     <TextInput
                       accessibilityLabel="Nome da tarefa, obrigatório"
                       accessibilityHint={erros.nome}
@@ -530,7 +534,7 @@ export default function NovaTarefaScreen() {
                     <ErroCampo mensagem={erros.nome} />
                   </View>
                   <View style={styles.section}>
-                    <Text style={styles.body}>Descrição (opcional)</Text>
+                    <Text style={styles.body}>Descrição</Text>
                     <TextInput
                       ref={descricaoRef}
                       accessibilityLabel="Descrição, opcional"
@@ -600,12 +604,12 @@ export default function NovaTarefaScreen() {
                     <ErroCampo mensagem={erros.peso} />
                   </View>
                   <View style={styles.section}>
-                    <Text style={styles.body}>Dias para terminar *</Text>
+                    <Text style={styles.body}>Prazo *</Text>
                     <Text style={styles.help}>Escolha de 1 a 5 dias.</Text>
                     <View
                       style={styles.options}
                       accessibilityRole="radiogroup"
-                      accessibilityLabel="Dias para terminar"
+                      accessibilityLabel="Prazo"
                     >
                       {prazosTarefa.map((opcao) => (
                         <MotionPressable
@@ -706,9 +710,7 @@ export default function NovaTarefaScreen() {
                       </MotionPressable>
                     </View>
                     <Text style={styles.help}>
-                      {modoPrazo === "dia_fixo"
-                        ? "O dia escolhido é o vencimento. A tarefa abre antes, conforme o prazo em dias."
-                        : "A tarefa abre no dia escolhido e vence após o prazo em dias."}
+                      {explicarPrazoTarefa(modoPrazo, dias, rotativa)}
                     </Text>
                     {!rotativa && modoPrazo === "dia_fixo" && (
                       <>
