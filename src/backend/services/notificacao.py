@@ -14,7 +14,7 @@ from postgrest.exceptions import APIError
 
 from core.fuso import FUSO_UTC, fuso_armazenado
 from schemas.notificacao import DispositivoPushRegistrar, TicketPush
-from services.ciclo_vida_tarefa import instante_utc
+from services.ciclo_vida_tarefa import aguarda_atribuicao_roleta, instante_utc
 from services.score import ServicoScore
 
 
@@ -180,7 +180,9 @@ class ServicoNotificacao:
         while True:
             pagina = (
                 self.supabase.table("tarefa")
-                .select("id,fk_casa_id,data_inicio,rotatividade_id")
+                .select(
+                    "id,fk_casa_id,data_inicio,rotatividade_id,roleta_expira_em,roleta_atribuida_em"
+                )
                 .eq("estado_atual", "pendente")
                 .is_("aviso_inicio_tentado_em", "null")
                 .gt("data_inicio", instante.isoformat())
@@ -196,6 +198,8 @@ class ServicoNotificacao:
         resultado = {"tarefas_elegiveis": len(tarefas), "avisos_enviados": 0, "falhas": 0}
         resumos = {}
         for tarefa in tarefas:
+            if aguarda_atribuicao_roleta(tarefa):
+                continue
             usuarios = self._responsaveis(tarefa["id"])
             if not usuarios:
                 continue
@@ -346,7 +350,8 @@ class ServicoNotificacao:
             pagina = (
                 self.supabase.table("tarefa")
                 .select(
-                    "id,fk_casa_id,data_inicio,data_fim,estado_atual,atraso_maximo,aviso_enviado_em"
+                    "id,fk_casa_id,data_inicio,data_fim,estado_atual,atraso_maximo,aviso_enviado_em,"
+                    "roleta_expira_em,roleta_atribuida_em"
                 )
                 .in_("estado_atual", ["pendente", "atrasada"])
                 .is_("aviso_enviado_em", "null")
@@ -364,7 +369,10 @@ class ServicoNotificacao:
         while True:
             pagina = (
                 self.supabase.table("tarefa")
-                .select("id,fk_casa_id,data_fim,estado_atual,atraso_maximo,aviso_atraso_enviado_em")
+                .select(
+                    "id,fk_casa_id,data_fim,estado_atual,atraso_maximo,aviso_atraso_enviado_em,"
+                    "roleta_expira_em,roleta_atribuida_em"
+                )
                 .in_("estado_atual", ["pendente", "atrasada"])
                 .is_("aviso_atraso_enviado_em", "null")
                 .lte("data_fim", instante.isoformat())
@@ -378,6 +386,8 @@ class ServicoNotificacao:
 
         resultado = {"tarefas_elegiveis": 0, "avisos_enviados": 0, "falhas": 0}
         for tarefa in tarefas_hoje:
+            if aguarda_atribuicao_roleta(tarefa):
+                continue
             data_fim = instante_utc(tarefa["data_fim"])
             try:
                 fuso = self._fuso_da_casa(tarefa["fk_casa_id"])
@@ -403,6 +413,8 @@ class ServicoNotificacao:
             )
 
         for tarefa in tarefas_atrasadas:
+            if aguarda_atribuicao_roleta(tarefa):
+                continue
             data_fim = instante_utc(tarefa["data_fim"])
             dias_atraso = ServicoScore.calcular_dias_atraso(data_fim, instante)
             if dias_atraso <= 0 or dias_atraso > tarefa["atraso_maximo"]:

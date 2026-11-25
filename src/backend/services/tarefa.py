@@ -14,11 +14,13 @@ from services.autorizacao import ServicoAutorizacaoCasa
 from services.ciclo_vida_tarefa import (
     ESTADOS_FINAIS,
     ServicoCicloVidaTarefa,
+    aguarda_atribuicao_roleta,
     atualizar_prazo,
     corresponde_prazo,
     instante_utc,
     janela_dia_fixo,
 )
+from services.roleta_rotatividade import resumir_roleta
 from services.score import ServicoScore
 from services.notificacao import ServicoNotificacao
 
@@ -202,6 +204,7 @@ class ServicoTarefa:
         relacoes: tuple[list[str], list[str]] | None = None,
     ) -> dict:
         original = tarefa
+        agora = agora or datetime.now(timezone.utc)
         tarefa = self._sincronizar_estado_por_atraso(tarefa, agora)
         modo_prazo = tarefa.get("modo_prazo") or "intervalo"
         inicio = tarefa.get("data_inicio") or tarefa.get("criado_em")
@@ -241,7 +244,11 @@ class ServicoTarefa:
         else:
             responsaveis = self._buscar_usuarios_atribuidos(tarefa["id"])
             reclamantes = None
+        if aguarda_atribuicao_roleta(tarefa):
+            responsaveis = []
         resposta["usuarios_atribuidos"] = responsaveis
+        if roleta := resumir_roleta(tarefa, agora):
+            resposta["roleta"] = roleta
         resposta.update(self._metadados_reclamacoes(tarefa, responsaveis, reclamantes))
         return resposta
 
@@ -370,6 +377,11 @@ class ServicoTarefa:
         return tarefas
 
     def _concluir_tarefa(self, tarefa: dict, id_usuario_atual: UUID):
+        if aguarda_atribuicao_roleta(tarefa):
+            ServicoAutorizacaoCasa(self.supabase).garantir_acesso(
+                tarefa["fk_casa_id"], id_usuario_atual
+            )
+            raise HTTPException(status_code=409, detail="A ocorrência ainda não tem responsável.")
         responsaveis = self._buscar_usuarios_atribuidos(tarefa["id"])
         if str(id_usuario_atual) not in responsaveis:
             raise HTTPException(
@@ -423,6 +435,17 @@ class ServicoTarefa:
             raise HTTPException(
                 status_code=409,
                 detail="Uma tarefa encerrada não pode ser alterada ou finalizada novamente.",
+            )
+        if tarefa_atual.get("roleta_expira_em") is not None and dados_tarefa.model_fields_set & {
+            "usuarios_atribuidos",
+            "modo_atribuicao",
+            "estado_atual",
+            "prazo_dias",
+            "data_fixa",
+        }:
+            raise HTTPException(
+                status_code=409,
+                detail="A atribuição e o vencimento desta ocorrência são definidos pela roleta.",
             )
         usuarios_foram_informados = (
             "usuarios_atribuidos" in dados_tarefa.model_fields_set

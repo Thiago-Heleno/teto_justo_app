@@ -40,6 +40,8 @@ def cenario(monkeypatch):
         "fk_casa_id": str(uuid4()),
         "fk_usuario_id": str(uuid4()),
         "reaberturas": 0,
+        "roleta_expira_em": None,
+        "roleta_atribuida_em": None,
     }
     banco = SupabaseEmMemoria(
         {
@@ -94,6 +96,24 @@ def cenario(monkeypatch):
 def test_estado_respeita_instante_do_prazo_e_limite_da_tolerancia(atraso, esperado):
     prazo = datetime(2030, 1, 10, tzinfo=timezone.utc)
     assert estado_no_prazo({"data_fim": prazo, "atraso_maximo": 2}, prazo + atraso) == esperado
+
+
+def test_roleta_sem_atribuicao_nao_atrasa_nem_pode_ser_concluida(cenario):
+    banco, servico, tarefa, agora = cenario
+    tarefa["roleta_expira_em"] = (agora - timedelta(days=4)).isoformat()
+    tarefa["data_fim"] = (agora - timedelta(days=4)).isoformat()
+
+    resposta = servico.buscar_tarefa(UUID(tarefa["id"]))
+    assert resposta["estado_atual"] == "pendente"
+    assert resposta["usuarios_atribuidos"] == []
+    assert resposta["roleta"]["estado"] == "expirada"
+    assert servico.listar_tarefas_por_casa(UUID(tarefa["fk_casa_id"]), prazo="atrasadas") == []
+    resultado = ServicoPenalidade(banco, BackgroundTasks()).processar_tarefas(agora)
+    assert resultado["marcadas_nao_feitas"] == 0
+    assert not banco.registros["score_event"]
+    with pytest.raises(HTTPException) as erro:
+        servico.concluir_tarefa(UUID(tarefa["id"]), UUID(tarefa["fk_usuario_id"]))
+    assert erro.value.status_code == 409
 
 
 @pytest.mark.parametrize(

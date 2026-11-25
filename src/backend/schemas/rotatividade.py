@@ -21,6 +21,7 @@ class RotatividadeCriar(BaseModel):
     participantes: list[UUID] = Field(min_length=2)
     dias_semana: list[DiaSemanaRotatividade] = Field(min_length=1, max_length=7)
     intervalo_semanas: IntervaloRotatividade
+    usar_roleta: bool = False
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -51,6 +52,7 @@ class RotatividadeResposta(BaseModel):
     fk_casa_id: UUID
     nome: str
     ativa: bool
+    usar_roleta: bool = False
 
 
 class RotatividadeDetalhe(RotatividadeResposta):

@@ -19,6 +19,10 @@ def instante_utc(valor: str | datetime) -> datetime:
     return instante.astimezone(timezone.utc)
 
 
+def aguarda_atribuicao_roleta(tarefa: dict) -> bool:
+    return tarefa.get("roleta_expira_em") is not None and tarefa.get("roleta_atribuida_em") is None
+
+
 def estado_no_prazo(tarefa: dict, agora: datetime) -> str:
     dias_atraso = ServicoScore.calcular_dias_atraso(
         instante_utc(tarefa["data_fim"]),
@@ -49,7 +53,12 @@ def corresponde_prazo(
     vencimento = instante_utc(tarefa["data_fim"])
     agora = instante_utc(agora)
     if filtro == "atrasadas":
-        return vencimento < agora and tarefa["estado_atual"] != "finalizado"
+        roleta = tarefa.get("roleta")
+        return (
+            (roleta is None or roleta["estado"] == "atribuida")
+            and vencimento < agora
+            and tarefa["estado_atual"] != "finalizado"
+        )
     dia_prazo = vencimento.astimezone(fuso).date()
     hoje = agora.astimezone(fuso).date()
     if filtro == "antigas":
@@ -114,7 +123,7 @@ class ServicoCicloVidaTarefa:
         self.notificacoes = notificacoes
 
     def sincronizar_estado(self, tarefa: dict, agora: datetime) -> dict | None:
-        if tarefa["estado_atual"] in ESTADOS_FINAIS:
+        if tarefa["estado_atual"] in ESTADOS_FINAIS or aguarda_atribuicao_roleta(tarefa):
             return tarefa
         estado = estado_no_prazo(tarefa, agora)
         if estado == tarefa["estado_atual"]:

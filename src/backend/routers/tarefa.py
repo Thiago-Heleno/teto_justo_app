@@ -6,10 +6,17 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from core.autenticacao import UsuarioAtual
 from core.database import get_supabase
-from schemas.tarefa import EstadoTarefa, TarefaAtualizar, TarefaCriar, TarefaResposta
+from schemas.tarefa import (
+    EstadoTarefa,
+    RoletaOcorrenciaDetalhe,
+    TarefaAtualizar,
+    TarefaCriar,
+    TarefaResposta,
+)
 from services.tarefa import ServicoTarefa
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.reclamacao import ServicoReclamacao
+from services.rotatividade_agendamento import ServicoAgendamentoRotatividade
 
 router = APIRouter(prefix="/tarefas", tags=["Tarefas"])
 
@@ -63,6 +70,23 @@ def buscar_tarefa(
 ):
     servico = ServicoTarefa(supabase, tarefas_fundo, id_usuario_atual=usuario_atual.id)
     return servico.buscar_tarefa_autorizada(id_tarefa, usuario_atual.id)
+
+
+@router.get("/{id_tarefa}/roleta", response_model=RoletaOcorrenciaDetalhe)
+def consultar_roleta(id_tarefa: UUID, usuario_atual: UsuarioAtual, supabase=Depends(get_supabase)):
+    return ServicoAgendamentoRotatividade(supabase).consultar_roleta(id_tarefa, usuario_atual.id)
+
+
+@router.post("/{id_tarefa}/roleta", response_model=RoletaOcorrenciaDetalhe)
+def girar_roleta(
+    id_tarefa: UUID,
+    usuario_atual: UsuarioAtual,
+    tarefas_fundo: BackgroundTasks,
+    supabase=Depends(get_supabase),
+):
+    return ServicoAgendamentoRotatividade(supabase, tarefas_fundo).girar_roleta(
+        id_tarefa, usuario_atual.id
+    )
 
 
 @router.post("/{id_tarefa}/conclusoes", response_model=TarefaResposta)
