@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from core.fuso import FUSO_UTC, fuso_armazenado
-from schemas.score import FiltroExtratoScore, FiltroPeriodoScore
+from schemas.score import FiltroExtratoScore, FiltroPeriodoScore, PeriodoDesempenho
 from services.autorizacao import ServicoAutorizacaoCasa
 from services.ciclo_vida_tarefa import instante_utc
 
@@ -147,6 +147,61 @@ class ServicoPlacar:
         return {
             "casa_id": str(id_casa),
             "fuso_horario": nome_fuso,
+            "moradores": moradores,
+        }
+
+    def obter_desempenho(
+        self,
+        id_casa: UUID,
+        periodo: PeriodoDesempenho = "semanal",
+        agora: datetime | None = None,
+    ) -> dict:
+        agora_utc = instante_utc(agora or datetime.now(timezone.utc))
+        fuso, _ = self._configuracao_da_casa(id_casa)
+        hoje = agora_utc.astimezone(fuso).date()
+        inicios = {
+            "semanal": hoje - timedelta(days=(hoje.weekday() + 1) % 7),
+            "mensal": hoje.replace(day=1),
+            "semestral": hoje.replace(month=1 if hoje.month <= 6 else 7, day=1),
+        }
+        inicio = inicios[periodo]
+        fim = hoje + timedelta(days=1)
+        dias = [inicio + timedelta(days=i) for i in range((fim - inicio).days)]
+        vinculos, nomes = self._vinculos_e_nomes(id_casa)
+        pontos_por_dia = {
+            str(vinculo["fk_usuario_id"]): dict.fromkeys(dias, 0) for vinculo in vinculos
+        }
+        for evento in self._eventos_da_casa(
+            id_casa, self._meia_noite_utc(inicio, fuso), self._meia_noite_utc(fim, fuso)
+        ):
+            id_usuario = str(evento["fk_usuario_id"])
+            instante = instante_utc(evento["criado_em"])
+            if id_usuario in pontos_por_dia and instante <= agora_utc:
+                dia = instante.astimezone(fuso).date()
+                pontos_por_dia[id_usuario][dia] += int(evento["pontuacao"])
+
+        moradores = []
+        for id_usuario, pontos_diarios in pontos_por_dia.items():
+            acumulado, serie = 0, []
+            for dia, pontos in pontos_diarios.items():
+                acumulado += pontos
+                serie.append({"data": dia, "pontos": pontos, "acumulado": acumulado})
+            moradores.append(
+                {
+                    "usuario_id": id_usuario,
+                    "nome": nomes[id_usuario],
+                    "total": acumulado,
+                    "serie": serie,
+                }
+            )
+        moradores.sort(key=lambda morador: (morador["nome"].casefold(), morador["usuario_id"]))
+        return {
+            "casa_id": str(id_casa),
+            "fuso_horario": fuso.key,
+            "periodo": periodo,
+            "data_inicio": inicio,
+            "data_fim": fim,
+            "atualizado_em": agora_utc,
             "moradores": moradores,
         }
 

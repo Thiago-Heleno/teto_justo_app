@@ -142,6 +142,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(app)" />
                 <Stack.Screen name="calendario" />
                 <Stack.Screen name="lista-compras" />
+                <Stack.Screen name="regras-casa" />
               </Stack.Protected>
             </Stack>
           </>

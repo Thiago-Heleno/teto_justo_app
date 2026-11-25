@@ -6,6 +6,33 @@ from pydantic import BaseModel, Field, model_validator
 
 from schemas.casa import PoliticaReclamacao
 
+PeriodoDesempenho = Literal["semanal", "mensal", "semestral"]
+
+
+class PontoDesempenhoResposta(BaseModel):
+    data: date
+    pontos: int = Field(description="Soma dos créditos e estornos do dia no fuso da casa.")
+    acumulado: int = Field(description="Soma dos pontos desde o início da janela até este dia.")
+
+
+class MoradorDesempenhoResposta(BaseModel):
+    usuario_id: UUID
+    nome: str
+    total: int
+    serie: list[PontoDesempenhoResposta]
+
+
+class DesempenhoScoreResposta(BaseModel):
+    casa_id: UUID
+    fuso_horario: str
+    periodo: PeriodoDesempenho
+    data_inicio: date = Field(description="Primeiro dia incluído, no fuso da casa.")
+    data_fim: date = Field(description="Primeiro dia excluído, no fuso da casa (amanhã).")
+    atualizado_em: datetime = Field(
+        description="Instante de corte da consulta; exclui eventos futuros."
+    )
+    moradores: list[MoradorDesempenhoResposta]
+
 
 class FiltroPeriodoScore(BaseModel):
     data_inicio: date | None = Field(

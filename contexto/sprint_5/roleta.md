@@ -72,14 +72,14 @@ permissão de administrador. O giro pela edição vale para tarefas abertas.
 
 ### Publicação e validação
 
-- Aplicar [39.sql](../../docs/migrations/39.sql) antes de publicar o backend.
+- Aplicar [40.sql](../../docs/migrations/40.sql) antes de publicar o backend.
   A integração da tela com as novas rotas fica na entrega de frontend. O
   giro fecha pelo relógio do backend, e o balanceamento ocorre na execução
   seguinte do job diário.
-- A partir de `src/backend`, passaram 796 testes unitários e 31 testes de
+- A partir de `src/backend`, passaram 833 testes unitários e 31 testes de
   integração de rodízios, tarefas, vínculos e casas em PostgreSQL 18.7 e
   PostgREST 16.6 locais e descartáveis. Foram exercitados giros concorrentes,
   disputa com o job, recuperação de atribuição e saída durante a gravação.
-- A aplicação das migrations 01 a 39 preservou um rodízio e sua atribuição
-  registrados antes da migration 39. O Ruff passou nos arquivos Python
+- A aplicação das migrations 01 a 40 preservou um rodízio e sua atribuição
+  registrados antes da migration 40. O Ruff passou nos arquivos Python
   alterados. A execução do cron em produção segue sem verificação.

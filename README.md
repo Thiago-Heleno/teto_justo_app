@@ -52,6 +52,10 @@ As rotas correspondentes (`POST /usuarios/codigo-verificacao`, `POST /usuarios/`
 `POST /casas/{id_casa}/convites`) estão na documentação interativa `/docs` do
 backend.
 
+O backend do gráfico compara séries diárias dos moradores por semana, mês ou
+semestre em `GET /casas/{id_casa}/desempenho`. Contrato, períodos e atualização
+dos dados em [gráfico de desempenho](./contexto/sprint_5/grafico_desempenho.md).
+
 ## Como rodar localmente
 
 ### Pré-requisitos

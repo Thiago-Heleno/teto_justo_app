@@ -1,4 +1,5 @@
 import os
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -96,7 +97,7 @@ def test_extrato_e_ranking_aplicam_periodo_informado_na_url(consulta_score):
     }
 
 
-@pytest.mark.parametrize("rota", ["placar", "saldo", "extrato", "ranking"])
+@pytest.mark.parametrize("rota", ["placar", "saldo", "extrato", "ranking", "desempenho"])
 @pytest.mark.parametrize(
     "acesso,status",
     [
@@ -204,3 +205,81 @@ def test_saldo_exige_identificador_do_usuario(consulta_score):
     cliente, _, casa_id, _ = consulta_score
 
     assert cliente.get(f"/casas/{casa_id}/saldo").status_code == 422
+
+
+@pytest.fixture
+def relogio_desempenho(monkeypatch):
+    agora = datetime.fromisoformat("2026-11-03T12:00:00Z")
+
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return agora
+
+    monkeypatch.setattr("services.placar.datetime", Relogio)
+    return agora
+
+
+@pytest.mark.parametrize(
+    "periodo,inicio",
+    [(None, "2026-11-01"), ("mensal", "2026-11-01"), ("semestral", "2026-07-01")],
+)
+def test_desempenho_entrega_series_diarias_por_morador_no_periodo_pedido(
+    consulta_score, relogio_desempenho, periodo, inicio
+):
+    cliente, banco, casa_id, usuario_id = consulta_score
+    banco.registros["score_event"] = [evento(casa_id, usuario_id, "2026-11-03T12:00:00Z", 25)]
+    params = {"periodo": periodo} if periodo else {}
+
+    resposta = cliente.get(f"/casas/{casa_id}/desempenho", params=params)
+
+    assert resposta.status_code == 200, resposta.text
+    dias = (date(2026, 11, 4) - date.fromisoformat(inicio)).days
+    assert resposta.json() == {
+        "casa_id": str(casa_id),
+        "fuso_horario": "America/Sao_Paulo",
+        "periodo": periodo or "semanal",
+        "data_inicio": inicio,
+        "data_fim": "2026-11-04",
+        "atualizado_em": "2026-11-03T12:00:00Z",
+        "moradores": [
+            {
+                "usuario_id": str(usuario_id),
+                "nome": "Ana",
+                "total": 25,
+                "serie": [
+                    {
+                        "data": (date.fromisoformat(inicio) + timedelta(days=i)).isoformat(),
+                        "pontos": 25 if i == dias - 1 else 0,
+                        "acumulado": 25 if i == dias - 1 else 0,
+                    }
+                    for i in range(dias)
+                ],
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("periodo", ["anual", "", "SEMESTRAL", "invalido"])
+def test_desempenho_rejeita_periodo_invalido(consulta_score, periodo):
+    cliente, _, casa_id, _ = consulta_score
+
+    resposta = cliente.get(f"/casas/{casa_id}/desempenho", params={"periodo": periodo})
+
+    assert resposta.status_code == 422, resposta.text
+
+
+def test_desempenho_http_reflete_novos_eventos_e_impede_cache(consulta_score, relogio_desempenho):
+    cliente, banco, casa_id, usuario_id = consulta_score
+    url = f"/casas/{casa_id}/desempenho"
+    assert cliente.get(url).json()["moradores"][0]["total"] == 0
+    for pontos, total in [(25, 25), (-25, 0), (17, 17)]:
+        banco.registros["score_event"].append(
+            evento(casa_id, usuario_id, relogio_desempenho.isoformat(), pontos)
+        )
+
+        resposta = cliente.get(url)
+
+        assert resposta.status_code == 200, resposta.text
+        assert resposta.headers["cache-control"] == "no-store"
+        assert resposta.json()["moradores"][0]["total"] == total
