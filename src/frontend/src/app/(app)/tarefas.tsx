@@ -304,7 +304,7 @@ export default function TarefasScreen() {
     setEditando(false);
   }, [contextoAtual, tarefas, todasTarefas, tarefaSelecionadaId]);
 
-  function atualizarTarefaLocal(atualizada: Tarefa) {
+  const atualizarTarefaLocal = useCallback((atualizada: Tarefa) => {
     setTodasTarefas((atuais) =>
       atuais?.map((tarefa) =>
         tarefa.id === atualizada.id ? atualizada : tarefa,
@@ -319,7 +319,7 @@ export default function TarefasScreen() {
           ),
         },
     );
-  }
+  }, []);
 
   const tarefaSelecionada = contextoAtual
     ? (tarefas?.find((tarefa) => tarefa.id === tarefaSelecionadaId) ??
@@ -524,7 +524,7 @@ export default function TarefasScreen() {
                 ? reabrirTarefaSelecionada
                 : undefined
             }
-            onReportada={atualizarTarefaLocal}
+            onAtualizada={atualizarTarefaLocal}
             onContinuar={continuarAposFinalizacao}
           />
         ) : (

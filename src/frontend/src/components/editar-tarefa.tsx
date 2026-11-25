@@ -380,32 +380,37 @@ export function EditarTarefa({
           </View>
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Prazo *</Text>
-          <View accessibilityRole="radiogroup" style={styles.options}>
-            {prazosTarefa.map((opcao) => (
-              <MotionPressable
-                accessibilityRole="radio"
-                accessibilityState={{ checked: prazoDias === opcao }}
-                key={opcao}
-                onPress={() => setPrazoDias(opcao)}
-                style={[styles.option, prazoDias === opcao && styles.selected]}
-              >
-                <Text style={styles.optionText}>
-                  {opcao} {opcao === 1 ? "dia" : "dias"}
-                </Text>
-              </MotionPressable>
-            ))}
+        {!tarefa.roleta && (
+          <View style={styles.field}>
+            <Text style={styles.label}>Prazo *</Text>
+            <View accessibilityRole="radiogroup" style={styles.options}>
+              {prazosTarefa.map((opcao) => (
+                <MotionPressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: prazoDias === opcao }}
+                  key={opcao}
+                  onPress={() => setPrazoDias(opcao)}
+                  style={[
+                    styles.option,
+                    prazoDias === opcao && styles.selected,
+                  ]}
+                >
+                  <Text style={styles.optionText}>
+                    {opcao} {opcao === 1 ? "dia" : "dias"}
+                  </Text>
+                </MotionPressable>
+              ))}
+            </View>
+            <ErroCampo mensagem={erros.prazoDias} />
+            {tarefa.modo_prazo === "intervalo" && (
+              <Text style={styles.help}>
+                O vencimento é calculado a partir do início e do prazo em dias.
+                Uma data específica só pode ser escolhida no modo dia fixo,
+                definido na criação da tarefa.
+              </Text>
+            )}
           </View>
-          <ErroCampo mensagem={erros.prazoDias} />
-          {tarefa.modo_prazo === "intervalo" && (
-            <Text style={styles.help}>
-              O vencimento é calculado a partir do início e do prazo em dias.
-              Uma data específica só pode ser escolhida no modo dia fixo,
-              definido na criação da tarefa.
-            </Text>
-          )}
-        </View>
+        )}
 
         <View style={styles.field}>
           <Text style={styles.label}>Tolerância após o prazo</Text>
@@ -430,7 +435,7 @@ export function EditarTarefa({
           <ErroCampo mensagem={erros.atrasoMaximo} />
         </View>
 
-        {tarefa.modo_prazo === "dia_fixo" && (
+        {!tarefa.roleta && tarefa.modo_prazo === "dia_fixo" && (
           <View style={styles.field}>
             <Text style={styles.label}>Data do vencimento</Text>
             {tarefa.tipo === "rotativa" && (
@@ -453,84 +458,86 @@ export function EditarTarefa({
           </View>
         )}
 
-        <View style={styles.field}>
-          <Text style={styles.label}>
-            {sortear ? "Responsável" : "Responsável *"}
-          </Text>
-          {podeSortear && (
-            <View
-              accessibilityRole="radiogroup"
-              accessibilityLabel="Modo de atribuição"
-              style={styles.options}
-            >
-              {modosAtribuicaoTarefa.map(({ valor, rotulo }) => (
-                <MotionPressable
-                  key={valor}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: modoAtribuicao === valor }}
-                  aria-checked={modoAtribuicao === valor}
-                  disabled={salvando}
-                  onPress={() => {
-                    setModoAtribuicao(valor);
-                    setErros((atuais) => ({
-                      ...atuais,
-                      responsavel: undefined,
-                    }));
-                  }}
-                  style={[
-                    styles.option,
-                    modoAtribuicao === valor && styles.selected,
-                  ]}
-                >
-                  <Text style={styles.optionText}>{rotulo}</Text>
-                </MotionPressable>
-              ))}
-            </View>
-          )}
-          {sortear ? (
-            <Text style={styles.help}>
-              O sorteio inclui o administrador e os moradores ativos.
+        {!tarefa.roleta && (
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              {sortear ? "Responsável" : "Responsável *"}
             </Text>
-          ) : (
-            <View
-              accessibilityRole="radiogroup"
-              accessibilityLabel="Responsável pela tarefa"
-              style={styles.options}
-            >
-              {moradoresDisponiveis.map((morador) => (
-                <MotionPressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: responsavel === morador.id }}
-                  aria-checked={responsavel === morador.id}
-                  accessibilityLabel={morador.nome}
-                  key={morador.id}
-                  onPress={() => {
-                    setResponsavel(morador.id);
-                    setErros((atuais) => ({
-                      ...atuais,
-                      responsavel: undefined,
-                    }));
-                  }}
-                  style={[
-                    styles.option,
-                    styles.opcaoMorador,
-                    responsavel === morador.id && styles.selected,
-                  ]}
-                >
-                  <Avatar
-                    nome={morador.nome}
-                    foto={morador.foto}
-                    tamanho={40}
-                  />
-                  <Text style={[styles.optionText, { flexShrink: 1 }]}>
-                    {morador.nome}
-                  </Text>
-                </MotionPressable>
-              ))}
-            </View>
-          )}
-          {!sortear && <ErroCampo mensagem={erros.responsavel} />}
-        </View>
+            {podeSortear && (
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Modo de atribuição"
+                style={styles.options}
+              >
+                {modosAtribuicaoTarefa.map(({ valor, rotulo }) => (
+                  <MotionPressable
+                    key={valor}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: modoAtribuicao === valor }}
+                    aria-checked={modoAtribuicao === valor}
+                    disabled={salvando}
+                    onPress={() => {
+                      setModoAtribuicao(valor);
+                      setErros((atuais) => ({
+                        ...atuais,
+                        responsavel: undefined,
+                      }));
+                    }}
+                    style={[
+                      styles.option,
+                      modoAtribuicao === valor && styles.selected,
+                    ]}
+                  >
+                    <Text style={styles.optionText}>{rotulo}</Text>
+                  </MotionPressable>
+                ))}
+              </View>
+            )}
+            {sortear ? (
+              <Text style={styles.help}>
+                O sorteio inclui o administrador e os moradores ativos.
+              </Text>
+            ) : (
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Responsável pela tarefa"
+                style={styles.options}
+              >
+                {moradoresDisponiveis.map((morador) => (
+                  <MotionPressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: responsavel === morador.id }}
+                    aria-checked={responsavel === morador.id}
+                    accessibilityLabel={morador.nome}
+                    key={morador.id}
+                    onPress={() => {
+                      setResponsavel(morador.id);
+                      setErros((atuais) => ({
+                        ...atuais,
+                        responsavel: undefined,
+                      }));
+                    }}
+                    style={[
+                      styles.option,
+                      styles.opcaoMorador,
+                      responsavel === morador.id && styles.selected,
+                    ]}
+                  >
+                    <Avatar
+                      nome={morador.nome}
+                      foto={morador.foto}
+                      tamanho={40}
+                    />
+                    <Text style={[styles.optionText, { flexShrink: 1 }]}>
+                      {morador.nome}
+                    </Text>
+                  </MotionPressable>
+                ))}
+              </View>
+            )}
+            {!sortear && <ErroCampo mensagem={erros.responsavel} />}
+          </View>
+        )}
 
         {erroEnvio && (
           <Text accessibilityLiveRegion="polite" style={styles.errorText}>

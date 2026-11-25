@@ -12,6 +12,7 @@ export type RotatividadeCriar = {
   participantes: string[];
   dias_semana: number[];
   intervalo_semanas: number;
+  usar_roleta?: boolean;
 };
 
 export type RotatividadeResposta = {
@@ -19,6 +20,7 @@ export type RotatividadeResposta = {
   fk_casa_id: string;
   nome: string;
   ativa: boolean;
+  usar_roleta?: boolean;
 };
 export type Rotatividade = RotatividadeResposta & {
   descricao: string | null;

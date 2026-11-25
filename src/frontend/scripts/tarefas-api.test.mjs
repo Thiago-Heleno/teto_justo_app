@@ -26,6 +26,9 @@ beforeEach(() => {
 
 const {
   carregarTarefas,
+  buscarTarefa,
+  consultarRoletaTarefa,
+  girarRoletaTarefa,
   carregarContextoTarefas,
   carregarUsuarioAtual,
   carregarPlacar,
@@ -41,6 +44,30 @@ const {
   retirarReportTarefa,
   temConfiguracaoTarefas,
 } = await import("../src/services/tarefas-api.ts");
+
+test("giro do rodízio usa a ocorrência e o resultado do servidor", async (t) => {
+  process.env.EXPO_PUBLIC_API_URL = "http://api.test";
+  sessao.setState({ token: "sessao-valida" });
+  const confirmada = {
+    estado: "atribuida",
+    responsavel_id: "ana",
+    candidatos: ["beto", "ana"],
+  };
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    Response.json(confirmada),
+  );
+  assert.deepEqual(await consultarRoletaTarefa("tarefa-123"), confirmada);
+  assert.deepEqual(await girarRoletaTarefa("tarefa-123"), confirmada);
+  await buscarTarefa("tarefa-123");
+  const [consulta, giro, tarefa] = fetch.mock.calls.map(
+    ({ arguments: args }) => args,
+  );
+  assert.equal(consulta[0], "http://api.test/tarefas/tarefa-123/roleta");
+  assert.equal(giro[0], consulta[0]);
+  assert.equal(giro[1].method, "POST");
+  assert.equal(giro[1].body, undefined);
+  assert.equal(tarefa[0], "http://api.test/tarefas/tarefa-123");
+});
 
 test("POST e PATCH de roleta omitem responsáveis e devolvem o ID sorteado", async (t) => {
   process.env.EXPO_PUBLIC_API_URL = "http://api.test";

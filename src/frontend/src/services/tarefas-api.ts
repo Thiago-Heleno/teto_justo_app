@@ -16,6 +16,20 @@ export type Morador = MoradorCasa;
 
 export type UsuarioAtual = { id: string; nome: string };
 
+export type RoletaOcorrencia = {
+  abre_em: string;
+  expira_em: string;
+  estado: "agendada" | "aberta" | "expirada" | "atribuindo" | "atribuida";
+  responsavel_id: string | null;
+  origem: "giro" | "balanceamento" | null;
+  atribuida_em: string | null;
+};
+
+export type RoletaOcorrenciaDetalhe = RoletaOcorrencia & {
+  candidatos: string[];
+  pode_girar: boolean;
+};
+
 export type AtribuicaoTarefa =
   | { modo_atribuicao?: "manual"; usuarios_atribuidos: [string] }
   | { modo_atribuicao: "aleatorio"; usuarios_atribuidos?: never };
@@ -35,6 +49,7 @@ export type Tarefa = {
   data_inicio: string | null;
   data_fim: string;
   usuarios_atribuidos: string[];
+  roleta?: RoletaOcorrencia | null;
   concluida_em?: string | null;
   politica_reclamacao: "nenhuma" | "uma_reclamacao" | "votacao";
   reclamacoes_count: number;
@@ -57,7 +72,15 @@ export type TarefaAtualizar =
       data_fixa?: string;
     } & AtribuicaoTarefa)
   | { modo_atribuicao: "aleatorio"; usuarios_atribuidos?: never }
-  | { modo_atribuicao?: "manual"; usuarios_atribuidos: [string] };
+  | { modo_atribuicao?: "manual"; usuarios_atribuidos: [string] }
+  | {
+      nome: string;
+      descricao: string;
+      peso: PesoTarefa;
+      atraso_maximo?: number;
+      modo_atribuicao?: never;
+      usuarios_atribuidos?: never;
+    };
 
 export type TarefaCriar = {
   fk_casa_id: string;
@@ -214,6 +237,27 @@ export function finalizarTarefa(idTarefa: string, signal?: AbortSignal) {
   return requisitar<Tarefa>(`/tarefas/${idTarefa}/conclusoes`, signal, {
     method: "POST",
   });
+}
+
+export function buscarTarefa(idTarefa: string, signal?: AbortSignal) {
+  return requisitar<Tarefa>(`/tarefas/${idTarefa}`, signal);
+}
+
+export function consultarRoletaTarefa(idTarefa: string, signal?: AbortSignal) {
+  return requisitar<RoletaOcorrenciaDetalhe>(
+    `/tarefas/${idTarefa}/roleta`,
+    signal,
+  );
+}
+
+export function girarRoletaTarefa(idTarefa: string, signal?: AbortSignal) {
+  return requisitar<RoletaOcorrenciaDetalhe>(
+    `/tarefas/${idTarefa}/roleta`,
+    signal,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export function reabrirTarefa(idTarefa: string, signal?: AbortSignal) {

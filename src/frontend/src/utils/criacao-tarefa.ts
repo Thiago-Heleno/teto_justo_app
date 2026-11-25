@@ -21,6 +21,7 @@ export type FormularioTarefa = {
   responsavel: string | null;
   modoAtribuicao?: ModoAtribuicao;
   rotativa: boolean;
+  usarRoleta?: boolean;
   participantes: string[];
   diasSemana: DiaSemana[];
   semanas: IntervaloSemanas;
@@ -74,6 +75,7 @@ export function prepararTarefa(
     responsavel,
     modoAtribuicao,
     rotativa,
+    usarRoleta,
     participantes,
     diasSemana,
     semanas,
@@ -148,6 +150,7 @@ export function prepararTarefa(
             participantes: [...participantes],
             dias_semana: [...diasSemana].sort((a, b) => a - b),
             intervalo_semanas: semanas,
+            ...(usarRoleta ? { usar_roleta: true } : {}),
           }
         : null,
     },

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { prepararAtribuicaoTarefa, prepararEdicaoTarefa } from "../src/utils/edicao-tarefa.ts";
+import {
+  prepararAtribuicaoTarefa,
+  prepararEdicaoTarefa,
+} from "../src/utils/edicao-tarefa.ts";
 
 const tarefa = {
   id: "tarefa-1",
@@ -27,6 +30,26 @@ const formulario = {
   dataFixa: "",
   responsavel: "morador-2",
 };
+
+test("edição administrativa de ocorrência com roleta só envia os campos permitidos", () => {
+  const { erros, dados } = prepararEdicaoTarefa(
+    { ...formulario, responsavel: "", dataFixa: "03-10-2026" },
+    {
+      ...tarefa,
+      tipo: "rotativa",
+      modo_prazo: "dia_fixo",
+      roleta: { estado: "aberta" },
+    },
+    moradores,
+  );
+  assert.deepEqual(erros, {});
+  assert.deepEqual(dados, {
+    nome: "Lavar e secar a louça",
+    descricao: "Louça do jantar e panelas",
+    peso: 3,
+    atraso_maximo: 4,
+  });
+});
 
 test("PATCH usa duração e tolerância, nunca data_fim", () => {
   const resultado = prepararEdicaoTarefa(formulario, tarefa, moradores);
