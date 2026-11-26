@@ -221,11 +221,10 @@ export default function PontuacaoScreen() {
               </View>
               {ajudaAberta && (
                 <Text style={styles.caption}>
-                  Semana, mês e ano atuais, no fuso {placar?.fuso_horario}. O
-                  acumulado soma todo o histórico, incluindo estornos por
-                  reabertura. A maior pontuação aparece primeiro e empates
-                  compartilham a mesma posição. O período altera apenas o placar
-                  e o total da casa.
+                  Semana, mês e ano atuais. O acumulado soma todo o histórico,
+                  incluindo estornos por reabertura. A maior pontuação aparece
+                  primeiro e empates compartilham a mesma posição. O período
+                  altera apenas o placar e o total da casa.
                 </Text>
               )}
               <View style={styles.pills}>

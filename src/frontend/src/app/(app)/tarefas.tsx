@@ -557,13 +557,13 @@ export default function TarefasScreen() {
             />
             <View style={styles.hero}>
               <View style={styles.heroCopy}>
-                <Text style={styles.houseName}>{casa.nome}</Text>
                 <Text
                   accessibilityRole="header"
                   style={[styles.title, telaPequena && styles.titleSmall]}
                 >
                   TAREFAS DA CASA
                 </Text>
+                <Text style={styles.houseName}>{casa.nome}</Text>
                 <Text style={styles.subtitle}>
                   Organize o combinado, veja quem ficou responsável e acompanhe
                   cada prazo.
