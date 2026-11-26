@@ -1,3 +1,4 @@
+
 import { ErroApi, requisitar } from "./api.ts";
 import { listarMoradoresCasa, type MoradorCasa } from "./casas-api.ts";
 import { sessao } from "./sessao-store.ts";
@@ -110,6 +111,23 @@ export type Placar = {
   }[];
 };
 
+export type PeriodoDesempenho = "semanal" | "mensal" | "semestral";
+
+export type Desempenho = {
+  casa_id: string;
+  fuso_horario: string;
+  periodo: PeriodoDesempenho;
+  data_inicio: string;
+  data_fim: string;
+  atualizado_em: string;
+  moradores: {
+    usuario_id: string;
+    nome: string;
+    total: number;
+    serie: { data: string; pontos: number; acumulado: number }[];
+  }[];
+};
+
 export type EventoExtrato = {
   id: string;
   fk_usuario_id: string;
@@ -180,6 +198,17 @@ export function carregarAdministradorDaCasa(
 export function carregarPlacar(signal?: AbortSignal) {
   const { casaId } = configuracao();
   return requisitar<Placar>(`/casas/${casaId}/placar`, signal);
+}
+
+export function carregarDesempenho(
+  periodo: PeriodoDesempenho,
+  signal?: AbortSignal,
+) {
+  const { casaId } = configuracao();
+  return requisitar<Desempenho>(
+    `/casas/${casaId}/desempenho?periodo=${periodo}`,
+    signal,
+  );
 }
 
 export function carregarExtrato(signal?: AbortSignal) {
