@@ -53,10 +53,16 @@ test("preserva os filtros existentes e usa séries só nos períodos suportados"
 test("seleção de dia usa os acumulados reais, incluindo estornos e zeros", () => {
   const primeiro = resumirDia(moradores, "2026-11-22");
   assert.equal(primeiro.indice, 0);
-  assert.deepEqual(primeiro.totais.map((m) => m.pontos), [10, 0]);
+  assert.deepEqual(
+    primeiro.totais.map((m) => m.pontos),
+    [10, 0],
+  );
   const ultimo = resumirDia(moradores);
   assert.equal(ultimo.indice, 1);
-  assert.deepEqual(ultimo.totais.map((m) => m.pontos), [5, -3]);
+  assert.deepEqual(
+    ultimo.totais.map((m) => m.pontos),
+    [5, -3],
+  );
   assert.deepEqual(resumirDia(moradores, "2026-10-01"), ultimo);
   assert.deepEqual(resumirDia([]), { datas: [], indice: -1, totais: [] });
 });

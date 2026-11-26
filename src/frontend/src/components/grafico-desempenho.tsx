@@ -77,7 +77,11 @@ export function GraficoDesempenho({
 
   const dados = consulta.estado === "pronto" ? consulta.dados : undefined;
   const series = diario ? (dados?.moradores ?? []) : [];
-  const { datas, indice, totais: totaisDia } = resumirDia(series, diaSelecionado);
+  const {
+    datas,
+    indice,
+    totais: totaisDia,
+  } = resumirDia(series, diaSelecionado);
   const totais = diario ? totaisDia : (resumo?.moradores ?? []);
   const destaque =
     totais.find((morador) => morador.usuario_id === selecionado) ??
