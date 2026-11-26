@@ -34,14 +34,6 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Perfil</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="person.fill" md="person" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="gerenciar-casa">
-        <NativeTabs.Trigger.Label>Casa</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="house.lodge.fill" md="settings" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="rotatividades">
-        <NativeTabs.Trigger.Label>Rodízio</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="arrow.triangle.2.circlepath" md="sync" />
-      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

@@ -1,29 +1,37 @@
 import { Check, X, type LucideIcon } from "lucide-react-native";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { Caldera, CompactFont } from "@/constants/theme";
+import { Modal, StyleSheet, Text, View } from "react-native";
+
+import { MotionPressable } from "@/components/motion-pressable";
+import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 
 export function Acao({
   texto,
   icone: Icone,
   onPress,
   disabled = false,
+  variante = "secundaria",
 }: {
   texto: string;
   icone?: LucideIcon;
   onPress: () => void;
   disabled?: boolean;
+  variante?: "primaria" | "secundaria";
 }) {
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.button, disabled && { opacity: 0.5 }]}
+      style={StyleSheet.flatten([
+        styles.button,
+        variante === "primaria" && styles.primaryButton,
+        disabled && { opacity: 0.5 },
+      ])}
     >
       {Icone && <Icone color={Caldera.obsidian} size={18} />}
       <Text style={styles.buttonText}>{texto}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 export function ConfirmarAcao({
@@ -69,28 +77,63 @@ export function ConfirmarAcao({
   );
 }
 export const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Caldera.limestone },
+  safe: { flex: 1, backgroundColor: Caldera.pumice },
   page: {
-    padding: 24,
-    gap: 20,
+    flexGrow: 1,
+    padding: Spacing.four,
+    paddingBottom: Spacing.six,
+  },
+  pageSmall: {
+    padding: Spacing.three,
+    paddingBottom: Spacing.five,
+  },
+  content: {
     width: "100%",
-    maxWidth: 900,
+    maxWidth: 1280,
     alignSelf: "center",
+    gap: Spacing.four,
+  },
+  heading: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: Spacing.three,
+  },
+  headingCopy: {
+    flexShrink: 1,
+    gap: Spacing.two,
+  },
+  eyebrow: {
+    color: Caldera.ember,
+    fontSize: 14,
+    fontWeight: "500",
   },
   title: {
     fontFamily: CompactFont,
-    fontSize: 36,
-    fontWeight: "800",
+    fontSize: 56,
+    lineHeight: 60,
+    letterSpacing: 1.12,
     color: Caldera.obsidian,
   },
-  subtitle: { fontSize: 22, fontWeight: "700", color: Caldera.obsidian },
+  titleSmall: {
+    fontSize: 36,
+    lineHeight: 40,
+    letterSpacing: 0.72,
+  },
+  subtitle: {
+    fontFamily: CompactFont,
+    fontSize: 28,
+    lineHeight: 32,
+    color: Caldera.obsidian,
+  },
   text: { fontSize: 16, lineHeight: 24, color: Caldera.obsidian },
   label: { fontSize: 16, fontWeight: "700", color: Caldera.obsidian },
   card: {
-    borderRadius: 24,
-    padding: 24,
-    gap: 16,
-    backgroundColor: Caldera.pumice,
+    borderRadius: 32,
+    padding: Spacing.four,
+    gap: Spacing.three,
+    backgroundColor: Caldera.limestone,
   },
   row: {
     flexDirection: "row",
@@ -99,25 +142,30 @@ export const styles = StyleSheet.create({
     alignItems: "center",
   },
   input: {
-    backgroundColor: Caldera.limestone,
+    backgroundColor: Caldera.pumice,
     borderWidth: 1,
     borderColor: Caldera.obsidian,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 14,
     color: Caldera.obsidian,
     fontSize: 16,
   },
   button: {
-    borderRadius: 24,
-    borderWidth: 1,
+    borderRadius: 800,
+    borderWidth: 1.5,
     borderColor: Caldera.obsidian,
-    padding: 14,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
     alignSelf: "flex-start",
     alignItems: "center",
     flexDirection: "row",
-    gap: 8,
+    gap: Spacing.two,
   },
-  buttonText: { color: Caldera.obsidian, fontWeight: "700" },
+  primaryButton: {
+    backgroundColor: Caldera.ember,
+    borderColor: Caldera.ember,
+  },
+  buttonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   error: { color: "#a32316", fontSize: 16 },
   backdrop: {
     flex: 1,
@@ -130,7 +178,7 @@ export const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 560,
     padding: 24,
-    borderRadius: 24,
+    borderRadius: 32,
     gap: 20,
     backgroundColor: Caldera.limestone,
   },

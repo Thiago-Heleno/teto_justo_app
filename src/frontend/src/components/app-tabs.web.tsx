@@ -49,16 +49,6 @@ export default function AppTabs() {
             <TabTrigger name="perfil" href="/perfil" asChild>
               <TabButton icon={User}>Perfil</TabButton>
             </TabTrigger>
-            <TabTrigger
-              name="gerenciar-casa"
-              href="/gerenciar-casa"
-              style={styles.hiddenTrigger}
-            />
-            <TabTrigger
-              name="rotatividades"
-              href="/rotatividades"
-              style={styles.hiddenTrigger}
-            />
           </CustomTabList>
         </TabList>
         <TabSlot style={styles.tabContent} />
@@ -108,7 +98,6 @@ export function CustomTabList({ style, children, ...props }: TabListProps) {
 
 const styles = StyleSheet.create({
   tabContent: { flex: 1, minHeight: 0 },
-  hiddenTrigger: { display: "none" },
   tabListContainer: {
     width: "100%",
     padding: Spacing.three,
@@ -124,6 +113,7 @@ const styles = StyleSheet.create({
     borderRadius: 800,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     flexWrap: "nowrap",
     width: "100%",
     gap: Spacing.two,

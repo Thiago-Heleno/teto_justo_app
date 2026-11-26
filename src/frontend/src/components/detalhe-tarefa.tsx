@@ -20,6 +20,7 @@ import { CircleCheck, Pencil, RotateCcw } from "lucide-react-native";
 
 import { Avatar } from "@/components/avatar";
 import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
+import { BotaoVoltar } from "@/components/botao-voltar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { RoletaOcorrencia } from "@/components/roleta-ocorrencia";
 import { rotulosEstado } from "@/constants/tarefa";
@@ -149,13 +150,7 @@ export function DetalheTarefa({
         exiting={FadeOut.duration(140).reduceMotion(ReduceMotion.System)}
         style={styles.container}
       >
-        <MotionPressable
-          accessibilityRole="button"
-          onPress={onVoltar}
-          style={styles.backButton}
-        >
-          <Text style={styles.backButtonText}>← Voltar para tarefas</Text>
-        </MotionPressable>
+        <BotaoVoltar texto="Voltar para tarefas" onPress={onVoltar} />
 
         <View style={[styles.card, telaPequena && styles.cardSmall]}>
           <View style={styles.headingRow}>
@@ -410,18 +405,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     gap: Spacing.four,
   },
-  backButton: {
-    maxWidth: "100%",
-    minHeight: 44,
-    justifyContent: "center",
-    alignSelf: "flex-start",
-    borderWidth: 1.5,
-    borderColor: Caldera.obsidian,
-    borderRadius: 800,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  backButtonText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   card: {
     backgroundColor: Caldera.limestone,
     borderRadius: 40,
