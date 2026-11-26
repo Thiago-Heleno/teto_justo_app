@@ -42,6 +42,34 @@ class RegraCasaAtualizar(BaseModel):
         return valor
 
 
+class MultaCasaCriar(BaseModel):
+    fk_casa_id: UUID
+    fk_regra_id: UUID
+    fk_usuario_multado_id: UUID
+    observacao: str | None = None
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    @field_validator("observacao")
+    @classmethod
+    def observacao_vazia_vira_nula(cls, valor):
+        return valor or None
+
+
+class MultaCasaResposta(BaseModel):
+    id: UUID
+    fk_casa_id: UUID
+    fk_regra_id: UUID
+    titulo_regra: str
+    fk_usuario_multado_id: UUID
+    fk_usuario_aplicador_id: UUID
+    valor_centavos: int
+    observacao: str | None
+    paga: bool
+    pago_em: datetime | None
+    criado_em: datetime
+
+
 class RegraCasaResposta(BaseModel):
     id: UUID
     fk_casa_id: UUID
