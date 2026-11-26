@@ -134,7 +134,8 @@ export default function RotatividadesScreen() {
               {aviso}
             </Text>
           )}
-          {((!g.dados && !g.erro) || (casa && regras === null && !erroLista)) && (
+          {((!g.dados && !g.erro) ||
+            (casa && regras === null && !erroLista)) && (
             <ActivityIndicator accessibilityLabel="Carregando regras" />
           )}
           {g.admin && !edicao && (
@@ -143,108 +144,108 @@ export default function RotatividadesScreen() {
               icone={Plus}
               variante="primaria"
               disabled={g.ocupado}
-            onPress={() => {
-              g.setErro(undefined);
-              setAviso(undefined);
-              setEdicao("nova");
-            }}
-          />
-        )}
-        {g.admin && casa && edicao && (
-          <FormularioRotatividade
-            key={edicao === "nova" ? "nova" : edicao.id}
-            casaId={casa.id}
-            moradores={g.dados?.moradores ?? []}
-            regra={edicao === "nova" ? null : edicao}
-            ocupado={g.ocupado}
-            onCriar={(dados) =>
-              void g.executar(
-                (signal) => criarRotatividade(dados, signal),
-                concluir,
-              )
-            }
-            onEditar={(dados) => {
-              if (edicao !== "nova")
+              onPress={() => {
+                g.setErro(undefined);
+                setAviso(undefined);
+                setEdicao("nova");
+              }}
+            />
+          )}
+          {g.admin && casa && edicao && (
+            <FormularioRotatividade
+              key={edicao === "nova" ? "nova" : edicao.id}
+              casaId={casa.id}
+              moradores={g.dados?.moradores ?? []}
+              regra={edicao === "nova" ? null : edicao}
+              ocupado={g.ocupado}
+              onCriar={(dados) =>
                 void g.executar(
-                  (signal) => atualizarRotatividade(edicao.id, dados, signal),
-                  concluir,
-                );
-            }}
-            onCancelar={() => setEdicao(null)}
-          />
-        )}
-        {casa && regras?.length === 0 && (
-          <Text style={styles.text}>Nenhuma regra cadastrada.</Text>
-        )}
-        {casa &&
-          regras?.map((regra) => (
-            <View key={regra.id} style={styles.card}>
-              <Text style={styles.subtitle}>{regra.nome}</Text>
-              <Text style={styles.text}>
-                {regra.descricao || "Sem descrição"}
-              </Text>
-              <Text style={styles.text}>
-                {regra.ativa ? "Ativa" : "Pausada"}
-              </Text>
-              <Text style={styles.text}>
-                Dias:{" "}
-                {regra.dias_semana
-                  .map(
-                    (dia) =>
-                      diasSemanaTarefa.find((d) => d.valor === dia)
-                        ?.abreviacao ?? dia,
-                  )
-                  .join(", ")}
-              </Text>
-              <Text style={styles.text}>
-                A cada {regra.intervalo_semanas} semana(s) · Prazo:{" "}
-                {regra.prazo_dias} dia(s) ·{" "}
-                {regra.modo_prazo === "dia_fixo"
-                  ? "Dia da ocorrência"
-                  : "Dias após a ocorrência"}
-              </Text>
-              {g.admin && (
-                <View style={styles.row}>
-                  <Acao
-                    texto={`Editar ${regra.nome}`}
-                    icone={Pencil}
-                    disabled={g.ocupado || Boolean(edicao)}
-                    onPress={() => {
-                      g.setErro(undefined);
-                      setAviso(undefined);
-                      setEdicao(regra);
-                    }}
-                  />
-                  <Acao
-                    texto={`Remover ${regra.nome}`}
-                    icone={Trash2}
-                    disabled={g.ocupado || Boolean(edicao)}
-                    onPress={() => setRemover(regra)}
-                  />
-                </View>
-              )}
-            </View>
-          ))}
-        <Text style={styles.text}>
-          Regras com tarefas já geradas não podem ser excluídas. O administrador
-          pode pausá-las em Editar.
-        </Text>
-        <ConfirmarAcao
-          mensagem={
-            g.admin && remover ? `Remover a regra “${remover.nome}”?` : null
-          }
-          ocupado={g.ocupado}
-          onCancelar={() => setRemover(null)}
-          onConfirmar={() => {
-            if (remover)
-              void g
-                .executar(
-                  (signal) => excluirRotatividade(remover.id, signal),
+                  (signal) => criarRotatividade(dados, signal),
                   concluir,
                 )
-                .finally(() => setRemover(null));
-          }}
-        />
+              }
+              onEditar={(dados) => {
+                if (edicao !== "nova")
+                  void g.executar(
+                    (signal) => atualizarRotatividade(edicao.id, dados, signal),
+                    concluir,
+                  );
+              }}
+              onCancelar={() => setEdicao(null)}
+            />
+          )}
+          {casa && regras?.length === 0 && (
+            <Text style={styles.text}>Nenhuma regra cadastrada.</Text>
+          )}
+          {casa &&
+            regras?.map((regra) => (
+              <View key={regra.id} style={styles.card}>
+                <Text style={styles.subtitle}>{regra.nome}</Text>
+                <Text style={styles.text}>
+                  {regra.descricao || "Sem descrição"}
+                </Text>
+                <Text style={styles.text}>
+                  {regra.ativa ? "Ativa" : "Pausada"}
+                </Text>
+                <Text style={styles.text}>
+                  Dias:{" "}
+                  {regra.dias_semana
+                    .map(
+                      (dia) =>
+                        diasSemanaTarefa.find((d) => d.valor === dia)
+                          ?.abreviacao ?? dia,
+                    )
+                    .join(", ")}
+                </Text>
+                <Text style={styles.text}>
+                  A cada {regra.intervalo_semanas} semana(s) · Prazo:{" "}
+                  {regra.prazo_dias} dia(s) ·{" "}
+                  {regra.modo_prazo === "dia_fixo"
+                    ? "Dia da ocorrência"
+                    : "Dias após a ocorrência"}
+                </Text>
+                {g.admin && (
+                  <View style={styles.row}>
+                    <Acao
+                      texto={`Editar ${regra.nome}`}
+                      icone={Pencil}
+                      disabled={g.ocupado || Boolean(edicao)}
+                      onPress={() => {
+                        g.setErro(undefined);
+                        setAviso(undefined);
+                        setEdicao(regra);
+                      }}
+                    />
+                    <Acao
+                      texto={`Remover ${regra.nome}`}
+                      icone={Trash2}
+                      disabled={g.ocupado || Boolean(edicao)}
+                      onPress={() => setRemover(regra)}
+                    />
+                  </View>
+                )}
+              </View>
+            ))}
+          <Text style={styles.text}>
+            Regras com tarefas já geradas não podem ser excluídas. O
+            administrador pode pausá-las em Editar.
+          </Text>
+          <ConfirmarAcao
+            mensagem={
+              g.admin && remover ? `Remover a regra “${remover.nome}”?` : null
+            }
+            ocupado={g.ocupado}
+            onCancelar={() => setRemover(null)}
+            onConfirmar={() => {
+              if (remover)
+                void g
+                  .executar(
+                    (signal) => excluirRotatividade(remover.id, signal),
+                    concluir,
+                  )
+                  .finally(() => setRemover(null));
+            }}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
