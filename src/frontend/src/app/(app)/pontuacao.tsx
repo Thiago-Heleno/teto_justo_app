@@ -15,6 +15,7 @@ import { useStore } from "zustand";
 
 import { Avatar } from "@/components/avatar";
 import { BotaoReportarTarefa } from "@/components/botao-reportar-tarefa";
+import { GraficoDesempenho } from "@/components/grafico-desempenho";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import { listarMoradoresCasa } from "@/services/casas-api";
@@ -49,6 +50,7 @@ export default function PontuacaoScreen() {
     new Map(),
   );
   const [usuarioId, setUsuarioId] = useState<string>();
+  const casaId = useStore(sessao, (estado) => estado.casaAtiva?.id);
   const administradorId = useStore(
     sessao,
     (estado) => estado.casaAtiva?.fk_usuario_id,
@@ -203,6 +205,37 @@ export default function PontuacaoScreen() {
             </View>
           )}
 
+          <View
+            style={styles.pills}
+            accessibilityLabel="Período do desempenho e placar"
+          >
+            {periodosPlacar.map((opcao) => (
+              <MotionPressable
+                key={opcao.valor}
+                accessibilityRole="button"
+                accessibilityState={{ selected: periodo === opcao.valor }}
+                onPress={() => setPeriodo(opcao.valor)}
+                style={[
+                  styles.pill,
+                  periodo === opcao.valor && styles.pillSelected,
+                ]}
+              >
+                <Text style={styles.body}>{opcao.rotulo}</Text>
+              </MotionPressable>
+            ))}
+          </View>
+          {casaId && (
+            <GraficoDesempenho
+              key={`${casaId}-${periodo}`}
+              periodo={periodo}
+              rotulo={rotulo}
+              tentativa={tentativa}
+              resumo={resumo}
+              fotos={fotos}
+              usuarioId={usuarioId}
+            />
+          )}
+
           {resumo && (
             <View style={styles.card}>
               <View style={styles.sectionRow}>
@@ -227,22 +260,6 @@ export default function PontuacaoScreen() {
                   altera apenas o placar e o total da casa.
                 </Text>
               )}
-              <View style={styles.pills}>
-                {periodosPlacar.map((opcao) => (
-                  <MotionPressable
-                    key={opcao.valor}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: periodo === opcao.valor }}
-                    onPress={() => setPeriodo(opcao.valor)}
-                    style={[
-                      styles.pill,
-                      periodo === opcao.valor && styles.pillSelected,
-                    ]}
-                  >
-                    <Text style={styles.body}>{opcao.rotulo}</Text>
-                  </MotionPressable>
-                ))}
-              </View>
               {resumo.moradores.length === 0 ? (
                 <Text style={styles.body}>
                   Ainda não há moradores no placar desta casa.

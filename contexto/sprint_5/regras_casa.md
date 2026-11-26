@@ -2,25 +2,32 @@
 
 ## Objetivo
 Atender o contrato que `src/frontend/src/services/regras-casa-api.ts` já consome em `/regras-casa/...`.
-Entrega em duas partes: regras (feita) e multas (pendente).
+Entregue em duas partes: regras e multas.
 
-## Parte 1: regras (feita)
-- `docs/migrations/39.sql`: tabela `regra_casa` (FK para `casa` com `ON DELETE CASCADE`, `valor_multa_centavos` > 0, índice em `fk_casa_id`).
+## Arquivos
+- `docs/migrations/39.sql`: tabela `regra_casa`.
+- `docs/migrations/41.sql`: tabela `multa_casa` (a 40 é da roleta).
 - `src/backend/schemas/regra_casa.py`, `services/regra_casa.py`, `routers/regra_casa.py`; router registrado em `main.py`.
-- Rotas: `POST /regras-casa/`, `GET /regras-casa/casa/{id_casa}`, `PATCH /regras-casa/{id_regra}`, `DELETE /regras-casa/{id_regra}`.
-- Permissões: listar para administrador ou morador ativo; criar, editar e excluir só para o administrador.
+- `src/backend/tests/test_regra_casa_unitario.py`.
+
+## Rotas
+- Regras: `POST /regras-casa/`, `GET /regras-casa/casa/{id_casa}`, `PATCH|DELETE /regras-casa/{id_regra}`.
+- Multas: `GET /regras-casa/casa/{id_casa}/multas` (mais recentes primeiro), `POST /regras-casa/multas`, `POST|DELETE /regras-casa/multas/{id_multa}/pagar`, `DELETE /regras-casa/multas/{id_multa}`.
+- Listar: administrador ou morador ativo. As demais operações: só o administrador.
 
 ## Decisões
 - `valor_multa_centavos` entre 1 e 2147483647 (limite do `INT`, igual ao frontend).
-- `descricao` vazia vira `null`; `titulo`, `valor_multa_centavos` e `ativa` não aceitam `null` no PATCH; PATCH sem campos retorna 422.
+- `descricao` e `observacao` vazias viram `null`; `titulo`, `valor_multa_centavos` e `ativa` não aceitam `null` no PATCH; PATCH sem campos retorna 422.
+- A multa exige regra da mesma casa e ativa; o multado é o administrador ou um morador ativo. `titulo_regra` e `valor_centavos` são copiados da regra na criação.
+- Excluir regra com multas retorna 409, para preservar o histórico (a tela orienta pausar a regra). No banco, `fk_regra_id` não tem `CASCADE`; excluir a casa ainda apaga regras e multas.
+- As chaves para `usuario` usam `ON DELETE RESTRICT`, como `item_compra`.
 - Lógica em Python, sem funções no banco.
 
 ## Validação
-- `pytest tests/test_regra_casa_unitario.py tests/test_lista_unitario.py` (pasta `src/backend`): 17 passaram (banco em memória, são testes de unidade).
-- `ruff check` e `ruff format --check` em `src/backend`: sem pendências.
-- Migration 39 não foi aplicada em nenhum banco; não há teste de integração.
+- `pytest tests/test_regra_casa_unitario.py` (pasta `src/backend`): 16 passaram (banco em memória, são testes de unidade).
+- `pytest tests -k unitario`: 840 passaram, 37 fora da seleção.
+- `ruff check` em `src/backend` e `ruff format --check` nos arquivos da funcionalidade: sem pendências.
 
 ## Pendências
-- Parte 2: tabela `multa_casa` (migration 40) e rotas de multas: `GET /regras-casa/casa/{id_casa}/multas`, `POST /regras-casa/multas`, `POST|DELETE /regras-casa/multas/{id}/pagar`, `DELETE /regras-casa/multas/{id}`. Declarar as rotas `/multas` antes das `/{id_regra}`.
-- Regras da parte 2: só administrador aplica, paga e exclui; a regra deve ser da mesma casa e estar ativa; o multado deve ser o administrador ou morador ativo; `valor_centavos` e `titulo_regra` são copiados da regra na criação.
-- Teste de integração contra o Supabase de teste.
+- Aplicar as migrations 39 e 41 no banco; não foram aplicadas por esta implementação.
+- Não há teste de integração contra o Supabase de teste, e a tela não foi exercitada contra o backend.

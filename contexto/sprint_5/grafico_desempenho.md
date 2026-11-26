@@ -111,3 +111,74 @@ Não foram executados testes contra banco real, validação visual ou deploy.
 As consultas paginadas reutilizam o padrão existente e não têm snapshot
 transacional entre páginas durante gravações simultâneas. Uma nova consulta
 recalcula os dados persistidos.
+
+## Integração frontend — Sprint 5
+
+### Comportamento
+
+- Novo bloco Desempenho geral entre o filtro compartilhado e o Placar da casa.
+- Semana e Mês consultam a rota `/casas/{id_casa}/desempenho` com o período
+  selecionado. O gráfico usa o acumulado diário retornado pelo backend,
+  incluindo estornos, dias sem movimentação e moradores com zero pontos.
+- Ano e Acumulado continuam disponíveis e exibem barras comparativas com
+  os totais do placar, pois a rota de desempenho não disponibiliza séries
+  diárias para esses dois períodos. Não é usado o semestre como substituto
+  do ano nem é reconstruído histórico a partir do extrato limitado.
+  O semestre permanece suportado no cliente da API, mas não foi incluído
+  como filtro novo na interface para preservar as quatro opções atuais.
+- Os filtros continuam controlando o total do cabeçalho e o placar. As
+  movimentações recentes continuam independentes do período.
+- A seleção de um morador destaca sua curva ou barra; inicialmente o destaque
+  é do usuário atual, quando disponível. A navegação por dias atualiza o
+  total do cartão e os pontos de cada morador até o dia selecionado. As
+  datas vêm da API, sem conversão para o fuso do dispositivo.
+- A escala inclui zero e os valores negativos. O componente usa a largura
+  medida do gráfico, o tema Caldera, Avatar, MotionPressable e SVG já presente
+  no manifesto do projeto; nenhum pacote novo foi adicionado.
+- A série é consultada ao entrar/retomar a aba, trocar o período, usar
+  Atualizar ou quando uma reclamação reabre uma tarefa e dispara a atualização
+  existente. A solicitação anterior é cancelada; erros da série têm nova
+  tentativa própria, sem bloquear o placar. A seleção é reiniciada na troca
+  de casa ou de período. Não há polling enquanto a aba permanece aberta.
+
+### Arquivos alterados
+
+- `src/frontend/src/app/(app)/pontuacao.tsx`: filtro único acima do novo bloco,
+  integração do componente e atualização da ajuda do placar.
+- `src/frontend/src/components/grafico-desempenho.tsx`: visualização, interação
+  e estados de consulta.
+- `src/frontend/src/utils/grafico-desempenho.ts`: seleção de dia, escalas e
+  formatação das datas civis.
+- `src/frontend/src/services/tarefas-api.ts`: tipos do contrato e consulta
+  autenticada na casa ativa, com cancelamento.
+- `src/frontend/scripts/grafico-desempenho.test.mjs`: testes de unidade de
+  visualização e cliente HTTP com sessão e fetch simulados.
+
+### Validação executada
+
+A partir de `src/frontend`, com Node 22.16.0:
+
+```bash
+node --experimental-strip-types --experimental-test-module-mocks --test scripts/grafico-desempenho.test.mjs scripts/placar.test.mjs
+```
+
+- Oito testes aprovados (cinco novos e três existentes). A primeira execução
+  sem `--experimental-strip-types` falhou por não reconhecer a extensão TS.
+  Com a flag, todos passaram. Houve avisos experimentais do Node e de tipo de
+  módulo não declarado.
+- Transpilação isolada dos quatro arquivos TS/TSX alterados pelo TypeScript
+  global: sem erros sintáticos. Isso não substitui `tsc --noEmit` do projeto.
+- `git diff --check` a partir da raiz, com os arquivos novos incluídos:
+  aprovado.
+- `npm ci --offline --ignore-scripts --no-audit --no-fund`: falhou por
+  ausência de `zustand` no cache (`ENOTCACHED`). A consulta ao registro npm
+  também falhou por resolução de DNS (`EAI_AGAIN`).
+
+### Limitações
+
+Não foi possível executar ESLint, Prettier, a verificação completa de tipos,
+o Expo ou testes visuais web/Android/iOS neste ambiente, nem consultar o
+backend real. A implementação usa o contrato da rota existente, sem mudar
+backend, banco de dados, regras de pontuação, manifesto ou lockfile. A
+atualização automática de eventos de outros moradores enquanto a aba está
+aberta não foi implementada; nesses casos use Atualizar ou reabra a aba.

@@ -26,6 +26,8 @@ class ConsultaEmMemoria:
         self.acao = "select"
         self.campos = "*"
         self.filtros = []
+        self.contidos = []
+        self.intervalo = None
         self.ordens = []
         self.limite = None
         self.dados = None
@@ -36,6 +38,14 @@ class ConsultaEmMemoria:
 
     def eq(self, campo, valor):
         self.filtros.append((campo, valor))
+        return self
+
+    def in_(self, campo, valores):
+        self.contidos.append((campo, [str(valor) for valor in valores]))
+        return self
+
+    def range(self, inicio, fim):
+        self.intervalo = (inicio, fim + 1)
         return self
 
     def order(self, campo, desc=False):
@@ -61,7 +71,9 @@ class ConsultaEmMemoria:
         return self
 
     def _corresponde(self, registro):
-        return all(str(registro.get(campo)) == str(valor) for campo, valor in self.filtros)
+        return all(str(registro.get(c)) == str(v) for c, v in self.filtros) and all(
+            str(registro.get(c)) in v for c, v in self.contidos
+        )
 
     def execute(self):
         registros = self.banco.registros.setdefault(self.tabela, [])
@@ -95,6 +107,8 @@ class ConsultaEmMemoria:
 
         for campo, decrescente in reversed(self.ordens):
             selecionados.sort(key=lambda r: str(r.get(campo, "")), reverse=decrescente)
+        if self.intervalo is not None:
+            selecionados = selecionados[slice(*self.intervalo)]
         if self.limite is not None:
             selecionados = selecionados[: self.limite]
         if self.campos != "*":
@@ -243,3 +257,72 @@ def test_atualizar_regra_sem_campos_retorna_422(cenario):
 def test_admin_exclui_regra_e_regra_inexistente_retorna_404(cenario):
     assert cenario.cliente.delete(f"/regras-casa/{cenario.regra_id}").status_code == 204
     assert cenario.cliente.delete(f"/regras-casa/{cenario.regra_id}").status_code == 404
+
+
+def _aplicar_multa(c, **extra):
+    corpo = {
+        "fk_casa_id": str(c.casa_id),
+        "fk_regra_id": str(c.regra_id),
+        "fk_usuario_multado_id": str(c.morador_id),
+    } | extra
+    return c.cliente.post("/regras-casa/multas", json=corpo)
+
+
+def test_multa_copia_titulo_e_valor_da_regra_e_registra_aplicador(cenario):
+    r = _aplicar_multa(cenario, observacao="  de novo  ")
+    assert r.status_code == 201
+    multa = r.json()
+    assert multa["titulo_regra"] == "Louça na pia"
+    assert multa["valor_centavos"] == 1500
+    assert multa["fk_usuario_aplicador_id"] == str(cenario.admin_id)
+    assert multa["observacao"] == "de novo"
+    assert multa["paga"] is False and multa["pago_em"] is None
+    cenario.banco.registros["regra_casa"][0]["valor_multa_centavos"] = 9999
+    listadas = cenario.cliente.get(f"/regras-casa/casa/{cenario.casa_id}/multas").json()
+    assert listadas[0]["valor_centavos"] == 1500
+
+
+def test_multa_rejeita_regra_inativa_regra_de_outra_casa_e_multado_estranho(cenario):
+    inativa = _aplicar_multa(cenario, fk_regra_id=str(cenario.regra_inativa_id))
+    outra = _aplicar_multa(cenario, fk_regra_id=str(cenario.regra_outra_casa_id))
+    forasteiro = _aplicar_multa(cenario, fk_usuario_multado_id=str(cenario.forasteiro_id))
+    inativo = _aplicar_multa(cenario, fk_usuario_multado_id=str(cenario.inativo_id))
+    assert [r.status_code for r in (inativa, outra, forasteiro, inativo)] == [422] * 4
+
+
+def test_multa_regra_inexistente_retorna_404(cenario):
+    assert _aplicar_multa(cenario, fk_regra_id=str(uuid4())).status_code == 404
+
+
+def test_admin_marca_e_desmarca_multa_como_paga(cenario):
+    multa_id = _aplicar_multa(cenario).json()["id"]
+    paga = cenario.cliente.post(f"/regras-casa/multas/{multa_id}/pagar")
+    assert paga.status_code == 200
+    assert paga.json()["paga"] is True and paga.json()["pago_em"] is not None
+    desfeita = cenario.cliente.delete(f"/regras-casa/multas/{multa_id}/pagar")
+    assert desfeita.json()["paga"] is False and desfeita.json()["pago_em"] is None
+
+
+def test_morador_lista_multas_mas_nao_aplica_paga_nem_exclui(cenario):
+    multa_id = _aplicar_multa(cenario).json()["id"]
+    cenario.usuario_atual["id"] = cenario.morador_id
+    assert len(cenario.cliente.get(f"/regras-casa/casa/{cenario.casa_id}/multas").json()) == 1
+    resultados = [
+        _aplicar_multa(cenario).status_code,
+        cenario.cliente.post(f"/regras-casa/multas/{multa_id}/pagar").status_code,
+        cenario.cliente.delete(f"/regras-casa/multas/{multa_id}/pagar").status_code,
+        cenario.cliente.delete(f"/regras-casa/multas/{multa_id}").status_code,
+    ]
+    assert resultados == [403, 403, 403, 403]
+
+
+def test_admin_exclui_multa(cenario):
+    multa_id = _aplicar_multa(cenario).json()["id"]
+    assert cenario.cliente.delete(f"/regras-casa/multas/{multa_id}").status_code == 204
+    assert cenario.cliente.get(f"/regras-casa/casa/{cenario.casa_id}/multas").json() == []
+
+
+def test_regra_com_multa_nao_pode_ser_excluida(cenario):
+    _aplicar_multa(cenario)
+    assert cenario.cliente.delete(f"/regras-casa/{cenario.regra_id}").status_code == 409
+    assert len(cenario.banco.registros["multa_casa"]) == 1

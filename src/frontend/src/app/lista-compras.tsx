@@ -1,6 +1,4 @@
-import { Link } from "expo-router";
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   ChevronUp,
@@ -24,6 +22,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "zustand";
 
+import { BotaoVoltar } from "@/components/botao-voltar";
 import { MotionPressable } from "@/components/motion-pressable";
 import { Caldera, CompactFont, Spacing } from "@/constants/theme";
 import {
@@ -397,12 +396,7 @@ export default function ListaComprasScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
-          <Link href="/" asChild>
-            <MotionPressable accessibilityRole="button" style={styles.backLink}>
-              <ArrowLeft color={Caldera.obsidian} size={18} />
-              <Text style={styles.backText}>Voltar ao início</Text>
-            </MotionPressable>
-          </Link>
+          <BotaoVoltar />
 
           <View style={styles.heading}>
             <View style={styles.headingCopy}>
@@ -792,14 +786,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     gap: Spacing.four,
   },
-  backLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  backText: { color: Caldera.obsidian, fontSize: 16, fontWeight: "500" },
   heading: {
     flexDirection: "row",
     justifyContent: "space-between",
