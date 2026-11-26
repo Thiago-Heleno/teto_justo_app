@@ -85,7 +85,6 @@ export function CalendarioTarefas({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.caption}>Horários da casa · {casa.timezone}</Text>
       <View style={styles.controls}>
         <Switch
           accessibilityLabel="Somente minhas tarefas"
